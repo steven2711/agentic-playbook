@@ -42,7 +42,7 @@ export function existingRepo(): string {
   return makeRepo(files, 3);
 }
 
-/** A pnpm monorepo: a Next.js web app with scoped conventions, and an Express API with Prisma and none. */
+/** A pnpm monorepo: a Next.js web app with scoped conventions, strict off and some suppressions; an Express API with Prisma, strict on and no conventions. */
 export function monorepo(): string {
   return makeRepo({
     "package.json": JSON.stringify({ name: "mono", private: true, scripts: { test: "turbo test" } }),
@@ -51,7 +51,11 @@ export function monorepo(): string {
     ".claude/rules/web.md": "---\npaths:\n  - \"apps/web/**\"\n---\n# Web conventions\n\n- Fetch server data in server components (FE-03).\n",
     "apps/web/package.json": JSON.stringify({ name: "web", dependencies: { next: "15.0.0", react: "19.0.0" }, devDependencies: { typescript: "5.7.2" } }),
     "apps/web/app/page.tsx": "export default function Page() { return null }\n",
-    "apps/api/package.json": JSON.stringify({ name: "api", dependencies: { express: "4.21.0", "@prisma/client": "6.0.0" } }),
+    "apps/web/tsconfig.json": JSON.stringify({ compilerOptions: { strict: false } }),
+    "apps/web/app/legacy.ts": "// eslint-disable-next-line no-console\nconsole.log(1)\n/* eslint-disable */\n// eslint-disable-line\n// eslint-disable-next-line no-console -- startup banner\nconsole.log(2)\n",
+    "apps/web/app/legacy.test.ts": "it.skip('flaky', () => {})\n",
+    "apps/api/tsconfig.json": JSON.stringify({ compilerOptions: { strict: true, noUncheckedIndexedAccess: true } }),
+    "apps/api/package.json": JSON.stringify({ name: "api", dependencies: { express: "4.21.0", "@prisma/client": "6.0.0" }, devDependencies: { typescript: "5.7.2" } }),
     "apps/api/src/server.ts": "export {}\n",
     "apps/web/e2e/package.json": JSON.stringify({ name: "e2e" }),
   });

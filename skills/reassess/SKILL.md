@@ -26,11 +26,13 @@ Refresh the assessment against the current code. The assessment is read-only for
 
 5. If the changes touched an app's code or its conventions files, run the `conventions-advisor` for those app roots, following steps 3 to 4 of `${CLAUDE_PLUGIN_ROOT}/skills/conventions/SKILL.md`. Keep existing `CV-` IDs and decisions, and report contradictions that are new since the last run.
 
-6. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+6. Compare inline suppression counts (`agentic strictness`) with the counts in the current `ARC-08` evidence. Report any growth per app and kind as a regression, and record the new counts in the `ARC-08` evidence.
 
-7. Compare with the previous score history entry. List:
+7. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+
+8. Compare with the previous score history entry. List:
    - criteria that regressed (for example passed to failed), with evidence
    - resolved findings
    - new findings that need tasks. Offer `/agentic:plan` to schedule them.
 
-8. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.
+9. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.

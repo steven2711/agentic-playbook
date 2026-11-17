@@ -1,0 +1,121 @@
+stack: typescript
+title: TypeScript and JavaScript
+reviewed: 2026-11
+applies_when: [node]
+checks:
+  - id: STR-TS-01
+    title: TypeScript strict mode is on
+    tier: 1
+    applies_when: [typescript]
+    slop_prevented: Implicit any parameters, unchecked null and undefined access, and loosely typed callbacks that compile but fail at runtime.
+    enable: '"strict": true in the tsconfig every app extends (or extend @tsconfig/strictest)'
+    detect:
+      - { files: '(^|/)tsconfig[^/]*\.json$', pattern: '"strict"\s*:\s*true|@tsconfig/strictest' }
+    ratchet: Zero for new code. For a legacy app, track the remaining strict errors with Betterer's TypeScript test so the count can only fall.
+    cost: Low on new code. On legacy code, a one-off baseline and gradual fixes.
+    source: { title: "TSConfig reference: strict", url: "https://www.typescriptlang.org/tsconfig/#strict" }
+
+  - id: STR-TS-02
+    title: Indexed access includes undefined
+    tier: 1
+    applies_when: [typescript]
+    slop_prevented: Code that assumes arr[0] or record[key] exists, which agents write constantly and strict mode alone does not catch.
+    enable: '"noUncheckedIndexedAccess": true'
+    detect:
+      - { files: '(^|/)tsconfig[^/]*\.json$', pattern: '"noUncheckedIndexedAccess"\s*:\s*true|@tsconfig/strictest' }
+    ratchet: Zero for new apps. For a legacy app, Betterer's TypeScript test with this flag.
+    cost: Moderate churn on legacy code. Cheap at inception.
+    source: { title: "TSConfig reference: noUncheckedIndexedAccess", url: "https://www.typescriptlang.org/tsconfig/#noUncheckedIndexedAccess" }
+
+  - id: STR-TS-03
+    title: Type-aware lint catches unhandled promises and unsafe any
+    tier: 1
+    applies_when: [typescript]
+    slop_prevented: Forgotten await, promises passed where callbacks are expected, and any flowing silently through typed code.
+    enable: typescript-eslint recommendedTypeChecked (or strictTypeChecked) with parserOptions.projectService
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s|package\.json)$', pattern: 'recommendedTypeChecked|strictTypeChecked|recommended-type-checked|strict-type-checked|no-floating-promises' }
+    ratchet: ESLint bulk suppressions (eslint --suppress-all writes eslint-suppressions.json, counted per file and rule).
+    cost: Lint runs slower because it needs type information. Worth it; these are the bugs agents introduce most.
+    source: { title: "typescript-eslint: Linting with Type Information", url: "https://typescript-eslint.io/getting-started/typed-linting/" }
+
+  - id: STR-TS-04
+    title: Type-check suppressions need a reason
+    tier: 1
+    applies_when: [typescript]
+    slop_prevented: "@ts-ignore added to make a type error disappear, with no trace of why."
+    enable: "@typescript-eslint/ban-ts-comment (in recommended): @ts-ignore banned, @ts-expect-error allowed with a description"
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'tseslint\.configs\.|typescript-eslint|plugin:@typescript-eslint/|ban-ts-comment' }
+    ratchet: Zero. Existing @ts-ignore lines become @ts-expect-error with a reason in one pass.
+    cost: Low.
+    source: { title: "typescript-eslint: ban-ts-comment", url: "https://typescript-eslint.io/rules/ban-ts-comment/" }
+
+  - id: STR-TS-05
+    title: Unused variables and imports fail lint
+    tier: 1
+    slop_prevented: Leftover variables, imports and parameters from abandoned approaches, which agents leave behind after rewrites.
+    enable: "@typescript-eslint/no-unused-vars (in recommended) or noUnusedLocals and noUnusedParameters"
+    detect:
+      - { files: '(^|/)tsconfig[^/]*\.json$', pattern: '"noUnusedLocals"\s*:\s*true' }
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-unused-vars|tseslint\.configs\.|plugin:@typescript-eslint/|js\.configs\.recommended|eslint:recommended' }
+    ratchet: Zero. Unused code is auto-fixable or trivially deleted.
+    cost: Low.
+    source: { title: "typescript-eslint: no-unused-vars", url: "https://typescript-eslint.io/rules/no-unused-vars/" }
+
+  - id: STR-TS-06
+    title: Lint warnings fail the build
+    tier: 1
+    slop_prevented: Warnings accumulating unseen, including stale eslint-disable directives, because nothing fails on them.
+    enable: eslint --max-warnings 0 in the lint script (ESLint 9 reports unused disable directives as warnings by default)
+    detect:
+      - { files: '(^|/)package\.json$', pattern: 'max-warnings[ =]+0' }
+      - { files: '(^|/)(\.github/workflows/[^/]+|\.gitlab-ci\.yml)$', pattern: 'max-warnings[ =]+0' }
+    ratchet: Zero. Promote each warning rule to error or turn it off; a warning nobody acts on is noise.
+    cost: Low.
+    source: { title: "ESLint CLI: --max-warnings", url: "https://eslint.org/docs/latest/use/command-line-interface" }
+
+  - id: STR-TS-07
+    title: Dead exports, files and dependencies are detected
+    tier: 2
+    when: More than about 50 source files, or a monorepo with internal packages.
+    slop_prevented: Duplicate helpers and orphaned modules that agents create instead of finding the existing one.
+    enable: knip in CI
+    detect:
+      - { files: '(^|/)package\.json$', pattern: '"knip"' }
+      - { files: '(^|/)(knip\.jsonc?|\.knip\.jsonc?|knip\.config\.[cm]?[jt]s)$', pattern: '.' }
+    ratchet: knip's ignore lists, reviewed like a baseline, shrinking over time.
+    cost: Moderate setup for monorepos and framework entry points.
+    source: { title: "Knip", url: "https://knip.dev/" }
+
+  - id: STR-TS-08
+    title: Optional properties are exact
+    tier: 2
+    applies_when: [typescript]
+    when: Once Tier 1 is clean, for libraries and apps with rich domain types.
+    slop_prevented: Explicit undefined assigned to optional fields, hiding the difference between missing and unset.
+    enable: '"exactOptionalPropertyTypes": true'
+    detect:
+      - { files: '(^|/)tsconfig[^/]*\.json$', pattern: '"exactOptionalPropertyTypes"\s*:\s*true|@tsconfig/strictest' }
+    ratchet: Betterer's TypeScript test.
+    cost: High churn on legacy code and friction with some libraries.
+    source: { title: "TSConfig reference: exactOptionalPropertyTypes", url: "https://www.typescriptlang.org/tsconfig/#exactOptionalPropertyTypes" }
+
+  - id: STR-TS-09
+    title: Strict type-checked lint preset
+    tier: 2
+    applies_when: [typescript]
+    when: Once recommendedTypeChecked is clean.
+    slop_prevented: Unnecessary conditions, non-null assertions and other patterns that hide real type errors.
+    enable: typescript-eslint strictTypeChecked
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'strictTypeChecked|strict-type-checked' }
+    ratchet: ESLint bulk suppressions.
+    cost: More opinionated; some rules need tuning.
+    source: { title: "typescript-eslint: Shared Configs", url: "https://typescript-eslint.io/users/configs/" }
+
+not_recommended:
+  - practice: Turning on strictTypeChecked, stylistic presets and exactOptionalPropertyTypes all at once on a legacy app.
+    reason: Thousands of findings at once get baselined wholesale and nobody reads them. Enable Tier 1, reach zero or a baseline, then add the next rule.
+  - practice: Banning every eslint-disable comment.
+    reason: Some suppressions are correct. Require a reason and ratchet the count instead (ARC-08).

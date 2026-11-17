@@ -1,0 +1,40 @@
+stack: java
+title: Java and Kotlin on the JVM
+reviewed: 2026-11
+applies_when: [java]
+checks:
+  - id: STR-JAVA-01
+    title: Compiler warnings are errors
+    tier: 1
+    slop_prevented: Unchecked casts, raw types and deprecation warnings that accumulate silently.
+    enable: javac -Xlint:all -Werror (or allWarningsAsErrors for Kotlin)
+    detect:
+      - { files: '(^|/)(pom\.xml|build\.gradle(\.kts)?)$', pattern: 'Werror|allWarningsAsErrors' }
+    ratchet: Zero for new modules. Legacy modules opt in one at a time.
+    cost: Low.
+    source: { title: "javac command reference", url: "https://docs.oracle.com/en/java/javase/21/docs/specs/man/javac.html" }
+
+  - id: STR-JAVA-02
+    title: Error Prone runs at compile time
+    tier: 1
+    slop_prevented: Common bug patterns such as wrong equals, ignored return values and format-string mismatches.
+    enable: the Error Prone compiler plugin
+    detect:
+      - { files: '(^|/)(pom\.xml|build\.gradle(\.kts)?)$', pattern: 'errorprone|error_prone' }
+    ratchet: Zero for ERROR-level checks.
+    cost: Low once configured.
+    source: { title: "Error Prone", url: "https://errorprone.info/" }
+
+  - id: STR-JAVA-03
+    title: Null safety is checked
+    tier: 2
+    when: Once Error Prone is in place.
+    slop_prevented: NullPointerExceptions from unchecked nullable values.
+    enable: NullAway
+    detect:
+      - { files: '(^|/)(pom\.xml|build\.gradle(\.kts)?)$', pattern: 'NullAway|nullaway' }
+    ratchet: Annotated packages are added one at a time.
+    cost: Moderate annotation work.
+    source: { title: "NullAway", url: "https://github.com/uber/NullAway" }
+
+not_recommended: []

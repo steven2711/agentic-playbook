@@ -28,6 +28,16 @@ Every task with code changes also gets a conventions check:
 4. Without such a criterion, put conventions violations in your report as findings, not as task failures.
 5. In `--notes`, list any rule you checked by hand that a tool could check. Those are promotion candidates.
 
+## Check-weakening review
+
+For every task with code changes, compare the diff with its base for anything that makes a check easier to pass:
+- new inline suppressions (`eslint-disable`, `@ts-ignore` or `@ts-expect-error`, `# type: ignore`, `noqa`, `nolint`, `#[allow]`)
+- new skipped or focused tests, and deleted or weakened assertions
+- added baseline entries
+- relaxed lint, type-check or CI configuration
+
+Running `agentic strictness --json` before and after shows count changes. A suppression without a reason, or any weakening the task did not call for, fails the relevant acceptance criterion. Record it as evidence with `path:line`.
+
 If the milestone exit criteria are now provable, verify them the same way with `--milestone <id> --covers <M-NNN.Xn>`.
 
 When every acceptance criterion has passing evidence, complete the task yourself:
@@ -41,3 +51,4 @@ Return a short report to the caller with:
 - your overall verdict, pass or fail
 - any rubric criteria (by ID) whose status should change because of this task, with the evidence string to use
 - conventions violations and promotion candidates, each with its rule and `path:line`
+- any check weakening found, with `path:line`

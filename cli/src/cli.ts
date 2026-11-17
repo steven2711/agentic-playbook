@@ -8,7 +8,8 @@ import { locateStore, playbookRoot, type StoreLocation } from "./paths.js";
 import { createRecord, loadRecord, nextId, now, saveRecord } from "./record.js";
 import { renderHtml } from "./render.js";
 import { loadRubric } from "./rubric.js";
-import { scan, walk } from "./scan.js";
+import { scan, walk, type ScanResult } from "./scan.js";
+import { applicableChecks, assessStrictness, countSuppressions, lintStrictness, loadStrictness } from "./strictness.js";
 import { computeScore } from "./score.js";
 import { UsageError, type AssessmentRecord, type Mode, type WorkStatus } from "./types.js";
 import { validateRecord } from "./validate.js";
@@ -37,6 +38,9 @@ Execution
 Conventions
   conventions [--app <root>] [--json]          App roots, detected stack, conventions files, applicable baseline rules
 
+Strictness
+  strictness [--app <root>] [--json]           Per app: which tiered strictness checks are on, and inline suppression counts
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -46,7 +50,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions library
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions and strictness libraries
 `;
 
 type Args = { _: string[]; flags: Record<string, string | boolean> };
@@ -89,6 +93,19 @@ function withHints(result: ReturnType<typeof scan>) {
     if (c.probe && p) criteriaHints[c.id] = { probe: c.probe, ...p };
   }
   return { ...result, criteriaHints };
+}
+
+/** The strictness facts from the last scan, for the tracker. Null if no scan has run. */
+function strictnessSnapshot(store: StoreLocation) {
+  if (!existsSync(store.scanPath)) return null;
+  try {
+    const s = JSON.parse(readFileSync(store.scanPath, "utf8")) as ScanResult;
+    const apps = s.facts.strictness as never;
+    const suppressions = s.facts.suppressions as never;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions } : null;
+  } catch {
+    return null;
+  }
 }
 
 function staleness(store: StoreLocation, record: AssessmentRecord) {
@@ -134,13 +151,13 @@ export function main(argv: string[]): number {
     case "lint-playbook": {
       const root = resolve(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of lintLibrary(root).warnings) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `✗ ${p}`).join("\n"));
         console.error(`\n${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules).`);
+      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks).`);
       return 0;
     }
     case "rubric": {
@@ -218,6 +235,55 @@ export function main(argv: string[]): number {
         console.log(`  baseline rules that apply: ${a.rules.length} (${[...new Set(a.rules.map((r) => r.domain))].join(", ")})`);
         console.log(`  assessed: ${a.assessed.length ? Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ") : "not yet (run /agentic:conventions)"}`);
       }
+      return 0;
+    }
+    case "strictness": {
+      const store = locateStore(cwd);
+      const { files } = walk(store.repoRoot);
+      const read = (rel: string) => {
+        try {
+          return readFileSync(join(store.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadStrictness();
+      const only = str(args, "app");
+      const all = detectApps(files, read);
+      const apps = all.filter((a) => !only || a.root === only);
+      if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic strictness\` to list them.`);
+      const status = assessStrictness(lib, apps, files, read);
+      const sup = countSuppressions(all, files, read);
+      const out = apps.map((a, i) => ({
+        root: a.root,
+        signals: a.signals,
+        checks: status[i]!.checks.map((c) => {
+          const full = lib.checks.get(c.id)!;
+          return { ...c, when: full.when, slop_prevented: full.slop_prevented, enable: full.enable, ratchet: full.ratchet, cost: full.cost, source: full.source };
+        }),
+        suppressions: sup.byApp[a.root] ?? {},
+      }));
+      const notRecommended = lib.profiles
+        .filter((p) => apps.some((a) => applicableChecks({ profiles: [p], checks: new Map() }, new Set(a.signals)).length))
+        .flatMap((p) => p.not_recommended);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ apps: out, suppressions: { total: sup.total, undescribed: sup.undescribed, descriptionRules: sup.descriptionRules, baselines: sup.baselines }, notRecommended }, null, 2));
+        return 0;
+      }
+      for (const a of out) {
+        const t1 = a.checks.filter((c) => c.tier === 1);
+        const off1 = t1.filter((c) => c.status === "off");
+        console.log(`${a.root}  [${a.signals.filter((x) => x !== "any").join(", ") || "no stack signals"}]`);
+        console.log(`  Tier 1 (always): ${t1.length - off1.length}/${t1.length} on`);
+        for (const c of off1) console.log(`    ✗ ${c.id} ${c.title}: ${c.enable}`);
+        const t2 = a.checks.filter((c) => c.tier === 2);
+        for (const c of t2) console.log(`  Tier 2 ${c.status === "on" ? "✓" : "·"} ${c.id} ${c.title}${c.status === "on" ? "" : ` (when: ${c.when})`}`);
+        for (const c of a.checks.filter((x) => x.tier === 3 && x.status === "on")) console.log(`  Tier 3 ✓ ${c.id} ${c.title}`);
+        const kinds = Object.entries(a.suppressions);
+        console.log(`  inline suppressions: ${kinds.length ? kinds.map(([k, v]) => `${v.total} ${k}${v.undescribed ? ` (${v.undescribed} without reason)` : ""}`).join(", ") : "none found"}`);
+      }
+      console.log(`rules requiring a reason: ${sup.descriptionRules.join(", ") || "none"}`);
+      console.log(`suppression baselines: ${sup.baselines.join(", ") || "none"}`);
       return 0;
     }
     case "adopt": {
@@ -367,7 +433,7 @@ export function main(argv: string[]): number {
       const st = staleness(store, record);
       const out = resolve(str(args, "out") ?? join(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
       mkdirSync(dirname(out), { recursive: true });
-      writeFileSync(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind }));
+      writeFileSync(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
       console.log(out);
       return 0;
     }

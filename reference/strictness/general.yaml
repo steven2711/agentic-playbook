@@ -1,0 +1,133 @@
+stack: general
+title: Any stack
+reviewed: 2026-11
+applies_when: [any]
+checks:
+  - id: STR-GEN-01
+    title: The fast checks run where the agent works
+    tier: 1
+    slop_prevented: An agent finishing a task without running lint and type checks, so the failure appears only in CI after it has moved on.
+    enable: A Claude Code Stop or PostToolUse hook, or a pre-commit hook, that runs format, lint and type check on changed files
+    detect:
+      - { files: '(^|/)\.claude/settings[^/]*\.json$', pattern: '"(Stop|PostToolUse|SubagentStop)"' }
+      - { files: '(^|/)(\.pre-commit-config\.yaml|lefthook\.ya?ml|\.lefthook\.ya?ml|\.husky/pre-commit|\.lintstagedrc[^/]*)$', pattern: '.' }
+      - { files: '(^|/)package\.json$', pattern: '"(lint-staged|simple-git-hooks)"' }
+    ratchet: Not a ratchet. It shortens the feedback loop for the checks that already gate CI.
+    cost: Low. Keep it to checks that finish in seconds on changed files.
+    source: { title: "Claude Code: Hooks reference", url: "https://code.claude.com/docs/en/hooks" }
+
+  - id: STR-GEN-02
+    title: Focused tests fail the build
+    tier: 1
+    applies_when: [node]
+    slop_prevented: A test.only or fit left in after debugging, which silently stops the rest of the suite from running.
+    enable: Vitest already rejects .only in CI. With Jest, use eslint-plugin-jest no-focused-tests. With Playwright, set forbidOnly when CI is set.
+    detect:
+      - { files: '(^|/)package\.json$', pattern: '"vitest"' }
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-focused-tests' }
+      - { files: '(^|/)playwright\.config\.[cm]?[jt]s$', pattern: 'forbidOnly' }
+    ratchet: Zero.
+    cost: None.
+    source: { title: "eslint-plugin-jest: no-focused-tests", url: "https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/no-focused-tests.md" }
+
+  - id: STR-GEN-03
+    title: Skipped tests are linted and counted
+    tier: 1
+    applies_when: [node]
+    slop_prevented: A failing test marked .skip to make the suite pass. This is one of the commonest ways an agent fakes success.
+    enable: eslint-plugin-jest or @vitest/eslint-plugin no-disabled-tests as an error, with skips allowed only through a described eslint-disable
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-disabled-tests' }
+    ratchet: Skips are counted by the suppressions probe and ratcheted with them (ARC-08).
+    cost: Low.
+    source: { title: "eslint-plugin-jest: no-disabled-tests", url: "https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/no-disabled-tests.md" }
+
+  - id: STR-GEN-04
+    title: Tests contain assertions
+    tier: 2
+    applies_when: [node]
+    when: Once agents write a meaningful share of the tests.
+    slop_prevented: Tests that call code and assert nothing, which pass forever and inflate coverage.
+    enable: expect-expect from eslint-plugin-jest or @vitest/eslint-plugin
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'expect-expect|jest\.configs|vitest\.configs|plugin:jest/' }
+    ratchet: Zero.
+    cost: Low; configure assertFunctionNames for custom helpers.
+    source: { title: "eslint-plugin-jest: expect-expect", url: "https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/expect-expect.md" }
+
+  - id: STR-GEN-05
+    title: Changed lines need test coverage
+    tier: 2
+    when: The suite has real tests (VER-08 is active).
+    slop_prevented: New branches and error paths merged with no test at all.
+    enable: diff-cover or the coverage service's patch check, with a modest threshold on changed lines only
+    detect:
+      - { files: '(^|/)(\.github/workflows/[^/]+|codecov\.ya?ml|\.codecov\.ya?ml|\.gitlab-ci\.yml)$', pattern: 'diff-cover|diff_cover|patch:' }
+    ratchet: Applies to changed lines only, so legacy coverage never blocks a change.
+    cost: Low once coverage is collected.
+    source: { title: "diff_cover", url: "https://github.com/Bachmann1234/diff_cover" }
+
+  - id: STR-GEN-06
+    title: Module boundaries are enforced by a tool
+    tier: 2
+    when: At least two documented layers or packages with a dependency rule between them (see ARC-01).
+    slop_prevented: An agent importing the database client into a UI component, or a domain module into a route, because it was the shortest path.
+    enable: dependency-cruiser, eslint-plugin-boundaries, import-linter, Nx module boundaries or ArchUnit
+    detect:
+      - { files: '(^|/)(\.dependency-cruiser\.[cm]?js(on)?|\.importlinter|\.sheriff\.json|tach\.toml)$', pattern: '.' }
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'boundaries|no-restricted-paths|enforce-module-boundaries' }
+      - { files: '(^|/)pyproject\.toml$', pattern: '\[tool\.importlinter\]' }
+    ratchet: Zero for new rules. The tool's known-violations file for legacy code.
+    cost: Moderate. Only worth it once the layers it protects are written down.
+    source: { title: "Software Engineering at Google, ch. 20: Static Analysis", url: "https://abseil.io/resources/swe-book/html/ch20.html" }
+
+  - id: STR-GEN-07
+    title: Mutation testing on changed code
+    tier: 3
+    when: Only after a defect escaped a suite that had full line coverage of the code involved, in a high-consequence module.
+    slop_prevented: Tests that execute code without checking its behaviour.
+    enable: Stryker, mutmut or PIT, run nightly or on changed files only, reported in review rather than gating
+    detect:
+      - { files: '(^|/)(package\.json|stryker\.conf[^/]*|pyproject\.toml|setup\.cfg|pom\.xml|build\.gradle(\.kts)?)$', pattern: 'stryker|mutmut|pitest|cosmic-ray' }
+    ratchet: None. Findings are advisory.
+    cost: High CPU time and noisy without tuning.
+    source: { title: "Google Testing Blog: Mutation Testing", url: "https://testing.googleblog.com/2021/04/mutation-testing.html" }
+
+  - id: STR-GEN-08
+    title: Duplication detection
+    tier: 3
+    when: Reviews repeatedly find copy-pasted logic that a shared helper already covers.
+    slop_prevented: Agents re-implementing a helper that exists elsewhere in the repository.
+    enable: jscpd on changed files with a threshold
+    detect:
+      - { files: '(^|/)package\.json$', pattern: 'jscpd' }
+      - { files: '(^|/)\.jscpd\.json$', pattern: '.' }
+    ratchet: Threshold that only decreases.
+    cost: Moderate noise from legitimate repetition such as tests and schemas.
+    source: { title: "jscpd", url: "https://github.com/kucherenko/jscpd" }
+
+  - id: STR-GEN-09
+    title: Complexity caps
+    tier: 3
+    when: Specific modules keep growing functions that reviews flag as too complex to change safely.
+    slop_prevented: Ever-growing functions with nested branching.
+    enable: ESLint complexity or max-lines-per-function as an error, scoped to the affected paths
+    detect:
+      - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s|pyproject\.toml|ruff\.toml|\.golangci\.(ya?ml|toml))$', pattern: '\bcomplexity\b|max-lines-per-function|"C90"|gocyclo|gocognit' }
+    ratchet: ESLint bulk suppressions.
+    cost: Thresholds are arbitrary and invite workarounds that make code worse.
+    source: { title: "ESLint: complexity", url: "https://eslint.org/docs/latest/rules/complexity" }
+
+not_recommended:
+  - practice: A mandated coverage percentage for the whole repository, especially 100%.
+    reason: A global number invites assertion-free tests written to hit it. Google's published guidance avoids top-down coverage mandates; measure coverage of changed lines instead (STR-GEN-05).
+    source: { title: "Google Testing Blog: Code Coverage Best Practices", url: "https://testing.googleblog.com/2020/08/code-coverage-best-practices.html" }
+  - practice: Custom scripts that track individual violation identities when the tool has a native baseline.
+    reason: ESLint bulk suppressions, basedpyright baselines, golangci-lint new-from-merge-base and Betterer already fail new violations per file and rule. Custom tooling is code to maintain for little extra protection.
+    source: { title: "ESLint: Bulk Suppressions", url: "https://eslint.org/docs/latest/use/suppressions" }
+  - practice: Mutation testing as a required check on every pull request.
+    reason: It is slow and noisy. Google surfaces mutants on changed lines during review rather than gating on them.
+    source: { title: "Google Testing Blog: Mutation Testing", url: "https://testing.googleblog.com/2021/04/mutation-testing.html" }
+  - practice: Adding a check with a high false-positive rate.
+    reason: Developers and agents learn to suppress noisy checks, which erodes trust in all of them. Only add checks whose findings are almost always worth fixing.
+    source: { title: "Software Engineering at Google, ch. 20: Static Analysis", url: "https://abseil.io/resources/swe-book/html/ch20.html" }

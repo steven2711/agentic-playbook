@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { commitCount, defaultBranch, headRevision, remoteUrl } from "./git.js";
 import { detectApps } from "./conventions.js";
+import { assessStrictness, countSuppressions, loadStrictness } from "./strictness.js";
 import type { CriterionStatus, Mode } from "./types.js";
 
 /**
@@ -25,7 +26,7 @@ export const PROBES = [
   "claude_md", "agent_guidance_sources", "scoped_rules", "canonical_commands", "claude_md_commands", "reproducible_setup",
   "ci_runs_checks", "doc_checks", "ci_permissions", "boundary_tooling", "baselines", "codeowners", "architecture_docs",
   "secret_scanning", "dependency_scanning", "agent_settings", "policy_hooks", "coverage", "eval_cases", "branch_protection",
-  "conventions",
+  "conventions", "strictness", "suppressions",
 ] as const;
 
 export interface ProbeResult {
@@ -157,6 +158,36 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
       ...(uncovered.length ? [`no scoped conventions for: ${uncovered.map((a) => a.root).join(", ")}`] : []),
     ],
     note: "Presence only. The context auditor judges content; the conventions-advisor compares it with the baseline library.",
+  };
+
+  // ---------- strictness profile & inline suppressions per app
+  const strictness = assessStrictness(loadStrictness(), apps, files, (rel) => read(root, rel));
+  facts.strictness = strictness;
+  const tier1 = strictness.flatMap((a) => a.checks.filter((c) => c.tier === 1).map((c) => ({ ...c, app: a.root })));
+  const tier1Off = tier1.filter((c) => c.status === "off");
+  probes.strictness = {
+    status: tier1.length && tier1Off.length === 0 ? "partial" : "failed",
+    evidence: [
+      ...strictness.map((a) => {
+        const t1 = a.checks.filter((c) => c.tier === 1);
+        const off = t1.filter((c) => c.status === "off");
+        return `${a.root}: Tier 1 ${t1.length - off.length}/${t1.length} on${off.length ? `; off: ${off.map((c) => `${c.id} ${c.title}`).join("; ")}` : ""}`;
+      }),
+    ],
+    note: "Config presence only. The verification auditor confirms CI runs these at zero or behind a tool-native baseline. Run `agentic strictness` for the per-app list.",
+  };
+  const sup = countSuppressions(apps, files, (rel) => read(root, rel));
+  facts.suppressions = sup;
+  const guarded = sup.descriptionRules.length > 0 || sup.baselines.length > 0;
+  probes.suppressions = {
+    status: sup.total === 0 || sup.undescribed === 0 || guarded ? "partial" : "failed",
+    evidence: [
+      `${sup.total} inline suppressions (${sup.undescribed} without a reason or specific rule) in ${sup.filesScanned} files${sup.truncated ? " (truncated)" : ""}`,
+      ...Object.entries(sup.byApp).map(([app, kinds]) => `${app}: ${Object.entries(kinds).map(([k, v]) => `${v.total} ${k}`).join(", ")}`),
+      `rules requiring a reason: ${sup.descriptionRules.join(", ") || "none"}`,
+      `suppression baselines: ${sup.baselines.join(", ") || "none"}`,
+    ],
+    note: "Counts are textual and may include matches inside strings. The auditor confirms whether growth is blocked (ARC-08).",
   };
 
   // ---------- manifests & commands

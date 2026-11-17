@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { lintLibrary } from "../src/conventions.js";
+import { lintStrictness } from "../src/strictness.js";
 import { lintPlaybook } from "../src/lint.js";
 import { playbookRoot } from "../src/paths.js";
 import { loadRubric } from "../src/rubric.js";
@@ -293,5 +294,76 @@ describe("engineering conventions", () => {
     const r = readRecord(repo);
     expect(r.criteria.find((c) => c.id === "VER-09")!.status).toBe("deferred");
     expect(r.criteria.find((c) => c.id === "CTX-12")!.status).toBe("unverified");
+  });
+});
+
+describe("strictness and suppressions", () => {
+  const copyPlaybook = () => {
+    const copy = mkdtempSync(join(tmpdir(), "agentic-pb-"));
+    for (const d of ["rubric", "standards", "schema", "reference", "templates"]) cpSync(join(playbookRoot(), d), join(copy, d), { recursive: true });
+    return copy;
+  };
+
+  it("the strictness library lints clean, and rejects missing triggers, bad regexes and stale reviews", () => {
+    expect(lintStrictness(playbookRoot())).toEqual({ problems: [], warnings: [] });
+    const copy = copyPlaybook();
+    const f = join(copy, "reference", "strictness", "general.yaml");
+    writeFileSync(f, readFileSync(f, "utf8").replace(/    when: More than about.*\n/, "").replace("    when: Once agents write a meaningful share of the tests.\n", "").replace("'expect-expect|", "'(expect-expect|"));
+    const { problems } = lintStrictness(copy);
+    expect(problems.some((p) => p.includes("STR-GEN-04") && p.includes('"when"'))).toBe(true);
+    expect(problems.some((p) => p.includes("STR-GEN-04") && p.includes("not a valid JavaScript regex"))).toBe(true);
+    expect(lintStrictness(playbookRoot(), new Date("2028-06-01")).warnings[0]).toContain("last reviewed");
+  });
+
+  it("reports Tier 1 checks and inline suppressions per app", () => {
+    const repo = monorepo();
+    const out = JSON.parse(run(repo, "strictness", "--json").out);
+    const apps = Object.fromEntries(out.apps.map((a: { root: string }) => [a.root, a]));
+    const check = (app: string, id: string) => apps[app].checks.find((c: { id: string }) => c.id === id);
+    expect(check("apps/web", "STR-TS-01").status).toBe("off");
+    expect(check("apps/api", "STR-TS-01")).toMatchObject({ status: "on", evidence: "apps/api/tsconfig.json" });
+    expect(check("apps/api", "STR-TS-02").status).toBe("on");
+    expect(check("apps/web", "STR-PY-01")).toBeUndefined(); // only the app's own stack
+    expect(apps["apps/web"].suppressions["eslint-disable"]).toEqual({ total: 4, undescribed: 3 });
+    expect(apps["apps/web"].suppressions["skipped-test"]).toEqual({ total: 1, undescribed: 1 });
+    expect(apps["apps/api"].suppressions).toEqual({});
+    expect(out.notRecommended.some((n: { practice: string }) => /100%/.test(n.practice))).toBe(true);
+    expect(run(repo, "strictness").out).toContain("✗ STR-TS-01 TypeScript strict mode is on");
+
+    run(repo, "init");
+    const before = run(repo, "score", "--json").out;
+    const scan = JSON.parse(run(repo, "scan", "--json").out);
+    expect(scan.probes.strictness.status).toBe("failed");
+    expect(scan.probes.strictness.evidence.join(" ")).toContain("apps/web: Tier 1");
+    expect(scan.probes.suppressions.status).toBe("failed");
+    expect(scan.probes.suppressions.evidence[0]).toContain("5 inline suppressions (4 without a reason");
+    expect(scan.criteriaHints["VER-10"].probe).toBe("strictness");
+    expect(scan.criteriaHints["ARC-08"].probe).toBe("suppressions");
+    expect(JSON.parse(run(repo, "score", "--json").out).score).toBe(JSON.parse(before).score); // facts never score by themselves
+
+    const html = join(mkdtempSync(join(tmpdir(), "agentic-r-")), "v.html");
+    run(repo, "render", "--out", html);
+    const page = readFileSync(html, "utf8");
+    expect(page).toContain("strictnessPanel");
+    expect(page).toContain("STR-TS-01");
+  });
+
+  it("a reason-requiring rule or a baseline turns the suppressions hint from failed to partial", () => {
+    const repo = makeRepo({
+      "package.json": JSON.stringify({ name: "x", devDependencies: { typescript: "5.7.2" } }),
+      "eslint.config.mjs": "export default [{ rules: { '@eslint-community/eslint-comments/require-description': 'error' } }]\n",
+      "src/a.ts": "// eslint-disable-next-line no-console\nconsole.log(1)\n",
+    });
+    const scan = JSON.parse(run(repo, "scan", "--json").out);
+    expect(scan.probes.suppressions.status).toBe("partial");
+    expect(scan.probes.suppressions.evidence.join(" ")).toContain("eslint-comments/require-description");
+  });
+
+  it("keeps strictness applicable in greenfield, where it is cheapest", () => {
+    const repo = makeRepo(GREENFIELD);
+    run(repo, "init");
+    const r = readRecord(repo);
+    expect(r.criteria.find((c) => c.id === "VER-10")!.status).toBe("unverified");
+    expect(r.criteria.find((c) => c.id === "ARC-08")!.status).toBe("unverified");
   });
 });

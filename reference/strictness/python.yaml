@@ -1,0 +1,57 @@
+stack: python
+title: Python
+reviewed: 2026-11
+applies_when: [python]
+checks:
+  - id: STR-PY-01
+    title: A type checker runs in strict mode
+    tier: 1
+    slop_prevented: Untyped functions, Optional values used without checks, and wrong argument types that only fail in production.
+    enable: mypy with strict = true, or pyright or basedpyright with typeCheckingMode standard or stricter
+    detect:
+      - { files: '(^|/)(pyproject\.toml|mypy\.ini|\.mypy\.ini|setup\.cfg)$', pattern: '\[(tool\.)?mypy\][\s\S]*strict\s*=\s*[Tt]rue' }
+      - { files: '(^|/)(pyproject\.toml|pyrightconfig\.json)$', pattern: 'typeCheckingMode[" ]*[=:]\s*"(standard|strict|recommended|all)"' }
+      - { files: '(^|/)(\.github/workflows/[^/]+|\.pre-commit-config\.yaml|Makefile|tox\.ini|noxfile\.py)$', pattern: 'mypy[^\n]*--strict' }
+    ratchet: Zero for new modules. For legacy code, basedpyright --baselinefile, or mypy per-module overrides that are removed one at a time.
+    cost: Low on new code; gradual on legacy code (mypy documents the per-module approach).
+    source: { title: "mypy: Using mypy with an existing codebase", url: "https://mypy.readthedocs.io/en/stable/existing_code.html" }
+
+  - id: STR-PY-02
+    title: Ruff runs bug-finding rules, not only style
+    tier: 1
+    slop_prevented: Mutable default arguments, unused imports and variables, broad except clauses and outdated idioms.
+    enable: 'ruff lint select including "F", "B", "UP", "SIM" (and "PT" with pytest)'
+    detect:
+      - { files: '(^|/)(pyproject\.toml|ruff\.toml|\.ruff\.toml)$', pattern: 'select\s*=\s*\[[^\]]*"B"' }
+    ratchet: Zero for most rules (many are auto-fixable). ruff --add-noqa for the rest, which ARC-08 then counts.
+    cost: Low; ruff is fast enough for every save.
+    source: { title: "Ruff: Rules", url: "https://docs.astral.sh/ruff/rules/" }
+
+  - id: STR-PY-03
+    title: Suppressions name the rule they silence
+    tier: 1
+    slop_prevented: "Blanket # noqa or # type: ignore that silences every current and future error on the line."
+    enable: 'ruff rules PGH003 and PGH004 (select "PGH"), or mypy enable_error_code = ["ignore-without-code"]'
+    detect:
+      - { files: '(^|/)(pyproject\.toml|ruff\.toml|\.ruff\.toml)$', pattern: '"PGH|"ALL"' }
+      - { files: '(^|/)(pyproject\.toml|mypy\.ini|setup\.cfg)$', pattern: 'ignore-without-code' }
+    ratchet: Zero.
+    cost: Low.
+    source: { title: "Ruff: blanket-noqa (PGH004)", url: "https://docs.astral.sh/ruff/rules/blanket-noqa/" }
+
+  - id: STR-PY-04
+    title: Dead code is detected
+    tier: 2
+    when: More than about 50 modules.
+    slop_prevented: Orphaned functions and duplicate helpers.
+    enable: vulture in CI with a reviewed whitelist
+    detect:
+      - { files: '(^|/)(pyproject\.toml|\.pre-commit-config\.yaml|\.github/workflows/[^/]+)$', pattern: '\bvulture\b' }
+    ratchet: The whitelist file, reviewed like a baseline.
+    cost: Moderate false positives with frameworks that use reflection.
+    source: { title: "Vulture", url: "https://github.com/jendrikseipp/vulture" }
+
+not_recommended:
+  - practice: Requiring mypy --strict across a large legacy codebase in one change.
+    reason: mypy's own guidance is to start with a basic configuration and tighten per module. A single giant change gets reverted or blanket-ignored.
+    source: { title: "mypy: Using mypy with an existing codebase", url: "https://mypy.readthedocs.io/en/stable/existing_code.html" }

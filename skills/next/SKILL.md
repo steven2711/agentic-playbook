@@ -26,6 +26,7 @@ Implement one roadmap task. Requested task: `$ARGUMENTS` (empty means the next r
    - Plan briefly before editing.
    - Keep the change scoped to the acceptance criteria: no unrelated refactors and no new abstractions the task does not need.
    - If requirements or architectural intent are ambiguous, stop and ask. Do not guess.
+   - Never make a check pass by weakening it. That means no new `eslint-disable`, `@ts-ignore`, `# type: ignore`, `noqa`, `nolint`, skipped or focused tests, baseline entries or relaxed configuration. If a suppression is genuinely right, it names the rule and gives a reason, and you list it in your summary.
 
 5. Verify deterministically:
    - Run the repository's canonical checks plus the task's verification steps.

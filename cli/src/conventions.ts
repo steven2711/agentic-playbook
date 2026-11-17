@@ -83,6 +83,13 @@ export function loadLibrary(root = playbookRoot()): Library {
   return lib;
 }
 
+/** Whole months between a YYYY-MM review date and today, or null if the date is malformed. */
+export function monthsSince(reviewed: string, today = new Date()): number | null {
+  const m = reviewed.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  return (today.getUTCFullYear() - Number(m[1])) * 12 + (today.getUTCMonth() + 1 - Number(m[2]));
+}
+
 /** Problems fail lint-playbook; warnings (stale review dates) are printed but do not fail. */
 export function lintLibrary(root: string, today = new Date()): { problems: string[]; warnings: string[] } {
   const problems: string[] = [];
@@ -100,12 +107,9 @@ export function lintLibrary(root: string, today = new Date()): { problems: strin
     }
     if (d.domain !== basename(d.file, ".yaml")) problems.push(`conventions: ${where} domain "${d.domain}" does not match its file name`);
     if (!d.title) problems.push(`conventions: ${where} has no title`);
-    const m = d.reviewed.match(/^(\d{4})-(\d{2})$/);
-    if (!m) problems.push(`conventions: ${where} reviewed must be YYYY-MM (got "${d.reviewed}")`);
-    else {
-      const months = (today.getUTCFullYear() - Number(m[1])) * 12 + (today.getUTCMonth() + 1 - Number(m[2]));
-      if (months > 12) warnings.push(`conventions: ${where} was last reviewed ${d.reviewed} (${months} months ago); re-check its rules and sources`);
-    }
+    const months = monthsSince(d.reviewed, today);
+    if (months === null) problems.push(`conventions: ${where} reviewed must be YYYY-MM (got "${d.reviewed}")`);
+    else if (months > 12) warnings.push(`conventions: ${where} was last reviewed ${d.reviewed} (${months} months ago); re-check its rules and sources`);
     if (!d.applies_when.length) problems.push(`conventions: ${where} has no applies_when`);
     for (const s of d.applies_when) if (!known.has(s)) problems.push(`conventions: ${where} uses unknown signal "${s}"`);
     if (!d.rules.length) problems.push(`conventions: ${where} has no rules`);

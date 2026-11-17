@@ -1,6 +1,7 @@
 import { loadLibrary } from "./conventions.js";
 import { computeScore } from "./score.js";
 import { loadRubric } from "./rubric.js";
+import type { AppStrictness, SuppressionReport } from "./strictness.js";
 import type { AssessmentRecord } from "./types.js";
 
 /**
@@ -8,7 +9,14 @@ import type { AssessmentRecord } from "./types.js";
  * the page never fetches. Changes happen through Claude Code commands and a
  * republish, so the header always states which record revision it shows.
  */
-export function renderHtml(record: AssessmentRecord, opts: { headRevision: string | null; commitsBehind: number | null }): string {
+export interface StrictnessSnapshot {
+  scannedAt: string;
+  revision: string | null;
+  apps: AppStrictness[];
+  suppressions: SuppressionReport;
+}
+
+export function renderHtml(record: AssessmentRecord, opts: { headRevision: string | null; commitsBehind: number | null; strictness?: StrictnessSnapshot | null }): string {
   const rubric = loadRubric();
   const payload = {
     record,
@@ -20,6 +28,7 @@ export function renderHtml(record: AssessmentRecord, opts: { headRevision: strin
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       }),
     ),
+    strictness: opts.strictness ?? null,
     renderedAt: new Date().toISOString(),
     headRevision: opts.headRevision,
     commitsBehind: opts.commitsBehind,
@@ -223,7 +232,29 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       }).join("");
       return '<div class="panel" style="display:grid;gap:10px"><h2>' + esc(d.name) + '</h2><div class="table"><table><thead><tr><th>ID</th><th>Criterion</th><th>Priority</th><th>Gate</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
     }).join("");
-    return dims;
+    return dims + strictnessPanel();
+  }
+
+  function strictnessPanel() {
+    var ST = D.strictness;
+    if (!ST || !ST.apps || !ST.apps.length) return "";
+    var sup = (ST.suppressions && ST.suppressions.byApp) || {};
+    var apps = ST.apps.map(function (a) {
+      var shown = a.checks.filter(function (c) { return c.tier < 3 || c.status === "on"; });
+      var t1 = a.checks.filter(function (c) { return c.tier === 1; });
+      var on1 = t1.filter(function (c) { return c.status === "on"; }).length;
+      var rows = shown.map(function (c) {
+        var st = c.status === "on" ? pill("passed", "on") : c.tier === 1 ? pill("failed", "off") : pill("deferred", "not yet");
+        return "<tr><td><code>" + esc(c.id) + "</code></td><td>" + esc(c.title) + (c.evidence ? '<div class="muted" style="font-size:.8rem">' + esc(c.evidence) + "</div>" : "") + '</td><td class="num">' + esc(c.tier) + "</td><td>" + st + "</td></tr>";
+      }).join("");
+      var kinds = sup[a.root] || {};
+      var supLine = Object.keys(kinds).map(function (k) { return esc(kinds[k].total) + " " + esc(k) + (kinds[k].undescribed ? " (" + esc(kinds[k].undescribed) + " without reason)" : ""); }).join(", ") || "none found";
+      return '<div style="display:grid;gap:6px"><h3 style="margin:0;font-size:1rem"><code>' + esc(a.root) + '</code> <span class="muted" style="font-weight:500;font-size:.85rem">Tier 1: ' + on1 + "/" + t1.length + ' on</span></h3>' +
+        '<div class="muted" style="font-size:.84rem">Inline suppressions: ' + supLine + "</div>" +
+        '<div class="table"><table><thead><tr><th>Check</th><th>Title</th><th>Tier</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+    }).join("");
+    return '<div class="panel" style="display:grid;gap:14px"><h2>Strictness profile</h2><p class="muted" style="margin:0;font-size:.84rem">From the scan of ' + esc(short(ST.revision)) + " at " + esc(when(ST.scannedAt)) +
+      ". Tier 1 is always worth it; Tier 2 when the repository needs it; Tier 3 only after a recurring defect. Config presence only: the auditor confirms CI enforcement.</p>" + apps + "</div>";
   }
 
   function sel(key, opts) {

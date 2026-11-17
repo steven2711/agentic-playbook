@@ -39,7 +39,7 @@ A SessionStart hook runs in any repo that has a record. It warns when HEAD has m
 
 ## The score
 
-[rubric/rubric.yaml](rubric/rubric.yaml) turns the four standards into 47 criteria across six dimensions:
+[rubric/rubric.yaml](rubric/rubric.yaml) turns the four standards into 49 criteria across six dimensions:
 
 - Context
 - Verification and CI
@@ -98,6 +98,29 @@ Every rule links its public source, and none claims knowledge of a company's int
 
 **Nothing is imposed.** Recommendations stay `proposed` until you accept them. `/agentic:plan` then creates a "Draft conventions for <app>" task (requires approval) and "Promote <rule> to <tool>" tasks. `/agentic:next` reads the conventions before it edits, and the independent verifier reviews the diff against them.
 
+## Strictness and ratcheting
+
+The checks that stop agent mistakes are mostly strictness settings: strict type checking, type-aware lint, and test runners that reject focused or skipped tests. Whether a lint step exists says little on its own. [reference/strictness/](reference/strictness/README.md) lists these checks per stack in three cost tiers:
+
+- **Tier 1, always:** cheap and rarely wrong. Rubric `VER-10` (P0, gate L2) requires these.
+- **Tier 2, when the repository needs it:** for example dead-code detection once there are more than about 50 source files.
+- **Tier 3, only after a recurring defect:** for example mutation testing on changed code.
+
+Each profile also lists practices that are **not recommended** because they cost more than they catch. Examples are a 100% coverage mandate, mutation testing on every PR, and custom ratchet scripts where a tool already has a baseline.
+
+The ratchet is kept simple:
+
+- **New rules start at zero.**
+- **Legacy violations go into the tool's own baseline** (ESLint bulk suppressions, Betterer, basedpyright, golangci-lint `new-from-merge-base`).
+- **Inline suppressions need a reason and cannot grow unreviewed** (rubric `ARC-08`).
+
+`agentic strictness` shows, per app, which checks are on and how many `eslint-disable`, `@ts-ignore`, `noqa`, `nolint` and skipped tests exist.
+
+During execution:
+
+- **Implementer:** `/agentic:next` may not make a check pass by weakening it.
+- **Verifier:** the independent verifier inspects each diff for new suppressions, skipped tests and relaxed configuration.
+
 ## Guarantees the CLI enforces
 
 - **Assessment is read-only.** The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
@@ -116,6 +139,7 @@ The plugin puts `agentic` on PATH for Claude's Bash tool, through `bin/`. You ca
 agentic init | scan [--github] | apply <patch> | task <id> <status> | evidence ... | next
 agentic score | status [--brief] | render | published --url | validate | adopt | where | show <id>
 agentic conventions [--app <root>] [--json]
+agentic strictness [--app <root>] [--json]
 agentic lint-playbook
 ```
 
@@ -130,7 +154,7 @@ The patch format is documented in [reference/patch-format.md](reference/patch-fo
 | `skills/` | The `/agentic:*` commands. |
 | `agents/` | The auditor and verifier subagents. |
 | `hooks/` | The SessionStart staleness check. |
-| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`). |
+| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), and the strictness profiles (`reference/strictness/`). |
 | `cli/` | The TypeScript source, tests, and the committed `dist/agentic.mjs` bundle. |
 | `archive/` | The original prompts. The [migration map](archive/migration.md) records where each one went. |
 
@@ -150,6 +174,7 @@ npm run check
 - a probe name is unknown
 - a link is broken
 - a conventions library rule has no https source, has no `enforceable` field, or uses an unknown stack signal
+- a strictness check has no https source, an invalid tier, a Tier 2 or 3 check without a `when`, or a detect pattern that is not a valid regex
 
 CI also fails if `cli/dist` is out of date with the source. Rebuild and commit it after changing anything in `cli/src`.
 

@@ -7194,7 +7194,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse3(src, reviver, options) {
+    function parse4(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -7235,7 +7235,7 @@ var require_public_api = __commonJS({
         return value.toString(options);
       return new Document.Document(value, _replacer, options).toString(options);
     }
-    exports.parse = parse3;
+    exports.parse = parse4;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument;
     exports.stringify = stringify;
@@ -10055,11 +10055,11 @@ var require_validate = __commonJS({
         jsonPointer = $data;
         data = names_1.default.rootData;
       } else {
-        const matches = RELATIVE_JSON_POINTER.exec($data);
-        if (!matches)
+        const matches2 = RELATIVE_JSON_POINTER.exec($data);
+        if (!matches2)
           throw new Error(`Invalid JSON-pointer: ${$data}`);
-        const up = +matches[1];
-        jsonPointer = matches[2];
+        const up = +matches2[1];
+        jsonPointer = matches2[2];
         if (jsonPointer === "#") {
           if (up >= dataLevel)
             throw new Error(errorMsg("property/index", up));
@@ -10978,11 +10978,11 @@ var require_schemes = __commonJS({
         urnComponent.error = "URN can not be parsed";
         return urnComponent;
       }
-      const matches = urnComponent.path.match(URN_REG);
-      if (matches && matches[0] === urnComponent.path) {
+      const matches2 = urnComponent.path.match(URN_REG);
+      if (matches2 && matches2[0] === urnComponent.path) {
         const scheme = options.scheme || urnComponent.scheme || "urn";
-        urnComponent.nid = matches[1].toLowerCase();
-        urnComponent.nss = matches[2];
+        urnComponent.nid = matches2[1].toLowerCase();
+        urnComponent.nss = matches2[2];
         const urnScheme = `${scheme}:${options.nid || urnComponent.nid}`;
         const schemeHandler = getSchemeHandler(urnScheme);
         urnComponent.path = void 0;
@@ -11132,7 +11132,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options), options);
+        parse4(serialize(uri, options), options);
       }
       return uri;
     }
@@ -11175,8 +11175,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative3, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options), options);
-        relative3 = parse3(serialize(relative3, options), options);
+        base = parse4(serialize(base, options), options);
+        relative3 = parse4(serialize(relative3, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative3.scheme) {
@@ -11303,8 +11303,8 @@ var require_fast_uri = __commonJS({
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
     var AUTHORITY_PREFIX = /^(?:[^#/:?]+:)?\/\/([^/?#]*)/;
     var AUTHORITY_INTRODUCER_REGION = /^(?:[^#/:?]+:)?([/\\\t\n\r]*)/;
-    function getParseError(parsed, matches) {
-      if (matches[2] !== void 0 && parsed.path && parsed.path[0] !== "/") {
+    function getParseError(parsed, matches2) {
+      if (matches2[2] !== void 0 && parsed.path && parsed.path[0] !== "/") {
         return 'URI path must start with "/" when authority is present.';
       }
       if (typeof parsed.port === "number" && (parsed.port < 0 || parsed.port > 65535)) {
@@ -11326,9 +11326,9 @@ var require_fast_uri = __commonJS({
     function isIPLiteral(host) {
       return host[0] === "[" && host[host.length - 1] === "]";
     }
-    function hasMalformedComponentPercentEncoding(matches) {
-      const host = matches[4];
-      return hasMalformedPercentEncoding(matches[3]) || host !== void 0 && !isIPLiteral(host) && hasMalformedPercentEncoding(host) || hasMalformedPercentEncoding(matches[6]) || hasMalformedPercentEncoding(matches[7]) || hasMalformedPercentEncoding(matches[8]);
+    function hasMalformedComponentPercentEncoding(matches2) {
+      const host = matches2[4];
+      return hasMalformedPercentEncoding(matches2[3]) || host !== void 0 && !isIPLiteral(host) && hasMalformedPercentEncoding(host) || hasMalformedPercentEncoding(matches2[6]) || hasMalformedPercentEncoding(matches2[7]) || hasMalformedPercentEncoding(matches2[8]);
     }
     function canonicalizeHost(parsed, options, schemeHandler, isIP) {
       if (hasForbiddenDomainHost(parsed, options, schemeHandler, isIP)) {
@@ -11403,15 +11403,15 @@ var require_fast_uri = __commonJS({
           }
         }
       }
-      const matches = uri.match(URI_PARSE);
-      if (matches) {
-        parsed.scheme = matches[1];
-        parsed.userinfo = matches[3];
-        parsed.host = matches[4];
-        parsed.port = parseInt(matches[5], 10);
-        parsed.path = matches[6] || "";
-        parsed.query = matches[7];
-        parsed.fragment = matches[8];
+      const matches2 = uri.match(URI_PARSE);
+      if (matches2) {
+        parsed.scheme = matches2[1];
+        parsed.userinfo = matches2[3];
+        parsed.host = matches2[4];
+        parsed.port = parseInt(matches2[5], 10);
+        parsed.path = matches2[6] || "";
+        parsed.query = matches2[7];
+        parsed.fragment = matches2[8];
         if (parsed.scheme !== void 0) {
           if (VALID_SCHEME.test(parsed.scheme)) {
             parsed.scheme = parsed.scheme.toLowerCase();
@@ -11420,14 +11420,14 @@ var require_fast_uri = __commonJS({
             malformedScheme = true;
           }
         }
-        malformedPercentEncoding = hasMalformedComponentPercentEncoding(matches);
+        malformedPercentEncoding = hasMalformedComponentPercentEncoding(matches2);
         if (malformedPercentEncoding) {
           parsed.error = parsed.error || "URI contains malformed percent-encoding.";
         }
         if (isNaN(parsed.port)) {
-          parsed.port = matches[5];
+          parsed.port = matches2[5];
         }
-        const parseError = getParseError(parsed, matches);
+        const parseError = getParseError(parsed, matches2);
         if (parseError !== void 0) {
           parsed.error = parsed.error || parseError;
           malformedAuthorityOrPort = true;
@@ -11494,7 +11494,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse3(uri, opts) {
+    function parse4(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -11531,7 +11531,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse3
+      parse: parse4
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -14191,9 +14191,9 @@ var require_ajv = __commonJS({
 });
 
 // src/cli.ts
-import { cpSync, existsSync as existsSync6, mkdirSync as mkdirSync2, readFileSync as readFileSync7, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { cpSync, existsSync as existsSync7, mkdirSync as mkdirSync2, readFileSync as readFileSync8, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname6, join as join7, resolve as resolve4 } from "node:path";
+import { dirname as dirname7, join as join8, resolve as resolve4 } from "node:path";
 
 // src/conventions.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -14318,6 +14318,11 @@ function loadLibrary(root = playbookRoot()) {
   cache.set(root, lib);
   return lib;
 }
+function monthsSince(reviewed, today = /* @__PURE__ */ new Date()) {
+  const m = reviewed.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  return (today.getUTCFullYear() - Number(m[1])) * 12 + (today.getUTCMonth() + 1 - Number(m[2]));
+}
 function lintLibrary(root, today = /* @__PURE__ */ new Date()) {
   const problems = [];
   const warnings = [];
@@ -14334,12 +14339,9 @@ function lintLibrary(root, today = /* @__PURE__ */ new Date()) {
     }
     if (d.domain !== basename2(d.file, ".yaml")) problems.push(`conventions: ${where} domain "${d.domain}" does not match its file name`);
     if (!d.title) problems.push(`conventions: ${where} has no title`);
-    const m = d.reviewed.match(/^(\d{4})-(\d{2})$/);
-    if (!m) problems.push(`conventions: ${where} reviewed must be YYYY-MM (got "${d.reviewed}")`);
-    else {
-      const months = (today.getUTCFullYear() - Number(m[1])) * 12 + (today.getUTCMonth() + 1 - Number(m[2]));
-      if (months > 12) warnings.push(`conventions: ${where} was last reviewed ${d.reviewed} (${months} months ago); re-check its rules and sources`);
-    }
+    const months = monthsSince(d.reviewed, today);
+    if (months === null) problems.push(`conventions: ${where} reviewed must be YYYY-MM (got "${d.reviewed}")`);
+    else if (months > 12) warnings.push(`conventions: ${where} was last reviewed ${d.reviewed} (${months} months ago); re-check its rules and sources`);
     if (!d.applies_when.length) problems.push(`conventions: ${where} has no applies_when`);
     for (const s of d.applies_when) if (!known.has(s)) problems.push(`conventions: ${where} uses unknown signal "${s}"`);
     if (!d.rules.length) problems.push(`conventions: ${where} has no rules`);
@@ -14503,8 +14505,8 @@ function detectApps(files, read2) {
 }
 
 // src/lint.ts
-import { existsSync as existsSync4, readdirSync as readdirSync3, readFileSync as readFileSync4 } from "node:fs";
-import { dirname as dirname4, join as join5, relative as relative2, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync5, readdirSync as readdirSync4, readFileSync as readFileSync5 } from "node:fs";
+import { dirname as dirname5, join as join6, relative as relative2, resolve as resolve3 } from "node:path";
 
 // src/rubric.ts
 var import_yaml2 = __toESM(require_dist(), 1);
@@ -14536,10 +14538,193 @@ function defaultCriterion(c, mode) {
   return { id: c.id, status: "unverified", evidence: [], reason: "Not yet assessed." };
 }
 
+// src/strictness.ts
+var import_yaml3 = __toESM(require_dist(), 1);
+import { existsSync as existsSync3, readdirSync as readdirSync2, readFileSync as readFileSync3 } from "node:fs";
+import { basename as basename3, dirname as dirname3, extname, join as join4 } from "node:path";
+var cache2 = /* @__PURE__ */ new Map();
+function loadStrictness(root = playbookRoot()) {
+  const hit = cache2.get(root);
+  if (hit) return hit;
+  const dir = join4(root, "reference", "strictness");
+  const profiles = [];
+  const checks = /* @__PURE__ */ new Map();
+  if (existsSync3(dir)) {
+    for (const f of readdirSync2(dir).filter((x) => x.endsWith(".yaml")).sort()) {
+      let raw = {};
+      let parseError;
+      try {
+        raw = (0, import_yaml3.parse)(readFileSync3(join4(dir, f), "utf8")) ?? {};
+      } catch (e) {
+        parseError = e.message.split("\n")[0];
+      }
+      const p = {
+        stack: String(raw.stack ?? ""),
+        title: String(raw.title ?? ""),
+        reviewed: String(raw.reviewed ?? ""),
+        applies_when: raw.applies_when ?? [],
+        checks: [],
+        not_recommended: raw.not_recommended ?? [],
+        file: `reference/strictness/${f}`,
+        ...parseError ? { parseError } : {}
+      };
+      for (const c of raw.checks ?? []) {
+        const check = { ...c, detect: c.detect ?? [], stack: p.stack };
+        p.checks.push(check);
+        if (!checks.has(check.id)) checks.set(check.id, check);
+      }
+      profiles.push(p);
+    }
+  }
+  const lib = { profiles, checks };
+  cache2.set(root, lib);
+  return lib;
+}
+var isHttps = (s) => !!s && !!s.title && typeof s.url === "string" && /^https:\/\//.test(s.url);
+function lintStrictness(root, today = /* @__PURE__ */ new Date()) {
+  const problems = [];
+  const warnings = [];
+  cache2.delete(root);
+  const lib = loadStrictness(root);
+  if (!lib.profiles.length) return { problems: ["strictness: reference/strictness has no profile files"], warnings };
+  const known = new Set(SIGNALS);
+  const seen = /* @__PURE__ */ new Set();
+  for (const p of lib.profiles) {
+    const where = p.file;
+    if (p.parseError) {
+      problems.push(`strictness: ${where} is not valid YAML: ${p.parseError}`);
+      continue;
+    }
+    if (p.stack !== basename3(p.file, ".yaml")) problems.push(`strictness: ${where} stack "${p.stack}" does not match its file name`);
+    if (!p.title) problems.push(`strictness: ${where} has no title`);
+    const months = monthsSince(p.reviewed, today);
+    if (months === null) problems.push(`strictness: ${where} reviewed must be YYYY-MM (got "${p.reviewed}")`);
+    else if (months > 12) warnings.push(`strictness: ${where} was last reviewed ${p.reviewed} (${months} months ago); re-check its checks and sources`);
+    if (!p.applies_when.length) problems.push(`strictness: ${where} has no applies_when`);
+    for (const s of p.applies_when) if (!known.has(s)) problems.push(`strictness: ${where} uses unknown signal "${s}"`);
+    if (!p.checks.length) problems.push(`strictness: ${where} has no checks`);
+    for (const c of p.checks) {
+      const at = `${where} ${c.id ?? "(check without id)"}`;
+      if (!/^STR-[A-Z]+-\d{2}$/.test(String(c.id ?? ""))) problems.push(`strictness: ${at} id must look like STR-STACK-NN`);
+      if (seen.has(c.id)) problems.push(`strictness: duplicate check id ${c.id}`);
+      seen.add(c.id);
+      for (const k of ["title", "slop_prevented", "enable", "ratchet", "cost"])
+        if (!c[k] || typeof c[k] !== "string") problems.push(`strictness: ${at} is missing "${k}"`);
+      if (![1, 2, 3].includes(c.tier)) problems.push(`strictness: ${at} tier must be 1, 2 or 3`);
+      if (c.tier > 1 && !c.when) problems.push(`strictness: ${at} is Tier ${c.tier} and must say when it is worth it ("when")`);
+      if (!isHttps(c.source)) problems.push(`strictness: ${at} needs a source with a title and an https url`);
+      for (const s of c.applies_when ?? []) if (!known.has(s)) problems.push(`strictness: ${at} uses unknown signal "${s}"`);
+      if (!c.detect.length) problems.push(`strictness: ${at} has no detect patterns`);
+      for (const d of c.detect) {
+        for (const k of ["files", "pattern"]) {
+          try {
+            new RegExp(String(d[k] ?? ""));
+            if (!d[k]) problems.push(`strictness: ${at} detect entry is missing "${k}"`);
+          } catch (e) {
+            problems.push(`strictness: ${at} detect ${k} is not a valid JavaScript regex: ${e.message}`);
+          }
+        }
+      }
+    }
+    for (const n of p.not_recommended) {
+      if (!n.practice || !n.reason) problems.push(`strictness: ${where} not_recommended entries need "practice" and "reason"`);
+      if (n.source && !isHttps(n.source)) problems.push(`strictness: ${where} not_recommended source needs a title and an https url`);
+    }
+  }
+  return { problems, warnings };
+}
+var matches = (need2, signals) => !need2?.length || need2.some((s) => s === "any" || signals.has(s));
+function applicableChecks(lib, signals) {
+  return lib.profiles.filter((p) => matches(p.applies_when, signals)).flatMap((p) => p.checks.filter((c) => matches(c.applies_when, signals)));
+}
+var SHARED_CONFIG_DIR = /(^|\/)packages\/[^/]*(config|tsconfig|eslint|lint)[^/]*\//;
+var ALWAYS_CANDIDATE = /^(\.github\/workflows\/[^/]+|\.gitlab-ci\.yml|\.claude\/settings[^/]*\.json|\.husky\/[^/]+|\.pre-commit-config\.yaml|lefthook\.ya?ml|\.lefthook\.ya?ml|Makefile|justfile)$/;
+function candidates(files, root) {
+  return files.filter((f) => {
+    const d = dirname3(f);
+    return d === root || d === "." || ALWAYS_CANDIDATE.test(f) || SHARED_CONFIG_DIR.test(f) || root !== "." && d.startsWith(`${root}/`) && d.split("/").length - root.split("/").length <= 1 && /config|\.husky|\.claude/.test(d);
+  });
+}
+function assessStrictness(lib, apps, files, read2) {
+  const text = /* @__PURE__ */ new Map();
+  const get = (f) => {
+    if (!text.has(f)) text.set(f, read2(f));
+    return text.get(f);
+  };
+  return apps.map((app) => {
+    const pool = candidates(files, app.root);
+    const checks = applicableChecks(lib, new Set(app.signals)).map((c) => {
+      for (const d of c.detect) {
+        const fileRe = new RegExp(d.files);
+        const re = new RegExp(d.pattern, "m");
+        const hit = pool.find((f) => fileRe.test(f) && re.test(get(f)));
+        if (hit) return { id: c.id, title: c.title, tier: c.tier, status: "on", evidence: hit };
+      }
+      return { id: c.id, title: c.title, tier: c.tier, status: "off" };
+    });
+    return { root: app.root, checks };
+  });
+}
+var KINDS = [
+  { kind: "eslint-disable", re: /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?\b([^\n]*)/g, described: (m) => /\s--\s*\S/.test(m[1] ?? "") },
+  { kind: "ts-directive", re: /@ts-(ignore|expect-error|nocheck)\b([^\n]*)/g, described: (m) => m[1] === "expect-error" && /\S{3,}/.test((m[2] ?? "").replace(/\*\/.*/, "")) },
+  { kind: "type-ignore", re: /#\s*(?:type|pyright):\s*ignore(\[[^\]]+\])?/g, described: (m) => !!m[1] },
+  { kind: "noqa", re: /#\s*noqa\b(:\s*[A-Z]+\d+)?/gi, described: (m) => !!m[1] },
+  { kind: "nolint", re: /\/\/\s*nolint\b(:[\w,-]+)?([^\n]*)/g, described: (m) => !!m[1] && /\/\/\s*\S/.test(m[2] ?? "") },
+  { kind: "rust-allow", re: /#!?\[(?:allow|expect)\(([^\]]*)\]/g, described: (m) => /reason\s*=/.test(m[1] ?? "") },
+  { kind: "java-suppress", re: /@SuppressWarnings\(/g, described: () => false },
+  { kind: "skipped-test", re: /\b(?:it|test|describe)\.skip\s*\(|\bx(?:it|describe|test)\s*\(|@pytest\.mark\.skip\b|\bt\.Skip(?:Now|f)?\(|@Disabled\b|#\[ignore\]/g, described: () => false },
+  { kind: "focused-test", re: /\b(?:it|test|describe)\.only\s*\(|\bf(?:it|describe)\s*\(/g, described: () => false }
+];
+var CODE_EXT = /* @__PURE__ */ new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".go", ".rs", ".java", ".kt", ".vue", ".svelte"]);
+var MAX_SUPPRESSION_FILES = 15e3;
+function countSuppressions(apps, files, read2) {
+  const roots = apps.map((a) => a.root).sort((a, b) => b.length - a.length);
+  const ownerOf = (f) => roots.find((r) => r !== "." && f.startsWith(`${r}/`)) ?? (roots.includes(".") ? "." : null);
+  const byApp = {};
+  const code = files.filter((f) => CODE_EXT.has(extname(f)) && !/\.d\.ts$/.test(f) && !/(^|\/)(vendor|third_party|generated|__generated__)\//.test(f));
+  const scanned = code.slice(0, MAX_SUPPRESSION_FILES);
+  let total = 0;
+  let undescribed = 0;
+  for (const f of scanned) {
+    const owner = ownerOf(f);
+    if (owner === null) continue;
+    const src = read2(f);
+    if (!src || src.length > 1e6) continue;
+    for (const k of KINDS) {
+      k.re.lastIndex = 0;
+      let m;
+      while (m = k.re.exec(src)) {
+        const bucket = (byApp[owner] ??= {})[k.kind] ??= { total: 0, undescribed: 0 };
+        bucket.total++;
+        total++;
+        if (!k.described(m)) {
+          bucket.undescribed++;
+          undescribed++;
+        }
+      }
+    }
+  }
+  const configs = files.filter((f) => /(^|\/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s|pyproject\.toml|ruff\.toml|mypy\.ini|setup\.cfg|\.golangci\.(ya?ml|toml|json)|Cargo\.toml|clippy\.toml)$/.test(f));
+  const descriptionRules = /* @__PURE__ */ new Set();
+  for (const f of configs) {
+    const t = read2(f);
+    if (/eslint-comments\/require-description/.test(t)) descriptionRules.add(`${f}: eslint-comments/require-description`);
+    if (/ban-ts-comment|tseslint\.configs\.|plugin:@typescript-eslint\//.test(t)) descriptionRules.add(`${f}: @typescript-eslint/ban-ts-comment`);
+    if (/"PGH|"ALL"/.test(t)) descriptionRules.add(`${f}: ruff PGH`);
+    if (/ignore-without-code/.test(t)) descriptionRules.add(`${f}: mypy ignore-without-code`);
+    if (/nolintlint/.test(t)) descriptionRules.add(`${f}: nolintlint`);
+    if (/allow_attributes_without_reason/.test(t)) descriptionRules.add(`${f}: clippy::allow_attributes_without_reason`);
+  }
+  const baselines = files.filter((f) => /(^|\/)(eslint-suppressions\.json|\.betterer\.results|\.basedpyright\/baseline\.json)$/.test(f));
+  for (const f of files.filter((x) => /(^|\/)\.golangci\.(ya?ml|toml|json)$/.test(x))) if (/new-from-(merge-base|rev|patch)/.test(read2(f))) baselines.push(`${f} (new-from)`);
+  return { byApp, total, undescribed, descriptionRules: [...descriptionRules].sort(), baselines, filesScanned: scanned.length, truncated: code.length > scanned.length };
+}
+
 // src/scan.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync3, readdirSync as readdirSync2, readFileSync as readFileSync3 } from "node:fs";
-import { dirname as dirname3, extname, join as join4, relative, resolve as resolve2 } from "node:path";
+import { existsSync as existsSync4, readdirSync as readdirSync3, readFileSync as readFileSync4 } from "node:fs";
+import { dirname as dirname4, extname as extname2, join as join5, relative, resolve as resolve2 } from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   ".git",
   "node_modules",
@@ -14614,7 +14799,9 @@ var PROBES = [
   "coverage",
   "eval_cases",
   "branch_protection",
-  "conventions"
+  "conventions",
+  "strictness",
+  "suppressions"
 ];
 function walk(root) {
   const files = [];
@@ -14623,15 +14810,15 @@ function walk(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = readdirSync2(dir, { withFileTypes: true });
+      entries = readdirSync3(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const e of entries) {
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) stack.push(join4(dir, e.name));
+        if (!SKIP_DIRS.has(e.name)) stack.push(join5(dir, e.name));
       } else if (e.isFile()) {
-        files.push(relative(root, join4(dir, e.name)));
+        files.push(relative(root, join5(dir, e.name)));
         if (files.length >= MAX_FILES) return { files, truncated: true };
       }
     }
@@ -14640,7 +14827,7 @@ function walk(root) {
 }
 var read = (root, rel) => {
   try {
-    return readFileSync3(join4(root, rel), "utf8");
+    return readFileSync4(join5(root, rel), "utf8");
   } catch {
     return "";
   }
@@ -14664,8 +14851,8 @@ function scan(root, opts = {}) {
   const { files, truncated } = walk(root);
   const has2 = (rel) => files.includes(rel);
   const matching = (re) => files.filter((f) => re.test(f));
-  const sourceFiles = files.filter((f) => SOURCE_EXT.has(extname(f)) && !/\.config\.[cm]?[jt]s$/.test(f) && !isTest(f));
-  const testFiles = files.filter((f) => SOURCE_EXT.has(extname(f)) && isTest(f));
+  const sourceFiles = files.filter((f) => SOURCE_EXT.has(extname2(f)) && !/\.config\.[cm]?[jt]s$/.test(f) && !isTest(f));
+  const testFiles = files.filter((f) => SOURCE_EXT.has(extname2(f)) && isTest(f));
   const commits = commitCount(root);
   const probes = {};
   const facts = {};
@@ -14720,13 +14907,41 @@ function scan(root, opts = {}) {
     ],
     note: "Presence only. The context auditor judges content; the conventions-advisor compares it with the baseline library."
   };
+  const strictness = assessStrictness(loadStrictness(), apps, files, (rel) => read(root, rel));
+  facts.strictness = strictness;
+  const tier1 = strictness.flatMap((a) => a.checks.filter((c) => c.tier === 1).map((c) => ({ ...c, app: a.root })));
+  const tier1Off = tier1.filter((c) => c.status === "off");
+  probes.strictness = {
+    status: tier1.length && tier1Off.length === 0 ? "partial" : "failed",
+    evidence: [
+      ...strictness.map((a) => {
+        const t1 = a.checks.filter((c) => c.tier === 1);
+        const off = t1.filter((c) => c.status === "off");
+        return `${a.root}: Tier 1 ${t1.length - off.length}/${t1.length} on${off.length ? `; off: ${off.map((c) => `${c.id} ${c.title}`).join("; ")}` : ""}`;
+      })
+    ],
+    note: "Config presence only. The verification auditor confirms CI runs these at zero or behind a tool-native baseline. Run `agentic strictness` for the per-app list."
+  };
+  const sup = countSuppressions(apps, files, (rel) => read(root, rel));
+  facts.suppressions = sup;
+  const guarded = sup.descriptionRules.length > 0 || sup.baselines.length > 0;
+  probes.suppressions = {
+    status: sup.total === 0 || sup.undescribed === 0 || guarded ? "partial" : "failed",
+    evidence: [
+      `${sup.total} inline suppressions (${sup.undescribed} without a reason or specific rule) in ${sup.filesScanned} files${sup.truncated ? " (truncated)" : ""}`,
+      ...Object.entries(sup.byApp).map(([app, kinds]) => `${app}: ${Object.entries(kinds).map(([k, v]) => `${v.total} ${k}`).join(", ")}`),
+      `rules requiring a reason: ${sup.descriptionRules.join(", ") || "none"}`,
+      `suppression baselines: ${sup.baselines.join(", ") || "none"}`
+    ],
+    note: "Counts are textual and may include matches inside strings. The auditor confirms whether growth is blocked (ARC-08)."
+  };
   const pkgFiles = matching(/(^|\/)package\.json$/);
   const scripts = {};
   const workspaceScripts = {};
   for (const p of pkgFiles) {
     try {
       const pkg = JSON.parse(read(root, p));
-      for (const [k, v] of Object.entries(pkg.scripts ?? {})) (p === "package.json" ? scripts : workspaceScripts)[p === "package.json" ? k : `${dirname3(p)}#${k}`] = String(v);
+      for (const [k, v] of Object.entries(pkg.scripts ?? {})) (p === "package.json" ? scripts : workspaceScripts)[p === "package.json" ? k : `${dirname4(p)}#${k}`] = String(v);
       if (p === "package.json") facts.packageManagerField = pkg.packageManager ?? null;
     } catch {
     }
@@ -14839,8 +15054,8 @@ function scan(root, opts = {}) {
     for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
       const target = m[1];
       if (/^(https?:|mailto:|tel:|\/\/)/.test(target) || target.startsWith("<")) continue;
-      const abs = resolve2(root, dirname3(md), decodeURI(target));
-      if (!existsSync3(abs)) broken.push(`${md} -> ${target}`);
+      const abs = resolve2(root, dirname4(md), decodeURI(target));
+      if (!existsSync4(abs)) broken.push(`${md} -> ${target}`);
     }
   }
   facts.brokenLinks = broken;
@@ -14929,7 +15144,7 @@ function lintPlaybook(root) {
   const sections = /* @__PURE__ */ new Map();
   const sectionsOf = (file) => {
     if (!sections.has(file)) {
-      const text = readFileSync4(join5(root, file), "utf8");
+      const text = readFileSync5(join6(root, file), "utf8");
       const parts = [];
       let cur = { heading: "(preamble)", text: "" };
       for (const line of text.split("\n")) {
@@ -14952,7 +15167,7 @@ function lintPlaybook(root) {
     if (!rubric.priorities[c.priority]) problems.push(`rubric: ${c.id} has unknown priority ${c.priority}`);
     if (c.gate && !rubric.levels.some((l) => l.id === c.gate)) problems.push(`rubric: ${c.id} has unknown gate ${c.gate}`);
     if (c.probe && !PROBES.includes(c.probe)) problems.push(`rubric: ${c.id} references unknown probe ${c.probe}`);
-    if (!existsSync4(join5(root, c.source))) {
+    if (!existsSync5(join6(root, c.source))) {
       problems.push(`rubric: ${c.id} cites missing source ${c.source}`);
       continue;
     }
@@ -14960,7 +15175,7 @@ function lintPlaybook(root) {
     if (!hit) problems.push(`rubric: ${c.id} quote not found in ${c.source}: "${c.quote}" (standard changed? update the rubric)`);
     else covered.add(`${c.source}#${hit.heading}`);
   }
-  const standards = readdirSync3(join5(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
+  const standards = readdirSync4(join6(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
   for (const s of standards) {
     for (const sec of sectionsOf(s)) {
       if (sec.heading === "(preamble)" && sectionsOf(s).length > 1 && sec.text.trim().length < 400) continue;
@@ -14969,33 +15184,33 @@ function lintPlaybook(root) {
   }
   const mdFiles = [];
   const walk2 = (dir) => {
-    for (const e of readdirSync3(dir, { withFileTypes: true })) {
+    for (const e of readdirSync4(dir, { withFileTypes: true })) {
       if (["node_modules", ".git", "dist"].includes(e.name)) continue;
-      const p = join5(dir, e.name);
+      const p = join6(dir, e.name);
       if (e.isDirectory()) walk2(p);
       else if (e.name.endsWith(".md")) mdFiles.push(p);
     }
   };
   walk2(root);
   for (const file of mdFiles) {
-    const text = readFileSync4(file, "utf8");
+    const text = readFileSync5(file, "utf8");
     for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
       const target = m[1];
       if (/^(https?:|mailto:)/.test(target)) continue;
-      if (!existsSync4(resolve3(dirname4(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
+      if (!existsSync5(resolve3(dirname5(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
     }
     for (const m of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g)) {
       const target = m[1].replace(/[.,;:)]+$/, "");
-      if (!existsSync4(join5(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
+      if (!existsSync5(join6(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
     }
   }
-  problems.push(...lintLibrary(root).problems);
+  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems);
   return problems;
 }
 
 // src/record.ts
-import { existsSync as existsSync5, mkdirSync, readFileSync as readFileSync6, renameSync, writeFileSync } from "node:fs";
-import { basename as basename3, dirname as dirname5 } from "node:path";
+import { existsSync as existsSync6, mkdirSync, readFileSync as readFileSync7, renameSync, writeFileSync } from "node:fs";
+import { basename as basename4, dirname as dirname6 } from "node:path";
 
 // src/types.ts
 var UsageError = class extends Error {
@@ -15003,12 +15218,12 @@ var UsageError = class extends Error {
 
 // src/validate.ts
 var import_ajv = __toESM(require_ajv(), 1);
-import { readFileSync as readFileSync5 } from "node:fs";
-import { join as join6 } from "node:path";
+import { readFileSync as readFileSync6 } from "node:fs";
+import { join as join7 } from "node:path";
 var validator = null;
 function schemaValidator() {
   if (!validator) {
-    const schema = JSON.parse(readFileSync5(join6(playbookRoot(), "schema", "record.schema.json"), "utf8"));
+    const schema = JSON.parse(readFileSync6(join7(playbookRoot(), "schema", "record.schema.json"), "utf8"));
     const ajv = new import_ajv.Ajv({ allErrors: true, strict: false });
     validator = ajv.compile(schema);
   }
@@ -15131,10 +15346,10 @@ function createRecord(store, mode) {
   const at = now();
   return {
     schemaVersion: 1,
-    assessmentId: `agentic-${basename3(store.repoRoot)}-${at.slice(0, 10)}`,
+    assessmentId: `agentic-${basename4(store.repoRoot)}-${at.slice(0, 10)}`,
     mode,
     rubricVersion: rubric.version,
-    repo: { name: basename3(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
+    repo: { name: basename4(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
     assessedRevision: headRevision(store.repoRoot),
     recordRevision: 1,
     createdAt: at,
@@ -15151,10 +15366,10 @@ function createRecord(store, mode) {
   };
 }
 function loadRecord(store) {
-  if (!existsSync5(store.recordPath)) {
+  if (!existsSync6(store.recordPath)) {
     throw new UsageError(`No assessment record for this repository (looked in ${store.recordPath}). Run \`agentic init\` first.`);
   }
-  const record = JSON.parse(readFileSync6(store.recordPath, "utf8"));
+  const record = JSON.parse(readFileSync7(store.recordPath, "utf8"));
   record.conventions ??= [];
   const rubric = loadRubric();
   for (const c of rubric.criteria) {
@@ -15191,7 +15406,7 @@ function saveRecord(store, record, opts = {}) {
   const { errors } = validateRecord(record);
   if (errors.length) throw new UsageError(`Refusing to write an invalid record:
   - ${errors.join("\n  - ")}`);
-  mkdirSync(dirname5(store.recordPath), { recursive: true });
+  mkdirSync(dirname6(store.recordPath), { recursive: true });
   const tmp = `${store.recordPath}.tmp`;
   writeFileSync(tmp, JSON.stringify(record, null, 2) + "\n");
   renameSync(tmp, store.recordPath);
@@ -15279,6 +15494,7 @@ function renderHtml(record, opts) {
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       })
     ),
+    strictness: opts.strictness ?? null,
     renderedAt: (/* @__PURE__ */ new Date()).toISOString(),
     headRevision: opts.headRevision,
     commitsBehind: opts.commitsBehind
@@ -15481,7 +15697,29 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       }).join("");
       return '<div class="panel" style="display:grid;gap:10px"><h2>' + esc(d.name) + '</h2><div class="table"><table><thead><tr><th>ID</th><th>Criterion</th><th>Priority</th><th>Gate</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
     }).join("");
-    return dims;
+    return dims + strictnessPanel();
+  }
+
+  function strictnessPanel() {
+    var ST = D.strictness;
+    if (!ST || !ST.apps || !ST.apps.length) return "";
+    var sup = (ST.suppressions && ST.suppressions.byApp) || {};
+    var apps = ST.apps.map(function (a) {
+      var shown = a.checks.filter(function (c) { return c.tier < 3 || c.status === "on"; });
+      var t1 = a.checks.filter(function (c) { return c.tier === 1; });
+      var on1 = t1.filter(function (c) { return c.status === "on"; }).length;
+      var rows = shown.map(function (c) {
+        var st = c.status === "on" ? pill("passed", "on") : c.tier === 1 ? pill("failed", "off") : pill("deferred", "not yet");
+        return "<tr><td><code>" + esc(c.id) + "</code></td><td>" + esc(c.title) + (c.evidence ? '<div class="muted" style="font-size:.8rem">' + esc(c.evidence) + "</div>" : "") + '</td><td class="num">' + esc(c.tier) + "</td><td>" + st + "</td></tr>";
+      }).join("");
+      var kinds = sup[a.root] || {};
+      var supLine = Object.keys(kinds).map(function (k) { return esc(kinds[k].total) + " " + esc(k) + (kinds[k].undescribed ? " (" + esc(kinds[k].undescribed) + " without reason)" : ""); }).join(", ") || "none found";
+      return '<div style="display:grid;gap:6px"><h3 style="margin:0;font-size:1rem"><code>' + esc(a.root) + '</code> <span class="muted" style="font-weight:500;font-size:.85rem">Tier 1: ' + on1 + "/" + t1.length + ' on</span></h3>' +
+        '<div class="muted" style="font-size:.84rem">Inline suppressions: ' + supLine + "</div>" +
+        '<div class="table"><table><thead><tr><th>Check</th><th>Title</th><th>Tier</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+    }).join("");
+    return '<div class="panel" style="display:grid;gap:14px"><h2>Strictness profile</h2><p class="muted" style="margin:0;font-size:.84rem">From the scan of ' + esc(short(ST.revision)) + " at " + esc(when(ST.scannedAt)) +
+      ". Tier 1 is always worth it; Tier 2 when the repository needs it; Tier 3 only after a recurring defect. Config presence only: the auditor confirms CI enforcement.</p>" + apps + "</div>";
   }
 
   function sel(key, opts) {
@@ -15812,6 +16050,9 @@ Execution
 Conventions
   conventions [--app <root>] [--json]          App roots, detected stack, conventions files, applicable baseline rules
 
+Strictness
+  strictness [--app <root>] [--json]           Per app: which tiered strictness checks are on, and inline suppression counts
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -15821,7 +16062,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions library
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions and strictness libraries
 `;
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -15843,7 +16084,7 @@ var need = (a, k) => {
   return v;
 };
 function readJsonInput(src) {
-  const text = src === "-" ? readFileSync7(0, "utf8") : readFileSync7(resolve4(src), "utf8");
+  const text = src === "-" ? readFileSync8(0, "utf8") : readFileSync8(resolve4(src), "utf8");
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -15857,6 +16098,17 @@ function withHints(result) {
     if (c.probe && p) criteriaHints[c.id] = { probe: c.probe, ...p };
   }
   return { ...result, criteriaHints };
+}
+function strictnessSnapshot(store) {
+  if (!existsSync7(store.scanPath)) return null;
+  try {
+    const s = JSON.parse(readFileSync8(store.scanPath, "utf8"));
+    const apps = s.facts.strictness;
+    const suppressions = s.facts.suppressions;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions } : null;
+  } catch {
+    return null;
+  }
 }
 function staleness(store, record) {
   const head = headRevision(store.repoRoot);
@@ -15897,14 +16149,14 @@ function main(argv) {
     case "lint-playbook": {
       const root = resolve4(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of lintLibrary(root).warnings) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `\u2717 ${p}`).join("\n"));
         console.error(`
 ${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules).`);
+      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks).`);
       return 0;
     }
     case "rubric": {
@@ -15915,12 +16167,12 @@ ${problems.length} problem(s).`);
     }
     case "where": {
       const s = locateStore(cwd);
-      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync6(s.recordPath) }, null, 2));
+      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync7(s.recordPath) }, null, 2));
       return 0;
     }
     case "init": {
       const store2 = locateStore(cwd);
-      if (existsSync6(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
+      if (existsSync7(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
       const scanResult = withHints(scan(store2.repoRoot));
       const modeFlag = str(args, "mode");
       if (modeFlag && modeFlag !== "greenfield" && modeFlag !== "existing") throw new UsageError("--mode must be greenfield or existing");
@@ -15952,7 +16204,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync7(join7(store2.repoRoot, rel), "utf8");
+          return readFileSync8(join8(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -15961,7 +16213,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2).filter((a) => !only || a.root === only);
       if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic conventions\` to list them.`);
-      const assessed = existsSync6(store2.recordPath) ? loadRecord(store2).conventions : [];
+      const assessed = existsSync7(store2.recordPath) ? loadRecord(store2).conventions : [];
       const out = apps.map((a) => {
         const rules = applicableRules(lib, new Set(a.signals));
         return {
@@ -15984,23 +16236,70 @@ ${problems.length} problem(s).`);
       }
       return 0;
     }
+    case "strictness": {
+      const store2 = locateStore(cwd);
+      const { files } = walk(store2.repoRoot);
+      const read2 = (rel) => {
+        try {
+          return readFileSync8(join8(store2.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadStrictness();
+      const only = str(args, "app");
+      const all = detectApps(files, read2);
+      const apps = all.filter((a) => !only || a.root === only);
+      if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic strictness\` to list them.`);
+      const status = assessStrictness(lib, apps, files, read2);
+      const sup = countSuppressions(all, files, read2);
+      const out = apps.map((a, i) => ({
+        root: a.root,
+        signals: a.signals,
+        checks: status[i].checks.map((c) => {
+          const full = lib.checks.get(c.id);
+          return { ...c, when: full.when, slop_prevented: full.slop_prevented, enable: full.enable, ratchet: full.ratchet, cost: full.cost, source: full.source };
+        }),
+        suppressions: sup.byApp[a.root] ?? {}
+      }));
+      const notRecommended = lib.profiles.filter((p) => apps.some((a) => applicableChecks({ profiles: [p], checks: /* @__PURE__ */ new Map() }, new Set(a.signals)).length)).flatMap((p) => p.not_recommended);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ apps: out, suppressions: { total: sup.total, undescribed: sup.undescribed, descriptionRules: sup.descriptionRules, baselines: sup.baselines }, notRecommended }, null, 2));
+        return 0;
+      }
+      for (const a of out) {
+        const t1 = a.checks.filter((c) => c.tier === 1);
+        const off1 = t1.filter((c) => c.status === "off");
+        console.log(`${a.root}  [${a.signals.filter((x) => x !== "any").join(", ") || "no stack signals"}]`);
+        console.log(`  Tier 1 (always): ${t1.length - off1.length}/${t1.length} on`);
+        for (const c of off1) console.log(`    \u2717 ${c.id} ${c.title}: ${c.enable}`);
+        const t2 = a.checks.filter((c) => c.tier === 2);
+        for (const c of t2) console.log(`  Tier 2 ${c.status === "on" ? "\u2713" : "\xB7"} ${c.id} ${c.title}${c.status === "on" ? "" : ` (when: ${c.when})`}`);
+        for (const c of a.checks.filter((x) => x.tier === 3 && x.status === "on")) console.log(`  Tier 3 \u2713 ${c.id} ${c.title}`);
+        const kinds = Object.entries(a.suppressions);
+        console.log(`  inline suppressions: ${kinds.length ? kinds.map(([k, v]) => `${v.total} ${k}${v.undescribed ? ` (${v.undescribed} without reason)` : ""}`).join(", ") : "none found"}`);
+      }
+      console.log(`rules requiring a reason: ${sup.descriptionRules.join(", ") || "none"}`);
+      console.log(`suppression baselines: ${sup.baselines.join(", ") || "none"}`);
+      return 0;
+    }
     case "adopt": {
       const store2 = locateStore(cwd);
       if (store2.adopted) {
         console.log(`Already adopted at ${store2.recordPath}`);
         return 0;
       }
-      if (!existsSync6(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
-      const dest = join7(store2.repoRoot, ".agentic");
+      if (!existsSync7(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
+      const dest = join8(store2.repoRoot, ".agentic");
       mkdirSync2(dest, { recursive: true });
-      cpSync(store2.recordPath, join7(dest, "record.json"));
-      writeFileSync2(join7(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
+      cpSync(store2.recordPath, join8(dest, "record.json"));
+      writeFileSync2(join8(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
       writeFileSync2(
-        join7(dest, "README.md"),
+        join8(dest, "README.md"),
         "# Agentic readiness record\n\n`record.json` is the authoritative assessment, roadmap and execution state produced by the Agentic Playbook plugin.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change.\n"
       );
       rmSync(store2.dir, { recursive: true, force: true });
-      console.log(`Adopted record into ${join7(dest, "record.json")}. Commit .agentic/ to make it durable.`);
+      console.log(`Adopted record into ${join8(dest, "record.json")}. Commit .agentic/ to make it durable.`);
       return 0;
     }
   }
@@ -16127,9 +16426,9 @@ ${problems.length} problem(s).`);
     case "render": {
       recordScore(store, record);
       const st = staleness(store, record);
-      const out = resolve4(str(args, "out") ?? join7(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
-      mkdirSync2(dirname6(out), { recursive: true });
-      writeFileSync2(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind }));
+      const out = resolve4(str(args, "out") ?? join8(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
+      mkdirSync2(dirname7(out), { recursive: true });
+      writeFileSync2(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
       console.log(out);
       return 0;
     }

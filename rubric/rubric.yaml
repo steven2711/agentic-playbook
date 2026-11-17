@@ -198,7 +198,7 @@ criteria:
     gate: L2
     source: standards/verification.md
     quote: local and CI runs use equivalent rules
-    evidence_required: CI invokes the same scripts/config as local commands; differences listed.
+    evidence_required: CI invokes the same scripts/config as local commands; differences listed. The fast checks also run where the agent works (Claude Code Stop or PostToolUse hook, pre-commit, or the /agentic:next verification step) on changed files.
 
   - id: VER-05
     dimension: VER
@@ -253,6 +253,16 @@ criteria:
     activates_when: The first feature change is reviewed against a conventions file.
     evidence_required: Where conventions review happens (independent verifier, review bot, CODEOWNERS on conventions files), a sample of reviews citing rules, and conventions that were promoted into lint rules.
 
+  - id: VER-10
+    dimension: VER
+    title: Tier 1 strictness for the stack is enabled, at zero or behind a tool-native baseline
+    priority: P0
+    gate: L2
+    probe: strictness
+    source: standards/verification.md
+    quote: Turn on the strictest checks the stack offers that are cheap and rarely wrong
+    evidence_required: Per app, each Tier 1 check from the strictness library (agentic strictness) with its config line, the CI step that runs it, and whether it is at zero or behind a committed tool-native baseline. Tier 2 and 3 checks are recommended only with their trigger met.
+
   # ---------------------------------------------------------------- ARC
   - id: ARC-01
     dimension: ARC
@@ -291,7 +301,7 @@ criteria:
     gate: L3
     source: standards/verification.md
     quote: fail any new identity even if another violation was removed and the total stays flat
-    evidence_required: Ratchet comparison logic and a captured equal-count replacement test.
+    evidence_required: Ratchet comparison logic and a captured equal-count replacement test. A tool-native baseline that counts per file and rule (ESLint bulk suppressions, Betterer, basedpyright baseline, golangci-lint new-from-merge-base) passes; custom per-violation tooling is not required.
 
   - id: ARC-05
     dimension: ARC
@@ -320,6 +330,16 @@ criteria:
     source: standards/verification.md
     quote: isolated negative cases for a prohibited architecture change
     evidence_required: Expected vs actual verdicts for prohibited change, failed and skipped check, returning violation, policy relaxation.
+
+  - id: ARC-08
+    dimension: ARC
+    title: Inline suppressions require a reason and cannot grow unreviewed
+    priority: P1
+    gate: L3
+    probe: suppressions
+    source: standards/verification.md
+    quote: Treat inline suppressions as baseline entries
+    evidence_required: Suppression counts per app and kind (agentic strictness), the lint rules that require a reason (ban-ts-comment, eslint-comments/require-description, ruff PGH, nolintlint), and the mechanism that fails a change adding unreviewed suppressions or skipped tests.
 
   # ---------------------------------------------------------------- SEC
   - id: SEC-01

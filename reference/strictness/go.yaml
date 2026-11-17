@@ -1,0 +1,30 @@
+stack: go
+title: Go
+reviewed: 2026-11
+applies_when: [go]
+checks:
+  - id: STR-GO-01
+    title: golangci-lint runs with its standard linters
+    tier: 1
+    slop_prevented: Unchecked errors, suspicious constructs and dead assignments (errcheck, govet, staticcheck, ineffassign, unused).
+    enable: a committed .golangci.yml run in CI
+    detect:
+      - { files: '(^|/)\.golangci\.(ya?ml|toml|json)$', pattern: '.' }
+    ratchet: "issues.new-from-merge-base: main for legacy code, so only new issues fail."
+    cost: Low.
+    source: { title: "golangci-lint: Configuration file", url: "https://golangci-lint.run/docs/configuration/file/" }
+
+  - id: STR-GO-02
+    title: nolint directives name the linter and give a reason
+    tier: 1
+    slop_prevented: "//nolint added to make CI pass, silencing every linter on the line."
+    enable: nolintlint with require-explanation and require-specific
+    detect:
+      - { files: '(^|/)\.golangci\.(ya?ml|toml|json)$', pattern: 'nolintlint' }
+    ratchet: Zero.
+    cost: Low.
+    source: { title: "golangci-lint: Linters settings (nolintlint)", url: "https://golangci-lint.run/docs/linters/configuration/" }
+
+not_recommended:
+  - practice: Enabling every golangci-lint linter (enable-all).
+    reason: Many linters are stylistic or contradict each other. The noise teaches people and agents to add nolint.

@@ -1,0 +1,32 @@
+stack: rust
+title: Rust
+reviewed: 2026-11
+applies_when: [rust]
+checks:
+  - id: STR-RS-01
+    title: Clippy warnings fail the build
+    tier: 1
+    slop_prevented: Needless clones, suspicious operations and unidiomatic code the compiler accepts.
+    enable: cargo clippy -- -D warnings in CI, or a [lints] table in Cargo.toml
+    detect:
+      - { files: '(^|/)(\.github/workflows/[^/]+|\.gitlab-ci\.yml|Makefile|justfile)$', pattern: 'clippy[^\n]*-D\s*warnings' }
+      - { files: '(^|/)Cargo\.toml$', pattern: '\[(workspace\.)?lints' }
+    ratchet: Zero.
+    cost: Low.
+    source: { title: "Clippy documentation", url: "https://doc.rust-lang.org/clippy/" }
+
+  - id: STR-RS-02
+    title: unwrap and expect are restricted outside tests
+    tier: 2
+    when: Services and libraries where a panic is an outage.
+    slop_prevented: unwrap() used to get past a Result, turning recoverable errors into crashes.
+    enable: clippy::unwrap_used and clippy::expect_used in the [lints] table
+    detect:
+      - { files: '(^|/)(Cargo\.toml|clippy\.toml|lib\.rs|main\.rs)$', pattern: 'unwrap_used' }
+    ratchet: "#[allow] with a reason, counted by ARC-08."
+    cost: Moderate on legacy code.
+    source: { title: "Cargo manifest: the [lints] section", url: "https://doc.rust-lang.org/cargo/reference/manifest.html" }
+
+not_recommended:
+  - practice: Denying clippy::pedantic wholesale.
+    reason: Many pedantic lints are matters of taste. Enable the specific ones that catch real problems.
