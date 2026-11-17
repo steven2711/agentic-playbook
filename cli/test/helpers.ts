@@ -61,6 +61,29 @@ export function monorepo(): string {
   });
 }
 
+/** A monorepo for the testing assessment: a Next.js web app with one component test and no e2e; an Express API with unit and integration tests. */
+export function testedMonorepo(): string {
+  return makeRepo({
+    "package.json": JSON.stringify({ name: "mono", private: true }),
+    "pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+    ".github/workflows/ci.yml": "on: [pull_request]\njobs:\n  t:\n    steps:\n      - run: pnpm test -- --coverage\n",
+    "apps/web/package.json": JSON.stringify({ name: "web", dependencies: { next: "15.0.0", react: "19.0.0" }, devDependencies: { vitest: "3.0.0", "@testing-library/react": "16.0.0" } }),
+    "apps/web/app/page.tsx": "export default function Page() { return null }\n",
+    "apps/web/app/checkout/pay.ts": "export async function pay() {}\n",
+    "apps/web/components/Button.tsx": "export function Button() { return null }\n",
+    "apps/web/components/Button.test.tsx": "import { render, screen } from '@testing-library/react'\nimport { Button } from './Button'\nit('renders', () => { render(<Button />); expect(screen).toBeTruthy() })\n",
+    "apps/api/package.json": JSON.stringify({ name: "api", dependencies: { express: "4.21.0", "@prisma/client": "6.0.0" }, devDependencies: { vitest: "3.0.0", supertest: "7.0.0" } }),
+    "apps/api/vitest.config.ts": "export default { test: { coverage: { thresholds: { lines: 80 } } } }\n",
+    "apps/api/src/auth/login.ts": "export function login() {}\n",
+    "apps/api/src/billing/refund.ts": "export function refund() {}\n",
+    "apps/api/src/domain/price.ts": "export const price = (n: number) => n\n",
+    "apps/api/src/domain/price.test.ts": "import { price } from './price'\nit('prices', () => expect(price(1)).toBe(1))\n",
+    "apps/api/src/util/a.ts": "export const a = 1\n",
+    "apps/api/src/util/b.ts": "export const b = 2\n",
+    "apps/api/test/integration/orders.int.test.ts": "import request from 'supertest'\nimport { login } from '../../src/auth/login'\nit('posts', async () => { await request(app).post('/orders').expect(401) })\n",
+  });
+}
+
 export function run(repo: string, ...argv: string[]): { code: number; out: string; err: string } {
   const out: string[] = [];
   const err: string[] = [];

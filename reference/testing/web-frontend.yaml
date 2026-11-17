@@ -1,0 +1,75 @@
+kind: web-frontend
+title: Web front end
+reviewed: 2026-11
+applies_when: [web]
+layers:
+  - id: TL-WEB-01
+    layer: component
+    title: Component and unit tests that render the way users see the page
+    tier: 1
+    purpose: Fast feedback on rendering, state and interaction logic without a browser.
+    belongs_here: Form validation, conditional rendering, hooks and state reducers, formatting. Query by role and label (see TST-07).
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]sx$|\.(test|spec)\.(vue|svelte)\.[jt]s$|(^|/)__tests__/.+\.[jt]sx$', pattern: '@testing-library|mount\(|render\(|shallowMount' }
+    see: [TST-01, TST-07]
+    source: { title: "Testing Library: Guiding Principles", url: "https://testing-library.com/docs/guiding-principles" }
+
+  - id: TL-WEB-02
+    layer: e2e
+    title: A few end-to-end tests for the critical user journeys
+    tier: 1
+    purpose: Proves the deployed pieces work together on the journeys that must not break, such as sign-in and checkout.
+    belongs_here: One test per critical journey, run against a production-like build. Not every edge case.
+    detect:
+      - { files: '(^|/)(playwright|cypress)\.config\.[cm]?[jt]s$' }
+      - { files: '(^|/)(e2e|cypress)/.+\.[cm]?[jt]sx?$|\.e2e\.[cm]?[jt]sx?$' }
+    see: [TST-02]
+    source: { title: "Google Testing Blog: Just Say No to More End-to-End Tests", url: "https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html" }
+
+  - id: TL-WEB-03
+    layer: network-boundary
+    title: Data fetching is tested against a mocked network, not mocked modules
+    tier: 2
+    when: The UI calls back-end APIs and its component tests currently mock fetch clients or hooks module by module.
+    purpose: Component tests exercise the real data layer and fail on response-shape mismatches.
+    belongs_here: Request handlers for each API the UI calls, shared by component tests and local development.
+    detect:
+      - { files: '(^|/)package\.json$', pattern: '"msw"' }
+    see: [TST-04]
+    source: { title: "Mock Service Worker documentation", url: "https://mswjs.io/docs/" }
+
+  - id: TL-WEB-04
+    layer: accessibility
+    title: Automated accessibility checks on key pages
+    tier: 2
+    when: The UI is public-facing or has accessibility obligations.
+    purpose: Catches missing labels, contrast failures and broken roles that component tests do not assert.
+    belongs_here: An axe scan inside the existing end-to-end or component tests for each key page.
+    detect:
+      - { files: '(^|/)package\.json$', pattern: '"(@axe-core/[a-z-]+|axe-core|jest-axe|vitest-axe|cypress-axe)"' }
+    source: { title: "Playwright: Accessibility testing", url: "https://playwright.dev/docs/accessibility-testing" }
+
+  - id: TL-WEB-05
+    layer: visual
+    title: Visual regression tests
+    tier: 3
+    when: Visual regressions have shipped repeatedly and been caught only by users or manual QA.
+    purpose: Catches layout and styling changes that no assertion describes.
+    belongs_here: Screenshots of shared components and key pages, reviewed on change.
+    detect:
+      - { files: '(^|/)package\.json$', pattern: '"(@chromatic-com/[a-z-]+|chromatic|@percy/[a-z-]+|backstopjs|loki)"' }
+      - { files: '\.(spec|test)\.[cm]?[jt]sx?$', pattern: 'toHaveScreenshot\(' }
+    source: { title: "Storybook: Visual tests", url: "https://storybook.js.org/docs/writing-tests/visual-testing" }
+
+critical_path_hints:
+  - { name: authentication, files: '(^|/)(auth|login|logout|signin|sign-in|signup|session|middleware)[^/]*\.[cm]?[jt]sx?$', consequence: Users locked out or exposed }
+  - { name: payments, files: '(^|/)(checkout|payment|billing|cart|subscription|pricing)[^/]*(/|\.[cm]?[jt]sx?$)', consequence: Lost or incorrect charges }
+  - { name: forms that write data, files: '(^|/)(actions?|mutations?)(/|\.[cm]?[jt]sx?$)', consequence: Silent data loss }
+
+not_recommended:
+  - practice: Snapshot-only component tests
+    reason: A snapshot asserts the current markup, not the behaviour. It fails on every harmless change and gets updated without being read.
+    source: { title: "Google Testing Blog: Change-Detector Tests Considered Harmful", url: "https://testing.googleblog.com/2015/01/testing-on-toilet-change-detector-tests.html" }
+  - practice: Covering every behaviour with browser end-to-end tests
+    reason: Slow and flaky, and a failure does not say where the fault is. Push the cases down to component tests and keep end-to-end tests for the journeys.
+    source: { title: "Google Testing Blog: Just Say No to More End-to-End Tests", url: "https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html" }

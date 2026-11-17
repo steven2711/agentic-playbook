@@ -1,0 +1,44 @@
+kind: cli
+title: Command-line tool
+reviewed: 2026-11
+applies_when: [cli]
+layers:
+  - id: TL-CLI-01
+    layer: unit
+    title: Unit tests for argument parsing and command logic
+    tier: 1
+    purpose: Fast checks of each command's logic without spawning a process.
+    belongs_here: Parsers, validators, and each command's core function.
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.(go|py)$|(^|/)tests/.+\.rs$' }
+    see: [TST-01]
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TL-CLI-02
+    layer: invocation
+    title: Tests that run the built command and check exit code and output
+    tier: 1
+    purpose: Proves the shipped entry point, flag wiring, exit codes and error messages work. These are the CLI's contract with scripts and users.
+    belongs_here: The main commands run against temporary directories, asserting exit code, stdout and stderr, including a usage error.
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.go$|(^|/)tests/.+\.rs$', pattern: 'execa|execFileSync|spawnSync|execSync|child_process|CliRunner|subprocess\.run|exec\.Command|assert_cmd|Command::cargo_bin' }
+    source: { title: "Command Line Applications in Rust: Testing", url: "https://rust-cli.github.io/book/tutorial/testing.html" }
+
+  - id: TL-CLI-03
+    layer: golden
+    title: Golden-output tests for machine-readable output
+    tier: 2
+    when: Scripts or other tools parse the command's output (for example a --json flag).
+    purpose: Fails when the output format changes unintentionally.
+    belongs_here: Checked-in expected output for each machine-readable format, updated deliberately.
+    detect:
+      - { files: '(^|/)(golden|testdata|__snapshots__|snapshots)/' }
+    source: { title: "Click: Testing Click Applications", url: "https://click.palletsprojects.com/en/stable/testing/" }
+
+critical_path_hints:
+  - { name: commands that write or delete, files: '(^|/)(commands?|cmd)/[^/]+\.(ts|js|py|go|rs)$', consequence: Destroys user data }
+
+not_recommended:
+  - practice: Golden files for human-readable output that changes often
+    reason: They break on every wording change and get regenerated without review.
+    source: { title: "Google Testing Blog: Change-Detector Tests Considered Harmful", url: "https://testing.googleblog.com/2015/01/testing-on-toilet-change-detector-tests.html" }

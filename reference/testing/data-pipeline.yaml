@@ -1,0 +1,45 @@
+kind: data-pipeline
+title: Data pipeline or analytics transforms
+reviewed: 2026-11
+applies_when: [pipeline]
+layers:
+  - id: TL-DATA-01
+    layer: unit
+    title: Unit tests for transforms on small in-memory inputs
+    tier: 1
+    purpose: Checks each transform's logic, including nulls, duplicates and late data.
+    belongs_here: Each transform function with a handful of rows, including the awkward ones.
+    detect:
+      - { files: '(^|/)test_[^/]+\.py$|_test\.py$|\.(test|spec)\.[cm]?[jt]s$|(^|/)tests?/.+\.(sql|py)$' }
+    see: [TST-01]
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TL-DATA-02
+    layer: data-quality
+    title: Data quality tests on produced tables
+    tier: 1
+    purpose: Fails the run when output violates its contract (nulls in keys, duplicate keys, broken references, out-of-range values) before consumers read it.
+    belongs_here: Uniqueness, not-null, relationship and accepted-value tests on every published table.
+    detect:
+      - { files: '(^|/)(models|schema)[^/]*/.+\.ya?ml$|(^|/)schema\.ya?ml$', pattern: '(data_)?tests:' }
+      - { files: '(^|/)(pyproject\.toml|requirements[^/]*\.txt)$', pattern: 'great.expectations|pandera|soda' }
+    source: { title: "dbt: Add data tests to your DAG", url: "https://docs.getdbt.com/docs/build/data-tests" }
+
+  - id: TL-DATA-03
+    layer: end-to-end
+    title: An end-to-end run on a small fixture dataset
+    tier: 2
+    when: The pipeline has several dependent steps, and failures have come from steps that were each tested alone.
+    purpose: Proves the steps compose and the final output matches expectations.
+    belongs_here: A fixed input set, the full DAG run in CI, and assertions on the final tables.
+    detect:
+      - { files: '(^|/)(fixtures?|seeds?)/.+\.(csv|parquet|json)$' }
+    source: { title: "Great Expectations documentation", url: "https://docs.greatexpectations.io/docs/home/" }
+
+critical_path_hints:
+  - { name: published models, files: '(^|/)models/(marts|core|published)/[^/]+\.(sql|py)$', consequence: Wrong numbers in reports }
+  - { name: ingestion, files: '(^|/)(ingest|extract|load|sources?)[^/]*\.(py|sql)$', consequence: Missing or duplicated data }
+
+not_recommended:
+  - practice: Testing only by eyeballing dashboards after a run
+    reason: Errors reach consumers before anyone looks. Data tests fail the run first.

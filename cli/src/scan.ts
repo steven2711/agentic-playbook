@@ -4,6 +4,7 @@ import { dirname, extname, join, relative, resolve } from "node:path";
 import { commitCount, defaultBranch, headRevision, remoteUrl } from "./git.js";
 import { detectApps } from "./conventions.js";
 import { assessStrictness, countSuppressions, loadStrictness } from "./strictness.js";
+import { assessTesting, loadTesting } from "./testing.js";
 import type { CriterionStatus, Mode } from "./types.js";
 
 /**
@@ -26,7 +27,7 @@ export const PROBES = [
   "claude_md", "agent_guidance_sources", "scoped_rules", "canonical_commands", "claude_md_commands", "reproducible_setup",
   "ci_runs_checks", "doc_checks", "ci_permissions", "boundary_tooling", "baselines", "codeowners", "architecture_docs",
   "secret_scanning", "dependency_scanning", "agent_settings", "policy_hooks", "coverage", "eval_cases", "branch_protection",
-  "conventions", "strictness", "suppressions",
+  "conventions", "strictness", "suppressions", "tests",
 ] as const;
 
 export interface ProbeResult {
@@ -188,6 +189,24 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
       `suppression baselines: ${sup.baselines.join(", ") || "none"}`,
     ],
     note: "Counts are textual and may include matches inside strings. The auditor confirms whether growth is blocked (ARC-08).",
+  };
+
+  // ---------- test portfolio per app
+  const testing = assessTesting(loadTesting(), apps, files, (rel) => read(root, rel));
+  facts.testing = testing;
+  const withCode = testing.filter((a) => a.sourceFiles > 0);
+  const noTests = withCode.filter((a) => a.testFiles === 0);
+  probes.tests = {
+    status: withCode.length === 0 ? "unverified" : noTests.length ? "failed" : "partial",
+    evidence: withCode.length
+      ? testing.map((a) => {
+          const t1 = a.layers.filter((l) => l.tier === 1);
+          const missing = t1.filter((l) => l.status === "absent");
+          const crit = a.criticalCandidates;
+          return `${a.root} [${a.kinds.join(", ") || "no kind"}]: ${a.testFiles} test / ${a.sourceFiles} source files; Tier 1 layers ${t1.length - missing.length}/${t1.length}${missing.length ? ` (missing: ${missing.map((l) => l.layer).join(", ")})` : ""}; critical-path candidates referenced by a test ${crit.filter((c) => c.referencedBy.length).length}/${crit.length}${a.untestedDirs.length ? `; untested dirs: ${a.untestedDirs.slice(0, 5).join(", ")}` : ""}`;
+        })
+      : ["No app has source files yet."],
+    note: "Layer and critical-path detection are heuristics. The test-strategy-auditor confirms them and judges strategy and quality. Run `agentic tests` for the per-app list.",
   };
 
   // ---------- manifests & commands

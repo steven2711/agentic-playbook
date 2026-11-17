@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { playbookRoot } from "./paths.js";
 import { loadLibrary } from "./conventions.js";
 import { loadRubric } from "./rubric.js";
+import { loadTesting } from "./testing.js";
 import type { AssessmentRecord } from "./types.js";
 
 export interface ValidationResult {
@@ -134,6 +135,20 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
     if ((c.status === "documented" || c.status === "followed" || c.status === "contradicted") && c.evidence.length === 0)
       errors.push(`convention ${c.id} is ${c.status} without evidence (cite path:line)`);
     if (c.status === "n_a" && !c.reason) errors.push(`convention ${c.id} is n_a without a reason`);
+  }
+
+  const testingLib = loadTesting();
+  const scopes = new Set<string>();
+  for (const t of record.testing ?? []) {
+    if (scopes.has(t.scope)) errors.push(`testing assessment for ${t.scope} appears more than once`);
+    scopes.add(t.scope);
+    for (const l of t.layers) {
+      if (!testingLib.layers.has(l.id)) errors.push(`testing ${t.scope} references layer ${l.id}, which is not in the testing library`);
+      if (l.status === "present" && l.evidence.length === 0) errors.push(`testing ${t.scope} layer ${l.id} is present without evidence (cite a test path)`);
+      if (l.status === "n_a" && !l.reason) errors.push(`testing ${t.scope} layer ${l.id} is n_a without a reason`);
+    }
+    if (t.criticalPaths.covered > t.criticalPaths.total) errors.push(`testing ${t.scope} has more covered critical paths than it has critical paths`);
+    if (t.strategy.documented && !t.strategy.path) warnings.push(`testing ${t.scope} strategy is documented but no path is given`);
   }
 
   const taskCycle = findCycle(record.tasks);

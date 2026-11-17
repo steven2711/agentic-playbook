@@ -58,6 +58,12 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
     { "scope": "apps/web", "rule": "FE-10", "status": "followed", "evidence": ["apps/web/src/components/OrderList.tsx:22 keys by order.id"], "promoteTo": "react/no-array-index-key" },
     { "scope": "apps/api", "rule": "API-05", "status": "absent", "evidence": ["apps/api/src/routes/orders.ts:31 returns every row"], "decision": "accepted" }
   ],
+  "testing": [
+    { "scope": "apps/api", "kinds": ["api-service"], "strategy": { "documented": false },
+      "layers": [ { "id": "TL-API-02", "status": "present", "evidence": ["apps/api/test/integration/orders.int.test.ts:12"] } ],
+      "criticalPaths": { "total": 14, "covered": 9, "uncovered": ["apps/api/src/billing/refund.ts"] },
+      "coverage": "repo-wide, not enforced", "assessedRevision": "<sha>" }
+  ],
   "remove": { "tasks": ["T-009"] }
 }
 ```
@@ -79,4 +85,5 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
   - `rule` must be an ID from the [conventions library](conventions/README.md). Leave out `id`: the CLI reuses the existing `CV-NNN` for the same `scope` and `rule`, or allocates a new one.
   - `documented`, `followed` and `contradicted` need evidence. `n_a` needs a `reason`.
   - `decision` defaults to `proposed`. Set it to `accepted` or `declined` only when the user decides.
+- **Testing:** one snapshot per app `scope`, replaced whole on each apply (no `id`). Layer IDs must exist in the [testing profiles](testing/README.md). A `present` layer needs evidence, an `n_a` layer needs a `reason`, and `covered` cannot exceed `total`. Remove one with `"remove": { "testing": ["apps/api"] }`.
 - **Mode:** `"mode": "existing"` switches the stage. Criteria that only held stage defaults (`n_a` or `deferred` by rubric rule) are recomputed.

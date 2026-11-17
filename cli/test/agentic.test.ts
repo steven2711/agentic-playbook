@@ -5,11 +5,12 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { lintLibrary } from "../src/conventions.js";
 import { lintStrictness } from "../src/strictness.js";
+import { lintTesting } from "../src/testing.js";
 import { lintPlaybook } from "../src/lint.js";
 import { playbookRoot } from "../src/paths.js";
 import { loadRubric } from "../src/rubric.js";
 import { computeScore } from "../src/score.js";
-import { GREENFIELD, existingRepo, makeRepo, monorepo, patch, planned, readRecord, run } from "./helpers.js";
+import { GREENFIELD, existingRepo, makeRepo, monorepo, patch, planned, readRecord, run, testedMonorepo } from "./helpers.js";
 
 beforeEach(() => {
   process.env.AGENTIC_HOME = mkdtempSync(join(tmpdir(), "agentic-home-"));
@@ -365,5 +366,106 @@ describe("strictness and suppressions", () => {
     const r = readRecord(repo);
     expect(r.criteria.find((c) => c.id === "VER-10")!.status).toBe("unverified");
     expect(r.criteria.find((c) => c.id === "ARC-08")!.status).toBe("unverified");
+  });
+});
+
+describe("testing assessment", () => {
+  const copyPlaybook = () => {
+    const copy = mkdtempSync(join(tmpdir(), "agentic-pb-"));
+    for (const d of ["rubric", "standards", "schema", "reference", "templates"]) cpSync(join(playbookRoot(), d), join(copy, d), { recursive: true });
+    return copy;
+  };
+
+  it("the testing library lints clean, and rejects missing triggers, bad regexes, unknown TST rules and stale reviews", () => {
+    expect(lintTesting(playbookRoot())).toEqual({ problems: [], warnings: [] });
+    const copy = copyPlaybook();
+    const f = join(copy, "reference", "testing", "api-service.yaml");
+    writeFileSync(f, readFileSync(f, "utf8").replace(/    when: The service has a consumer.*\n/, "").replace("'(^|/)pacts?/'", "'(^|/)pacts?/('").replace("see: [TST-02, TST-03]", "see: [TST-99]"));
+    const { problems } = lintTesting(copy);
+    expect(problems.some((p) => p.includes("TL-API-03") && p.includes('"when"'))).toBe(true);
+    expect(problems.some((p) => p.includes("TL-API-03") && p.includes("not a valid JavaScript regex"))).toBe(true);
+    expect(problems.some((p) => p.includes("TL-API-02") && p.includes("TST-99"))).toBe(true);
+    expect(lintTesting(playbookRoot(), new Date("2028-06-01")).warnings[0]).toContain("last reviewed");
+  });
+
+  it("reports kinds, layers, critical-path candidates, untested dirs and coverage per app", () => {
+    const repo = testedMonorepo();
+    const out = JSON.parse(run(repo, "tests", "--json").out);
+    const apps = Object.fromEntries(out.apps.map((a: { root: string }) => [a.root, a]));
+    const layer = (app: string, id: string) => apps[app].layers.find((l: { id: string }) => l.id === id);
+    expect(apps["apps/web"].kinds).toContain("web-frontend");
+    expect(apps["apps/api"].kinds).toEqual(["api-service"]);
+    expect(apps["apps/api"].runners).toEqual(expect.arrayContaining(["vitest"]));
+    expect(layer("apps/web", "TL-WEB-01")).toMatchObject({ status: "present", count: 1 });
+    expect(layer("apps/web", "TL-WEB-02").status).toBe("absent");
+    expect(layer("apps/api", "TL-API-01")).toMatchObject({ status: "present", count: 1, examples: ["apps/api/src/domain/price.test.ts"] });
+    expect(layer("apps/api", "TL-API-02").status).toBe("present");
+    expect(layer("apps/api", "TL-API-04").status).toBe("absent"); // db app: migration layer applies (Tier 2)
+    expect(layer("apps/api", "TL-API-04").when).toMatch(/migrations/);
+    const crit = (app: string, file: string) => apps[app].criticalCandidates.find((c: { file: string }) => c.file === file);
+    expect(crit("apps/web", "apps/web/app/checkout/pay.ts")).toMatchObject({ name: "payments", referencedBy: [] });
+    expect(crit("apps/api", "apps/api/src/auth/login.ts").referencedBy).toEqual(["apps/api/test/integration/orders.int.test.ts"]);
+    expect(crit("apps/api", "apps/api/src/billing/refund.ts").referencedBy).toEqual([]);
+    expect(apps["apps/api"].untestedDirs).toContain("apps/api/src/util");
+    expect(apps["apps/api"].untestedDirs).not.toContain("apps/api/src/domain");
+    expect(apps["apps/api"].coverage.join(" ")).toContain("apps/api/vitest.config.ts");
+    expect(apps["apps/api"].notRecommended.some((n: { practice: string }) => /load tests/i.test(n.practice))).toBe(true);
+    const text = run(repo, "tests").out;
+    expect(text).toContain("✗ T1 TL-WEB-02 e2e");
+    expect(text).toContain("✗ apps/web/app/checkout/pay.ts (payments");
+
+    run(repo, "init");
+    const before = JSON.parse(run(repo, "score", "--json").out).score;
+    const scan = JSON.parse(run(repo, "scan", "--json").out);
+    expect(scan.probes.tests.status).toBe("partial");
+    expect(scan.probes.tests.evidence.join(" ")).toMatch(/apps\/web \[[^\]]*\]: .*missing: [^)]*e2e/);
+    expect(scan.criteriaHints["VER-11"].probe).toBe("tests");
+    expect(scan.criteriaHints["VER-12"].probe).toBe("tests");
+    expect(JSON.parse(run(repo, "score", "--json").out).score).toBe(before);
+  });
+
+  it("a repo with code and no tests fails the hint", () => {
+    const repo = makeRepo({ "package.json": JSON.stringify({ name: "x", dependencies: { express: "4" } }), "src/a.ts": "export {}\n", "src/b.ts": "export {}\n" });
+    expect(JSON.parse(run(repo, "scan", "--json").out).probes.tests.status).toBe("failed");
+  });
+
+  it("stores a per-app testing snapshot, replaced by scope, validated against the library, and rendered", () => {
+    const repo = testedMonorepo();
+    run(repo, "init");
+    run(repo, "scan");
+    const snap = {
+      scope: "apps/api", kinds: ["api-service"], strategy: { documented: false },
+      layers: [{ id: "TL-API-02", status: "present", evidence: ["apps/api/test/integration/orders.int.test.ts:3"] }],
+      criticalPaths: { total: 3, covered: 1, uncovered: ["apps/api/src/billing/refund.ts"] },
+    };
+    expect(patch(repo, { testing: [snap] }, "agent:test-strategy-auditor").code).toBe(0);
+    expect(patch(repo, { testing: [{ ...snap, criticalPaths: { total: 3, covered: 2, uncovered: [] } }] }).code).toBe(0);
+    const r = readRecord(repo);
+    expect(r.testing).toHaveLength(1);
+    expect(r.testing![0]!.criticalPaths.covered).toBe(2);
+    expect(r.testing![0]!.assessedBy).toBe("agent:claude");
+
+    const bad = patch(repo, { testing: [{ ...snap, layers: [{ id: "TL-API-99", status: "present", evidence: [] }] }] });
+    expect(bad.code).not.toBe(0);
+    expect(bad.err).toContain("TL-API-99");
+    expect(patch(repo, { testing: [{ ...snap, criticalPaths: { total: 1, covered: 2, uncovered: [] } }] }).err).toContain("more covered critical paths");
+
+    const html = join(mkdtempSync(join(tmpdir(), "agentic-r-")), "v.html");
+    run(repo, "render", "--out", html);
+    const page = readFileSync(html, "utf8");
+    expect(page).toContain("testingView");
+    expect(page).toMatch(/"testingScan":\[\{"root":"apps\//);
+    expect(page).toContain("TL-WEB-02");
+
+    expect(patch(repo, { remove: { testing: ["apps/api"] } }).code).toBe(0);
+    expect(readRecord(repo).testing).toEqual([]);
+  });
+
+  it("keeps the strategy criterion applicable in greenfield and defers critical-path coverage", () => {
+    const repo = makeRepo(GREENFIELD);
+    run(repo, "init");
+    const r = readRecord(repo);
+    expect(r.criteria.find((c) => c.id === "VER-11")!.status).toBe("unverified");
+    expect(r.criteria.find((c) => c.id === "VER-12")!.status).toBe("deferred");
   });
 });

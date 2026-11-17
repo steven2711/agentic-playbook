@@ -11,6 +11,7 @@ import { loadRubric } from "./rubric.js";
 import { scan, walk, type ScanResult } from "./scan.js";
 import { applicableChecks, assessStrictness, countSuppressions, lintStrictness, loadStrictness } from "./strictness.js";
 import { computeScore } from "./score.js";
+import { assessTesting, lintTesting, loadTesting, profilesFor } from "./testing.js";
 import { UsageError, type AssessmentRecord, type Mode, type WorkStatus } from "./types.js";
 import { validateRecord } from "./validate.js";
 import { addEvidence, applyPatch, readyTasks, transitionTask, type Patch } from "./workflow.js";
@@ -41,6 +42,9 @@ Conventions
 Strictness
   strictness [--app <root>] [--json]           Per app: which tiered strictness checks are on, and inline suppression counts
 
+Testing
+  tests [--app <root>] [--json]                Per app: kind, test layers present, critical-path candidates, coverage tooling
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -50,7 +54,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions and strictness libraries
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness and testing libraries
 `;
 
 type Args = { _: string[]; flags: Record<string, string | boolean> };
@@ -102,7 +106,8 @@ function strictnessSnapshot(store: StoreLocation) {
     const s = JSON.parse(readFileSync(store.scanPath, "utf8")) as ScanResult;
     const apps = s.facts.strictness as never;
     const suppressions = s.facts.suppressions as never;
-    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions } : null;
+    const testing = (s.facts.testing ?? []) as never;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing } : null;
   } catch {
     return null;
   }
@@ -151,13 +156,13 @@ export function main(argv: string[]): number {
     case "lint-playbook": {
       const root = resolve(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings]) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `✗ ${p}`).join("\n"));
         console.error(`\n${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks).`);
+      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers).`);
       return 0;
     }
     case "rubric": {
@@ -284,6 +289,54 @@ export function main(argv: string[]): number {
       }
       console.log(`rules requiring a reason: ${sup.descriptionRules.join(", ") || "none"}`);
       console.log(`suppression baselines: ${sup.baselines.join(", ") || "none"}`);
+      return 0;
+    }
+    case "tests": {
+      const store = locateStore(cwd);
+      const { files } = walk(store.repoRoot);
+      const read = (rel: string) => {
+        try {
+          return readFileSync(join(store.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadTesting();
+      const only = str(args, "app");
+      const all = detectApps(files, read);
+      if (only && !all.some((a) => a.root === only)) throw new UsageError(`No app root "${only}". Run \`agentic tests\` to list them.`);
+      const result = assessTesting(lib, all, files, read).filter((a) => !only || a.root === only);
+      const out = result.map((a) => {
+        const app = all.find((x) => x.root === a.root)!;
+        const profiles = profilesFor(lib, new Set(app.signals));
+        return {
+          ...a,
+          signals: app.signals,
+          layers: a.layers.map((l) => {
+            const full = lib.layers.get(l.id)!;
+            return { ...l, when: full.when, purpose: full.purpose, belongs_here: full.belongs_here, see: full.see ?? [], source: full.source };
+          }),
+          notRecommended: profiles.flatMap((p) => p.not_recommended),
+        };
+      });
+      if (args.flags.json) {
+        console.log(JSON.stringify({ apps: out }, null, 2));
+        return 0;
+      }
+      for (const a of out) {
+        console.log(`${a.root}  [${a.kinds.join(", ") || "no kind"}]  runners: ${a.runners.join(", ") || "none found"}`);
+        console.log(`  ${a.testFiles} test files, ${a.sourceFiles} source files`);
+        for (const l of a.layers.filter((x) => x.tier === 1 || x.status === "present"))
+          console.log(`  ${l.status === "present" ? "✓" : l.tier === 1 ? "✗" : "·"} T${l.tier} ${l.id} ${l.layer}${l.status === "present" ? ` (${l.count})` : ""}: ${l.title}`);
+        for (const l of a.layers.filter((x) => x.tier === 2 && x.status === "absent")) console.log(`  · T2 ${l.id} ${l.layer} (when: ${l.when})`);
+        const crit = a.criticalCandidates;
+        if (crit.length) {
+          console.log(`  critical-path candidates referenced by a test: ${crit.filter((c) => c.referencedBy.length).length}/${crit.length}`);
+          for (const c of crit.filter((x) => !x.referencedBy.length).slice(0, 10)) console.log(`    ✗ ${c.file} (${c.name}: ${c.consequence})`);
+        }
+        if (a.untestedDirs.length) console.log(`  directories with code and no tests: ${a.untestedDirs.join(", ")}`);
+        console.log(`  coverage: ${a.coverage.join("; ") || "none found"}`);
+      }
       return 0;
     }
     case "adopt": {

@@ -26,6 +26,7 @@ To try it locally without installing, run `claude --plugin-dir /path/to/agentic-
 | --- | --- | --- |
 | `/agentic:assess` | Detects whether the repo is greenfield or existing, runs read-only probes, and starts four auditor subagents in parallel: context, verification/architecture/security, evals, and workflows. Then it scores the repo and publishes the tracker. | No |
 | `/agentic:conventions [app]` | Also runs at the end of assess. A `conventions-advisor` subagent compares each app (web, API, worker, and so on) with the sourced conventions baseline and marks each rule documented, followed, contradicted, absent or "promote to lint". It then asks which recommendations to adopt. | No |
+| `/agentic:testing [app]` | Also runs inside assess. A `test-strategy-auditor` subagent assesses each app's testing against the sourced testing profiles: its stated strategy, the test layers it has against those its kind needs, a map of critical paths and the tests that cover them, coverage on changed code, and a sample of test quality. Gaps become findings. | No |
 | `/agentic:plan` | Turns findings into dependency-ordered milestones and tasks with acceptance criteria someone else can verify. Stops for your approval. | No |
 | `/agentic:adopt` | Moves the approved record into `.agentic/record.json`. | Yes, after you confirm |
 | `/agentic:next [task]` | Implements the next dependency-ready task. Self-repair is capped at 3 attempts, then the task hands off to verification. | Yes |
@@ -39,7 +40,7 @@ A SessionStart hook runs in any repo that has a record. It warns when HEAD has m
 
 ## The score
 
-[rubric/rubric.yaml](rubric/rubric.yaml) turns the four standards into 49 criteria across six dimensions:
+[rubric/rubric.yaml](rubric/rubric.yaml) turns the four standards into 51 criteria across six dimensions:
 
 - Context
 - Verification and CI
@@ -121,6 +122,31 @@ During execution:
 - **Implementer:** `/agentic:next` may not make a check pass by weakening it.
 - **Verifier:** the independent verifier inspects each diff for new suppressions, skipped tests and relaxed configuration.
 
+## Testing per app
+
+Whether tests exist and run in CI says little about whether the code that must not break is tested. The playbook assesses each app's testing on its own, against [reference/testing/](reference/testing/README.md). This library holds profiles per app kind (web front end, API service, worker, CLI, data pipeline, library), and each profile lists:
+
+- the test layers that kind needs, in the same three tiers as strictness
+- what belongs in each layer
+- hints for finding critical code
+- practices that are not recommended
+
+Sources include *Software Engineering at Google*, the Google Testing Blog, Martin Fowler, Microsoft Learn, the Amazon Builders' Library, and the Pact, Testing Library and Playwright documentation.
+
+| | Deterministic (`agentic tests`) | Judged (`test-strategy-auditor`) |
+| --- | --- | --- |
+| **Strategy** | | Is there a stated approach, for example `## Testing` in the app's conventions file? Does the layer mix fit the kind? (`VER-11`) |
+| **Scope** | App kind, runners, layers present or absent, test and source counts, directories with code and no tests | Each layer is confirmed by opening real tests |
+| **Critical paths** | Candidate files (auth, money, data writes, routes, jobs, migrations) and which tests mention them | The map: each path's covering test and layer, or uncovered or at the wrong layer (`VER-12`, P0) |
+| **Coverage** | Coverage config and CI steps | Measured on changed code? Enforced per app? Never a global target |
+| **Quality** | | At least 8 tests per layer sampled against TST-01 to TST-06. A finding needs at least 3 occurrences. |
+
+The judged result is stored per app in the record's `testing` snapshot and shown in the tracker's **Testing** tab. `/agentic:plan` turns gaps into tasks:
+
+- "Write test strategy for <app>" (requires approval)
+- "Cover <path> with a <layer> test". The verifier proves it fails when that behaviour breaks.
+- "Add the <layer> layer for <app>"
+
 ## Guarantees the CLI enforces
 
 - **Assessment is read-only.** The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
@@ -140,6 +166,7 @@ agentic init | scan [--github] | apply <patch> | task <id> <status> | evidence .
 agentic score | status [--brief] | render | published --url | validate | adopt | where | show <id>
 agentic conventions [--app <root>] [--json]
 agentic strictness [--app <root>] [--json]
+agentic tests [--app <root>] [--json]
 agentic lint-playbook
 ```
 
@@ -154,7 +181,7 @@ The patch format is documented in [reference/patch-format.md](reference/patch-fo
 | `skills/` | The `/agentic:*` commands. |
 | `agents/` | The auditor and verifier subagents. |
 | `hooks/` | The SessionStart staleness check. |
-| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), and the strictness profiles (`reference/strictness/`). |
+| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), and the testing profiles (`reference/testing/`). |
 | `cli/` | The TypeScript source, tests, and the committed `dist/agentic.mjs` bundle. |
 | `archive/` | The original prompts. The [migration map](archive/migration.md) records where each one went. |
 
@@ -175,6 +202,7 @@ npm run check
 - a link is broken
 - a conventions library rule has no https source, has no `enforceable` field, or uses an unknown stack signal
 - a strictness check has no https source, an invalid tier, a Tier 2 or 3 check without a `when`, or a detect pattern that is not a valid regex
+- a testing layer has the same problems, or refers to a TST rule that is not in the conventions library
 
 CI also fails if `cli/dist` is out of date with the source. Rebuild and commit it after changing anything in `cli/src`.
 

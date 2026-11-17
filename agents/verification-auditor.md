@@ -47,7 +47,7 @@ Work through these:
 
 Return only JSON:
 ```
-{ "criteria": [ every VER, ARC and SEC criterion: {id, status, evidence[], reason?, trigger?} ],
+{ "criteria": [ every VER, ARC and SEC criterion except VER-11 and VER-12, which the test-strategy-auditor judges: {id, status, evidence[], reason?, trigger?} ],
   "findings": [ {id "F-VER-NNN" | "F-ARC-NNN" | "F-SEC-NNN", title, kind, dimension, priority, currentState, desiredState, evidence[], remediation, criterionIds[], complexity, risks, reason?} ],
   "commandInventory": [ {category, command, definedIn, runInCi, status, reason?} ],
   "negativeCases": [ "..." ],

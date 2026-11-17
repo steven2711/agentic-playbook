@@ -1,0 +1,91 @@
+kind: api-service
+title: HTTP or RPC service
+reviewed: 2026-11
+applies_when: [http-api]
+layers:
+  - id: TL-API-01
+    layer: unit
+    title: Unit tests for domain logic
+    tier: 1
+    purpose: Fast, exhaustive coverage of the rules that decide outcomes, with no network or database.
+    belongs_here: Validation, pricing and permission rules, state transitions, mappers. Use real objects or fakes, not mocks of your own code.
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.(go|py)$|(^|/)src/test/.+Test\.(java|kt)$|(^|/)tests?/.+\.rs$', exclude: '(^|/)(integration|e2e|it)/|\.(int|integration|e2e)\.(test|spec)\.' }
+    see: [TST-01, TST-04]
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TL-API-02
+    layer: integration
+    title: Integration tests through the HTTP layer against a real database
+    tier: 1
+    purpose: Proves routing, serialization, auth middleware, queries and transactions work together. Most production bugs in services live at these seams.
+    belongs_here: One or more tests per endpoint for the success path, auth failure and validation failure, run against an ephemeral database (Testcontainers or a disposable schema).
+    detect:
+      - { files: '(^|/)(integration|it)/.+|\.(int|integration)\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]*integration[^/]*\.py$' }
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.go$|Test\.(java|kt)$', pattern: 'supertest|testcontainers|TestClient\(|AsyncClient\(|httptest\.New|@SpringBootTest|MockMvc|WebTestClient|app\.inject\(|\.request\(app' }
+    see: [TST-02, TST-03]
+    source: { title: "Martin Fowler: Testing Strategies in a Microservice Architecture", url: "https://martinfowler.com/articles/microservice-testing/" }
+
+  - id: TL-API-03
+    layer: contract
+    title: Contract tests between the service and its consumers
+    tier: 2
+    when: The service has a consumer that is deployed separately (another service, a mobile app, or a public API), and breaking changes have reached it or could.
+    purpose: Fails the provider's build when it breaks a consumer's expectations, without a shared end-to-end environment.
+    belongs_here: Consumer-driven contracts (Pact) or schema-based checks of the published OpenAPI or protobuf definition.
+    detect:
+      - { files: '(^|/)(package\.json|pyproject\.toml|requirements[^/]*\.txt|go\.mod|pom\.xml|build\.gradle(\.kts)?)$', pattern: 'pact|schemathesis|dredd|buf' }
+      - { files: '(^|/)pacts?/' }
+    source: { title: "Pact documentation", url: "https://docs.pact.io/" }
+
+  - id: TL-API-04
+    layer: migration
+    title: Schema migrations are applied and tested in CI
+    tier: 2
+    applies_when: [db]
+    when: The app has a migrations directory.
+    purpose: Catches migrations that fail on real data shapes or that the application code is not compatible with.
+    belongs_here: Apply every migration to a fresh database in the integration-test setup, and test backfills on representative data.
+    detect:
+      - { files: '(^|/)\.github/workflows/[^/]+$|(^|/)\.gitlab-ci\.yml$', pattern: 'migrat' }
+      - { files: '(^|/)(integration|it|tests?)/.*(setup|global|conftest|migrat)[^/]*$', pattern: 'migrat' }
+    source: { title: "Testcontainers", url: "https://testcontainers.com/" }
+
+  - id: TL-API-05
+    layer: property
+    title: Property-based tests for parsers and invariants
+    tier: 3
+    when: Bugs have recurred on unusual inputs to parsing, serialization or calculation code.
+    purpose: Generates many inputs to check invariants such as round-tripping and ordering.
+    belongs_here: Parsers, encoders, money and date arithmetic.
+    detect:
+      - { files: '(^|/)(package\.json|pyproject\.toml|requirements[^/]*\.txt|Cargo\.toml)$', pattern: 'fast-check|hypothesis|proptest|quickcheck' }
+    source: { title: "Hypothesis documentation", url: "https://hypothesis.readthedocs.io/en/latest/" }
+
+  - id: TL-API-06
+    layer: load
+    title: Load tests for latency-critical endpoints
+    tier: 3
+    when: Performance regressions have reached production, or the service has a latency objective that no test checks.
+    purpose: Measures throughput and latency before release.
+    belongs_here: A small scenario per critical endpoint, run on a schedule or before release, not on every PR.
+    detect:
+      - { files: '(^|/)(k6|load|perf)[^/]*/|\.k6\.[jt]s$|(^|/)locustfile\.py$' }
+    source: { title: "Grafana k6 documentation", url: "https://grafana.com/docs/k6/latest/" }
+
+critical_path_hints:
+  - { name: authentication and authorization, files: '(^|/)(auth|login|session|token|permission|policy|guard|rbac|acl)[^/]*\.(ts|js|py|go|java|kt|rs)$', consequence: Unauthorized access }
+  - { name: payments and money, files: '(^|/)(payment|billing|invoice|charge|refund|ledger|pricing|checkout)[^/]*\.(ts|js|py|go|java|kt|rs)$', consequence: Financial loss }
+  - { name: data writes, files: '(^|/)(repositor(y|ies)|dao|store)[^/]*\.(ts|js|py|go|java|kt|rs)$', consequence: Corrupted or lost data }
+  - { name: public routes, files: '(^|/)(routes?|handlers?|controllers?|endpoints?|api)/[^/]+\.(ts|js|py|go|java|kt|rs)$', consequence: Broken API for clients }
+  - { name: migrations, files: '(^|/)(migrations?|alembic/versions)/[^/]+$', consequence: Failed deploy or data loss }
+
+not_recommended:
+  - practice: Mocking your own repositories and services in every unit test
+    reason: The tests restate the implementation and pass while the real queries break. Use a fake or the real database in integration tests.
+    source: { title: "Software Engineering at Google, ch. 13: Test Doubles", url: "https://abseil.io/resources/swe-book/html/ch13.html" }
+  - practice: A shared, long-lived staging environment as the main test gate
+    reason: Shared environments are slow, flaky and serialized. Hermetic integration tests and contract tests give the same signal per change.
+    source: { title: "Software Engineering at Google, ch. 14: Larger Testing", url: "https://abseil.io/resources/swe-book/html/ch14.html" }
+  - practice: Full load tests on every pull request
+    reason: Slow, noisy and expensive. Run them on a schedule or before release.

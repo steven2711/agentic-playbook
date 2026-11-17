@@ -12,7 +12,7 @@ import { playbookRoot } from "./paths.js";
 
 export const SIGNALS = [
   "any", "web", "react", "next", "vue", "svelte", "angular", "server", "http-api", "db",
-  "node", "typescript", "python", "go", "java", "rust",
+  "node", "typescript", "python", "go", "java", "rust", "worker", "cli", "pipeline", "library",
 ] as const;
 export type Signal = (typeof SIGNALS)[number];
 
@@ -180,27 +180,40 @@ function signalsFor(dir: string, manifests: string[], files: string[], read: (re
         s.add("server").add("http-api");
       if (has(deps, "prisma", "@prisma/client", "typeorm", "drizzle-orm", "sequelize", "knex", "pg", "postgres", "mysql2", "mongoose", "mongodb", "kysely", "better-sqlite3", "@neondatabase/serverless", "@supabase/supabase-js", "@planetscale/database"))
         s.add("db");
+      if (has(deps, "bullmq", "bull", "bee-queue", "agenda", "kafkajs", "amqplib", "sqs-consumer", "@aws-sdk/client-sqs", "@temporalio/worker", "graphile-worker", "pg-boss", "inngest")) s.add("worker");
+      if (pkg.bin || has(deps, "commander", "yargs", "@oclif/core", "cac", "clipanion", "citty", "meow")) s.add("cli");
     } else if (name === "pyproject.toml" || name === "requirements.txt") {
       s.add("python");
       if (/\bdjango\b/i.test(text)) s.add("server").add("http-api").add("db");
       if (/\b(fastapi|flask|starlette|aiohttp|litestar|sanic)\b/i.test(text)) s.add("server").add("http-api");
       if (/\b(sqlalchemy|psycopg2?|psycopg|asyncpg|alembic|peewee|tortoise-orm|pymongo|sqlmodel)\b/i.test(text)) s.add("db");
+      if (/\b(celery|rq|dramatiq|arq|faust|temporalio|kombu)\b/i.test(text)) s.add("worker");
+      if (/\b(click|typer)\b/i.test(text) || /^\[project\.scripts\]/m.test(text)) s.add("cli");
+      if (/\b(apache-airflow|dagster|prefect|pyspark|apache-beam|luigi|dbt-core)\b/i.test(text)) s.add("pipeline");
     } else if (name === "go.mod") {
       s.add("go");
       if (/(gin-gonic\/gin|labstack\/echo|go-chi\/chi|gorilla\/mux|gofiber\/fiber|google\.golang\.org\/grpc|connectrpc)/.test(text)) s.add("server").add("http-api");
       if (/(gorm\.io|jmoiron\/sqlx|jackc\/pgx|entgo\.io|go-sql-driver|uptrace\/bun|mongo-driver)/.test(text)) s.add("db");
+      if (/(hibiken\/asynq|RichardKnop\/machinery|IBM\/sarama|Shopify\/sarama|segmentio\/kafka-go|go\.temporal\.io)/.test(text)) s.add("worker");
+      if (/(spf13\/cobra|urfave\/cli)/.test(text)) s.add("cli");
     } else if (name === "pom.xml" || name.startsWith("build.gradle")) {
       s.add("java");
       if (/spring-boot|quarkus|micronaut|dropwizard|ktor/.test(text)) s.add("server").add("http-api");
       if (/(jpa|hibernate|jdbc|flyway|liquibase|jooq|mybatis)/i.test(text)) s.add("db");
+      if (/(spring-kafka|spring-amqp|spring-rabbit|spring-cloud-stream|temporal-sdk)/.test(text)) s.add("worker");
     } else if (name === "Cargo.toml") {
       s.add("rust");
       if (/\b(axum|actix-web|rocket|warp|poem|tonic)\b/.test(text)) s.add("server").add("http-api");
       if (/\b(sqlx|diesel|sea-orm|tokio-postgres|mongodb)\b/.test(text)) s.add("db");
+      if (/^\s*(lapin|rdkafka|apalis)\s*=/m.test(text)) s.add("worker");
+      if (/^\s*clap\s*=/m.test(text) || /^\[\[bin\]\]/m.test(text)) s.add("cli");
     }
   }
   const prefix = dir === "." ? "" : `${dir}/`;
   if (files.some((f) => f.startsWith(prefix) && /(^|\/)(migrations|migrate|alembic)\//.test(f.slice(prefix.length)))) s.add("db");
+  if (files.includes(`${prefix}dbt_project.yml`)) s.add("pipeline");
+  // An app that is none of the deployable kinds is treated as a library.
+  if (manifests.length && !["web", "http-api", "worker", "cli", "pipeline"].some((k) => s.has(k))) s.add("library");
   return s;
 }
 

@@ -2,6 +2,7 @@ import { loadLibrary } from "./conventions.js";
 import { computeScore } from "./score.js";
 import { loadRubric } from "./rubric.js";
 import type { AppStrictness, SuppressionReport } from "./strictness.js";
+import { loadTesting, type AppTesting } from "./testing.js";
 import type { AssessmentRecord } from "./types.js";
 
 /**
@@ -14,6 +15,7 @@ export interface StrictnessSnapshot {
   revision: string | null;
   apps: AppStrictness[];
   suppressions: SuppressionReport;
+  testing?: AppTesting[];
 }
 
 export function renderHtml(record: AssessmentRecord, opts: { headRevision: string | null; commitsBehind: number | null; strictness?: StrictnessSnapshot | null }): string {
@@ -28,7 +30,11 @@ export function renderHtml(record: AssessmentRecord, opts: { headRevision: strin
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       }),
     ),
-    strictness: opts.strictness ?? null,
+    strictness: opts.strictness ? { ...opts.strictness, testing: undefined } : null,
+    testingScan: opts.strictness?.testing ?? [],
+    testingLayers: Object.fromEntries(
+      [...loadTesting().layers.values()].map((l) => [l.id, { layer: l.layer, title: l.title, tier: l.tier, kind: l.kind, source: l.source }]),
+    ),
     renderedAt: new Date().toISOString(),
     headRevision: opts.headRevision,
     commitsBehind: opts.commitsBehind,
@@ -108,7 +114,9 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .s-verified, .s-followed { background: var(--accent-soft); color: var(--accent); }
 .s-documented { background: var(--ok-soft); color: var(--ok); }
 .s-contradicted { background: var(--bad-soft); color: var(--bad); }
-.s-absent { background: var(--warn-soft); color: var(--warn); }
+.s-absent, .s-wrong-layer { background: var(--warn-soft); color: var(--warn); }
+.s-present, .s-covered { background: var(--ok-soft); color: var(--ok); }
+.s-uncovered { background: var(--bad-soft); color: var(--bad); }
 .promote { font-family: var(--mono); font-size: 0.74rem; color: var(--accent); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); }
 nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -309,6 +317,52 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     }).join("");
   }
 
+  function testingView() {
+    var TS = R.testing || [], SC = D.testingScan || [], TL = D.testingLayers || {};
+    var roots = [];
+    TS.forEach(function (t) { if (roots.indexOf(t.scope) < 0) roots.push(t.scope); });
+    SC.forEach(function (a) { if (roots.indexOf(a.root) < 0) roots.push(a.root); });
+    if (!roots.length) return '<div class="empty">No testing assessment yet. Run /agentic:testing (it also runs inside /agentic:assess).</div>';
+    var safeUrl = function (u) { return /^https:\/\//.test(String(u)) ? esc(u) : "#"; };
+    var gaps = R.findings.filter(function (f) { return !f.resolved && f.criterionIds.some(function (c) { return c === "VER-11" || c === "VER-12"; }); });
+    var legend = '<div class="legend">Layers come from the sourced testing profiles. Tier 1 is expected for the app\'s kind; Tier 2 only when its trigger holds; Tier 3 only after a recurring defect. Coverage is judged on changed code, never as a global target.</div>';
+    return legend + roots.map(function (root) {
+      var t = TS.filter(function (x) { return x.scope === root; })[0];
+      var sc = SC.filter(function (x) { return x.root === root; })[0];
+      var judged = {}; (t ? t.layers : []).forEach(function (l) { judged[l.id] = l; });
+      var layerIds = (sc ? sc.layers.map(function (l) { return l.id; }) : []);
+      Object.keys(judged).forEach(function (id) { if (layerIds.indexOf(id) < 0) layerIds.push(id); });
+      var rows = layerIds.map(function (id) {
+        var meta = TL[id] || { layer: id, title: id, tier: "", source: {} };
+        var j = judged[id], d = sc ? sc.layers.filter(function (l) { return l.id === id; })[0] : null;
+        var status = j ? j.status : d ? d.status : "absent";
+        if (!j && status === "absent" && meta.tier !== 1) return "";
+        var ev = j ? j.evidence.concat(j.reason ? [j.reason] : []) : d ? d.examples : [];
+        var basis = j ? "auditor" : "scan";
+        return "<tr><td><code>" + esc(id) + "</code></td><td>" + esc(meta.layer) + '<div class="muted" style="font-size:.8rem">' + esc(meta.title) + ' · <a href="' + safeUrl(meta.source && meta.source.url) + '" target="_blank" rel="noopener noreferrer">' + esc((meta.source && meta.source.title) || "source") + "</a></div>" +
+          (ev.length ? '<details><summary>Evidence (' + basis + ")</summary><ul class=\"ev\">" + ev.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul></details>" : "") +
+          '</td><td class="num">' + esc(meta.tier) + '</td><td class="num">' + (d ? esc(d.count) : "") + "</td><td>" + pill(status) + "</td></tr>";
+      }).join("");
+      var cp = t ? t.criticalPaths : null;
+      var candidates = sc ? sc.criticalCandidates : [];
+      var cpLine = cp ? "<strong>" + esc(cp.covered) + " of " + esc(cp.total) + "</strong> critical paths covered at the right layer (auditor)" :
+        candidates.length ? esc(candidates.filter(function (c) { return c.referencedBy.length; }).length) + " of " + esc(candidates.length) + " critical-path candidates mentioned by a test (scan hint, not yet judged)" : "No critical-path candidates found";
+      var uncovered = cp ? cp.uncovered : candidates.filter(function (c) { return !c.referencedBy.length; }).map(function (c) { return c.file + " (" + c.name + ")"; });
+      var meta = [
+        "<dt>Kind</dt><dd>" + esc((t ? t.kinds : sc ? sc.kinds : []).join(", ") || "unknown") + "</dd>",
+        "<dt>Strategy</dt><dd>" + (t ? (t.strategy.documented ? pill("documented", "stated") + " " + esc(t.strategy.path || "") : pill("absent", "not stated")) + (t.strategy.summary ? '<div class="muted" style="font-size:.84rem">' + esc(t.strategy.summary) + "</div>" : "") : '<span class="muted">not yet judged</span>') + "</dd>",
+        sc ? "<dt>Volume</dt><dd>" + esc(sc.testFiles) + " test files, " + esc(sc.sourceFiles) + " source files" + (sc.runners.length ? " · " + esc(sc.runners.join(", ")) : "") + "</dd>" : "",
+        "<dt>Coverage</dt><dd>" + esc((t && t.coverage) || (sc && sc.coverage.join("; ")) || "none found") + "</dd>",
+        sc && sc.untestedDirs.length ? "<dt>No tests</dt><dd><code>" + sc.untestedDirs.map(esc).join("</code>, <code>") + "</code></dd>" : "",
+      ].join("");
+      var appGaps = gaps.filter(function (f) { return f.evidence.concat([f.currentState, f.title]).join(" ").indexOf(root === "." ? "" : root) >= 0; });
+      return '<div class="panel" style="display:grid;gap:10px"><h2><code>' + esc(root) + "</code></h2>" + (t && t.summary ? "<p>" + esc(t.summary) + "</p>" : "") + '<dl class="kv">' + meta + "</dl>" +
+        '<div class="table"><table><thead><tr><th>Layer</th><th>What it proves</th><th>Tier</th><th>Files</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+        '<div style="display:grid;gap:4px"><div>' + cpLine + "</div>" + (uncovered.length ? '<details><summary>Uncovered (' + uncovered.length + ')</summary><ul class="ev">' + uncovered.map(function (u) { return "<li>" + esc(u) + "</li>"; }).join("") + "</ul></details>" : "") + "</div>" +
+        (appGaps.length ? '<div class="muted" style="font-size:.84rem">Gaps: ' + appGaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "") + "</div>";
+    }).join("");
+  }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
@@ -349,7 +403,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
   }
 
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";

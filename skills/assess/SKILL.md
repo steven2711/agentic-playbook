@@ -41,16 +41,19 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
 
 7. **Conventions recommendations.** Follow steps 3 to 4 of `${CLAUDE_PLUGIN_ROOT}/skills/conventions/SKILL.md`. This starts the `conventions-advisor` for every app root and applies its results. The advisor compares each app with published industry practice from the sourced baseline library. Recommendations do not change the score.
 
-8. Follow **Publish the tracker** from the operating rules.
+8. **Testing assessment.** Follow steps 3 to 4 of `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md`. This starts the `test-strategy-auditor` for every app and applies its per-app testing snapshot, `VER-11` and `VER-12`, and its findings. Run `agentic score` again afterwards.
 
-9. Run `git status --porcelain` in the target repository and confirm nothing changed. Report anything that did.
+9. Follow **Publish the tracker** from the operating rules.
 
-10. Report to the user in a short summary:
+10. Run `git status --porcelain` in the target repository and confirm nothing changed. Report anything that did.
+
+11. Report to the user in a short summary:
    - the score, level and confidence, as printed by the CLI
    - the top P0 findings
    - what blocks the next level
    - the inventory highlights
    - per app: its stack, whether it has scoped conventions, and the top 3 to 5 conventions recommendations, each with rule ID and source title. Ask which ones to adopt.
+   - per app: its testing kind, missing Tier 1 layers, and the critical-path count with the uncovered high-consequence paths
    - open questions that need a human decision
    - the Artifact link
 

@@ -148,6 +148,20 @@ export interface ConventionAssessment {
   assessedAt?: string;
 }
 
+/** One app's test portfolio as judged by the test-strategy-auditor. A snapshot, replaced per app on each run. */
+export interface TestingAssessment {
+  scope: string;
+  kinds: string[];
+  strategy: { documented: boolean; path?: string; summary?: string };
+  layers: { id: string; status: "present" | "absent" | "n_a"; evidence: string[]; reason?: string }[];
+  criticalPaths: { total: number; covered: number; uncovered: string[] };
+  coverage?: string;
+  summary?: string;
+  assessedRevision?: string | null;
+  assessedBy?: string;
+  assessedAt?: string;
+}
+
 export interface AssessmentRecord {
   schemaVersion: 1;
   assessmentId: string;
@@ -165,6 +179,7 @@ export interface AssessmentRecord {
   evidence: Evidence[];
   approvals: Approval[];
   conventions: ConventionAssessment[];
+  testing?: TestingAssessment[];
   scoreHistory: ScoreEntry[];
   artifact: { url: string; publishedRecordRevision: number; publishedAt: string } | null;
 }

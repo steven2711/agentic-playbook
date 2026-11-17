@@ -1,0 +1,46 @@
+kind: worker
+title: Background worker or queue consumer
+reviewed: 2026-11
+applies_when: [worker]
+layers:
+  - id: TL-WRK-01
+    layer: unit
+    title: Unit tests for job handlers
+    tier: 1
+    purpose: Covers the processing logic of each job without a broker.
+    belongs_here: Each handler called directly with representative payloads, including malformed ones.
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.(go|py)$|Test\.(java|kt)$', exclude: '(^|/)(integration|e2e|it)/|\.(int|integration|e2e)\.(test|spec)\.' }
+    see: [TST-01]
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TL-WRK-02
+    layer: integration
+    title: Integration tests of delivery, retry and idempotency
+    tier: 1
+    purpose: Proves a message is consumed, processed once in effect even when delivered twice, retried on transient failure and dead-lettered on permanent failure.
+    belongs_here: A test that delivers the same message twice and asserts one effect, and one that fails a dependency and asserts the retry or dead-letter path. Use a real broker in a container or the framework's test harness.
+    detect:
+      - { files: '(^|/)(integration|it)/.+|\.(int|integration)\.(test|spec)\.[cm]?[jt]s$' }
+      - { files: '\.(test|spec)\.[cm]?[jt]s$|(^|/)test_[^/]+\.py$|_test\.go$|Test\.(java|kt)$', pattern: 'testcontainers|idempoten|redelivery|dead.?letter|retry' }
+    see: [TST-03]
+    source: { title: "Amazon Builders' Library: Making retries safe with idempotent APIs", url: "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/" }
+
+  - id: TL-WRK-03
+    layer: contract
+    title: Message schema contract tests
+    tier: 2
+    when: The producer of the messages is deployed separately from this worker.
+    purpose: Fails a build when the producer and consumer disagree on the message shape.
+    belongs_here: Message pacts or a schema registry compatibility check.
+    detect:
+      - { files: '(^|/)(package\.json|pyproject\.toml|requirements[^/]*\.txt|go\.mod|pom\.xml|build\.gradle(\.kts)?)$', pattern: 'pact|avro|schema-registry|buf' }
+    source: { title: "Martin Fowler: Contract Test", url: "https://martinfowler.com/bliki/ContractTest.html" }
+
+critical_path_hints:
+  - { name: job handlers, files: '(^|/)(jobs?|workers?|consumers?|handlers?|tasks?|processors?)/[^/]+\.(ts|js|py|go|java|kt|rs)$', consequence: Lost or duplicated work }
+  - { name: payments and money, files: '(^|/)(payment|billing|invoice|charge|refund|ledger)[^/]*\.(ts|js|py|go|java|kt|rs)$', consequence: Financial loss }
+
+not_recommended:
+  - practice: Testing workers only through end-to-end flows that start at the UI
+    reason: The retry and duplicate-delivery paths are almost never exercised that way, and failures are slow to diagnose.

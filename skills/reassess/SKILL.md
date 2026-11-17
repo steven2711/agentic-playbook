@@ -28,11 +28,13 @@ Refresh the assessment against the current code. The assessment is read-only for
 
 6. Compare inline suppression counts (`agentic strictness`) with the counts in the current `ARC-08` evidence. Report any growth per app and kind as a regression, and record the new counts in the `ARC-08` evidence.
 
-7. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+7. If the changes touched an app's code or tests, run the `test-strategy-auditor` for those app roots, following steps 3 to 4 of `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md`. Compare its snapshot with the record's previous `testing` entry for the app: report fewer covered critical paths, or a Tier 1 layer that went missing, as a regression.
 
-8. Compare with the previous score history entry. List:
+8. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+
+9. Compare with the previous score history entry. List:
    - criteria that regressed (for example passed to failed), with evidence
    - resolved findings
    - new findings that need tasks. Offer `/agentic:plan` to schedule them.
 
-9. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.
+10. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.

@@ -263,6 +263,28 @@ criteria:
     quote: Turn on the strictest checks the stack offers that are cheap and rarely wrong
     evidence_required: Per app, each Tier 1 check from the strictness library (agentic strictness) with its config line, the CI step that runs it, and whether it is at zero or behind a committed tool-native baseline. Tier 2 and 3 checks are recommended only with their trigger met.
 
+  - id: VER-11
+    dimension: VER
+    title: Each app has a stated test strategy whose layers match its kind
+    priority: P1
+    gate: L3
+    probe: tests
+    source: standards/verification.md
+    quote: For each app, state the test strategy that fits its kind
+    evidence_required: Per app, its kind and the Tier 1 layers from the testing library (agentic tests), each present with a test path or absent, and where the strategy is written down (for example a Testing section in the app's scoped conventions file). Tier 2 and 3 layers are recommended only with their trigger met.
+
+  - id: VER-12
+    dimension: VER
+    title: Each app's critical paths have tests at a layer that can catch their failures
+    priority: P0
+    gate: L3
+    probe: tests
+    source: standards/verification.md
+    quote: Map the paths that must not break and confirm each has a test at a layer that can catch their failures
+    applies: { greenfield: deferred }
+    activates_when: The first user-facing feature is implemented.
+    evidence_required: Per app, the critical-path map (path, consequence, covering test path:line and layer, or uncovered) with the covered count, from the test-strategy-auditor.
+
   # ---------------------------------------------------------------- ARC
   - id: ARC-01
     dimension: ARC

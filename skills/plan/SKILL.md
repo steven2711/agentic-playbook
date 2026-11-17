@@ -45,15 +45,21 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
    - **Tier 3 and `not_recommended`:** never schedule Tier 3 without a cited recurring defect, and never schedule anything that is not recommended.
    - **Suppressions (`ARC-08`):** if suppressions lack reasons or can grow freely, add a task "Require reasons for inline suppressions in <app>": enable the reason-requiring rule, convert existing blanket suppressions, and fail on new skipped tests.
 
-7. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
+7. Plan the testing work. Read `agentic tests --json` and the record's `testing` entries.
+   - **Apps without a stated strategy (`VER-11`):** add a task "Write test strategy for <app>", with `requiresApproval: true`. It adds a `## Testing` section to the app's scoped conventions file: the layers this app uses, what belongs in each (from the profile's `belongs_here`), and the critical paths. The human reviews the text.
+   - **Uncovered or wrong-layer critical paths (`VER-12`):** add one task per high-consequence path, titled "Cover <path> with a <layer> test". Acceptance criteria: the test exercises the path's key behaviour through its public interface, and it fails when that behaviour is broken, proven by a captured temporary revert or mutation that the verifier runs.
+   - **Missing Tier 1 layers:** add a task "Add the <layer> layer for <app>": the runner or harness, one real test, and the CI step. Put it before the tasks that need that layer.
+   - **Tier 2 layers:** add only when their `when` condition holds now. Never schedule Tier 3 without a cited recurring defect, or anything in `not_recommended`.
 
-8. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
+8. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
 
-9. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
+9. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
 
-10. Follow **Publish the tracker**.
+10. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
 
-11. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
+11. Follow **Publish the tracker**.
+
+12. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
 
    **Stop and ask the user to approve the roadmap.** When they approve:
    - Record it with `agentic approve roadmap --by human:<name the user gives>`.

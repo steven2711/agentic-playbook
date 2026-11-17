@@ -1,0 +1,46 @@
+kind: library
+title: Shared library or package
+reviewed: 2026-11
+applies_when: [library]
+layers:
+  - id: TL-LIB-01
+    layer: unit
+    title: Unit tests of the public API
+    tier: 1
+    purpose: Pins down the behaviour callers depend on, so internal refactors are safe.
+    belongs_here: Every exported function or type, tested through the export, including error cases.
+    detect:
+      - { files: '\.(test|spec)\.[cm]?[jt]sx?$|(^|/)test_[^/]+\.py$|_test\.(go|py)$|Test\.(java|kt)$|(^|/)tests/.+\.rs$|(^|/)src/.+\.rs$', pattern: 'describe\(|it\(|test\(|def test_|func Test|@Test|#\[test\]' }
+    see: [TST-01, TST-05]
+    source: { title: "Software Engineering at Google, ch. 11: Testing Overview", url: "https://abseil.io/resources/swe-book/html/ch11.html" }
+
+  - id: TL-LIB-02
+    layer: api-surface
+    title: The published API surface is checked for breaking changes
+    tier: 2
+    when: The package is published or consumed by other teams, so a breaking change must be a deliberate version bump.
+    purpose: Fails the build when an export is removed or a signature changes without a major version.
+    belongs_here: An API report (API Extractor), package lint (publint), or cargo-semver-checks in CI.
+    detect:
+      - { files: '(^|/)(package\.json|Cargo\.toml)$', pattern: 'api-extractor|publint|arethetypeswrong|cargo-semver-checks' }
+      - { files: '(^|/)api-extractor\.json$' }
+    source: { title: "API Extractor", url: "https://api-extractor.com/" }
+
+  - id: TL-LIB-03
+    layer: property
+    title: Property-based tests for algorithms and parsers
+    tier: 3
+    when: Bugs have recurred on unusual inputs.
+    purpose: Generates many inputs to check invariants.
+    belongs_here: Parsers, encoders, data structures, numeric code.
+    detect:
+      - { files: '(^|/)(package\.json|pyproject\.toml|requirements[^/]*\.txt|Cargo\.toml)$', pattern: 'fast-check|hypothesis|proptest|quickcheck' }
+    source: { title: "fast-check", url: "https://fast-check.dev/" }
+
+critical_path_hints:
+  - { name: public entry points, files: '(^|/)(index|mod|lib|__init__|main)\.(ts|js|py|rs)$', consequence: Breaks every consumer }
+
+not_recommended:
+  - practice: Testing private helpers directly
+    reason: Couples the tests to the implementation. Test them through the public API.
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }

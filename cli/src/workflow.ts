@@ -127,7 +127,8 @@ export interface Patch {
   tasks?: Record<string, unknown>[];
   approvals?: Record<string, unknown>[];
   conventions?: Record<string, unknown>[];
-  remove?: Partial<Record<Collection, string[]>>;
+  testing?: Record<string, unknown>[];
+  remove?: Partial<Record<Collection | "testing", string[]>>;
 }
 
 /**
@@ -139,7 +140,7 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
   const log: string[] = [];
   for (const key of Object.keys(patch)) {
     if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
-    if (![...PATCHABLE, "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
+    if (![...PATCHABLE, "testing", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
   if (patch.assessedRevision !== undefined) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
@@ -206,6 +207,18 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     }
   }
 
+  // Testing assessments are per-app snapshots: replaced whole, keyed by scope.
+  for (const item of patch.testing ?? []) {
+    const scope = item.scope as string | undefined;
+    if (!scope) throw new UsageError("testing item without scope");
+    record.testing ??= [];
+    const entry = { ...item, assessedBy: item.assessedBy ?? opts.by, assessedAt: item.assessedAt ?? now() } as unknown as NonNullable<AssessmentRecord["testing"]>[number];
+    const idx = record.testing.findIndex((t) => t.scope === scope);
+    if (idx >= 0) record.testing[idx] = entry;
+    else record.testing.push(entry);
+    log.push(`${idx >= 0 ? "replaced" : "added"} testing ${scope}`);
+  }
+
   // Keep finding.taskIds consistent with task.findingIds (both directions).
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
@@ -214,7 +227,16 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     }
   }
 
-  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection, string[]][]) {
+  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection | "testing", string[]][]) {
+    if (coll === "testing") {
+      for (const scope of ids) {
+        const idx = (record.testing ?? []).findIndex((t) => t.scope === scope);
+        if (idx < 0) throw new UsageError(`Cannot remove unknown testing scope ${scope}`);
+        record.testing!.splice(idx, 1);
+        log.push(`removed testing ${scope}`);
+      }
+      continue;
+    }
     if (coll === "criteria") throw new UsageError("Criteria cannot be removed; mark them n_a with a reason");
     const target = record[coll] as unknown as { id: string; status?: string }[];
     for (const id of ids) {
