@@ -1,6 +1,8 @@
 # `agentic apply` patch format
 
-A patch is a JSON object. Every collection is upserted by `id`: new IDs are added, and existing items are shallow-merged. The full schema is [record.schema.json](../schema/record.schema.json). `agentic apply` validates every patch and rejects invalid ones without writing.
+A patch is a JSON object. Every collection is upserted by `id`: new IDs are added, and existing items are shallow-merged. Milestone exit criteria merge by their own `id`. The full schema is [record.schema.json](../schema/record.schema.json). `agentic apply` validates every patch and rejects invalid ones without writing.
+
+The record holds the assessment and the plan, not execution state. Tasks have no status, and there is no evidence collection. Progress is recorded by reassessment: resolving findings and judging exit criteria.
 
 ```json
 {
@@ -34,6 +36,10 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
       "outcomes": ["One required status check", "Skipped checks fail the gate"],
       "dependsOn": [],
       "exitCriteria": [{ "id": "M-001.X1", "text": "A PR with a failing typecheck is blocked by the gate (captured run URL)" }]
+    },
+    {
+      "id": "M-000",
+      "exitCriteria": [{ "id": "M-000.X1", "status": "met", "evidence": [".github/workflows/ci.yml:14 runs the gate job; required check per gh api branches/main/protection"] }]
     }
   ],
   "tasks": [
@@ -95,10 +101,15 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
 - **Finding kinds:** `kind` is one of `verified`, `inferred`, `recommendation`, `unknown` or `deferred`.
   - A `verified` finding needs evidence.
   - `unknown` and `deferred` findings should give a `reason`.
-- **New tasks** start as `pending`, `deferred` or `blocked`. Their status can only change later through `agentic task`.
-- **Milestone status** is derived and cannot be set. A milestone completes only when all its tasks are complete and every exit criterion has passing evidence.
-- **Read-only fields:** `scoreHistory`, `evidence`, `recordRevision`, `artifact` and the other computed fields cannot be written.
-- **Removing items:** criteria and completed tasks cannot be removed.
+- **Evidence citations:** in any `evidence` string, a precise citation (`path:line` or `path:start-end`) must name a repo-relative file that exists in the worktree, with those lines. Otherwise the patch is refused. Bare paths, sentences and URLs are not checked.
+- **Passed against a failing probe:** a criterion set to `passed` whose `scan.json` hint is `failed` needs `notes`, in the same item, explaining why the probe is wrong here.
+- **Paths with spaces:** quote the citation in backticks, for example `` `My Docs/setup.md:12` ``. A token counts as a file citation when its first segment exists in the repository or it ends in a file extension, so hosts, addresses and image tags such as `127.0.0.1:3000` are not checked.
+- **Tasks** carry no execution state: `status`, `history`, `implementer` and `blockedReason` are refused. Defer a task with `deferredTrigger`. `requiresApproval: true` marks a task that needs a human decision before anyone implements it. A task may depend only on tasks in its own milestone or in milestones its milestone depends on.
+- **Exit criteria** are judged by reassessment: `status` is `met` (needs `evidence`), `unmet`, or `unverified` (needs a `reason`). Send only `id` and the judgement: they merge by ID, and the text stays as planned. A changed judgement brings its own evidence or reason in the same item; it never inherits the previous one's. Changing an exit criterion's `text` clears its judgement. Remove one with `"remove": { "exitCriteria": ["M-001.X2"] }`.
+- **Milestone status** is derived and cannot be set. It is `completed` when every exit criterion is `met`, `in_progress` when some exit criterion is met or some task is addressed (its findings resolved), and `deferred` when every task is deferred.
+- **Approvals** cannot be written or removed with apply. Use `agentic approve <subject> --by human:<name>`. A roadmap approval is bound to the plan's content: changing milestones or tasks shows the roadmap as changed since approval.
+- **Read-only fields:** `scoreHistory`, `recordRevision`, `artifact`, `migrations` and the other computed fields cannot be written.
+- **Removing items:** criteria and addressed tasks cannot be removed.
 - **Conventions:**
   - `rule` must be an ID from the [conventions library](conventions/README.md). Leave out `id`: the CLI reuses the existing `CV-NNN` for the same `scope` and `rule`, or allocates a new one.
   - `documented`, `followed` and `contradicted` need evidence. `n_a` needs a `reason`.
@@ -114,7 +125,8 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
 - **Maintenance:** one roster for the repository, replaced whole on each apply.
   - Each `id` must exist in the [maintenance library](maintenance/README.md) and appear once.
   - A `present` entry needs evidence, and an `n_a` entry needs a `reason`.
-  - `blockedBy` must name criteria in the record. An entry recommended `now` whose prerequisites have not passed draws a warning: use `after-prerequisites` with `blockedBy`.
+  - `blockedBy` must name criteria in the record.
+  - An entry recommended `now` whose library prerequisites have not all `passed` is refused (`n_a` does not count). Use `after-prerequisites` with `blockedBy`. A prerequisite that regresses after the roster was written draws a warning, and `agentic status` reports it.
   - `findingIds` must exist.
   - Remove the roster with `"remove": { "maintenance": true }`.
 - **Mode:** `"mode": "existing"` switches the stage. Criteria that only held stage defaults (`n_a` or `deferred` by rubric rule) are recomputed.

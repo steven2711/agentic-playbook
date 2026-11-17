@@ -1,6 +1,8 @@
 # Operating rules for every /agentic command
 
-These rules apply to every `/agentic:*` command and every subagent it starts. The playbook itself is the requirement set:
+These rules apply to every `/agentic:*` command and every subagent it starts. The playbook does analysis and planning. Implementation is the team's, in its own workflow, so no command here implements, verifies or tracks a task. The [trust model](trust-model.md) states what the CLI enforces and what it cannot.
+
+The playbook itself is the requirement set:
 
 - [Greenfield assessment](../assessments/greenfield.md) and [Existing project assessment](../assessments/existing-project.md) are the entry points.
 - [Documentation architecture](../standards/documentation-architecture.md), [verification](../standards/verification.md), [agent evaluations](../standards/agent-evaluations.md) and [autonomous workflows](../standards/autonomous-workflows.md) are the standards.
@@ -16,24 +18,20 @@ These rules apply to every `/agentic:*` command and every subagent it starts. Th
 
 Run the CLI as `agentic <command>`. The plugin's `bin/` puts it on PATH. If `agentic` is not found, run `node <plugin root>/cli/dist/agentic.mjs` instead.
 
-- Never edit `record.json` by hand. Write criteria, findings, milestones, tasks and approvals with `agentic apply <patch.json>`. Write the patch file to the session scratchpad, never into the target repository.
-- Change task status only with `agentic task <id> <status> --by <who>`.
-- Record proof only with `agentic evidence ...`.
+- Never edit `record.json` by hand. Write criteria, findings, milestones, tasks, exit-criterion judgements and snapshots with `agentic apply <patch.json>`. Write the patch file to the session scratchpad, never into the target repository.
+- Never put `approvals` in a patch: the CLI refuses it. Record a decision with `agentic approve <subject> --by human:<name>`, and only after the user made that decision in this session.
 - Never state a score you computed yourself. Report what `agentic score` or `agentic status` prints.
 - If the CLI refuses a write, the refusal is the point. Fix the content. Do not work around the guard.
 
-## Identities
+## Attribution
 
-`--by` and `--verifier` name who acted. Use them consistently:
+`--by` names who wrote the content: `agent:<auditor or command name>` for agents, and `human:<name>` only for a decision the user stated in this session. The CLI cannot verify either. An approval is a record of what the user said, not an authorization.
 
-| Actor | Identity |
-| --- | --- |
-| Main session implementing a task | `agent:implementer` |
-| The independent-verifier subagent | `agent:independent-verifier` |
-| An auditor subagent | `agent:<auditor-name>` |
-| A person | `human:<name>`. Only use this when the user said so in this session. |
+## Cited evidence
 
-Completion requires passing evidence from a verifier who is not the implementer. Never record evidence under an identity that did not perform the check.
+`agentic apply` checks every precise citation in the evidence strings it writes. A `path:line` or `path:start-end` must name a repo-relative file that exists in the worktree, with those lines. So cite what you read, at the line you read it. Use a bare path or a sentence ("no .github/workflows directory") for an absence claim.
+
+A criterion you mark `passed` while its scan probe (`criteriaHints` in `scan.json`) says `failed` needs `notes` explaining why the probe is wrong here, citing what you read. Otherwise the CLI refuses it.
 
 ## Evidence classes
 
@@ -54,7 +52,12 @@ Criterion statuses work the same way:
 
 ## Read-only assessment
 
-During `/agentic:assess` and `/agentic:reassess`, do not modify the target repository: no file writes, installs, formatters, commits or branch changes. Only run checks known to leave the worktree unchanged. The record stays staged outside the repository until `/agentic:adopt`. Confirm with `git status --porcelain` at the end, and report any change.
+Assessment commands (`/agentic:assess`, `/agentic:reassess`, `/agentic:conventions`, `/agentic:testing`, `/agentic:docs` and `/agentic:maintenance`) do not modify the target repository: no file writes, installs, formatters, commits or branch changes. Only run checks known to leave the worktree unchanged. The record stays staged outside the repository until `/agentic:adopt`. An adopted record in `.agentic/` is written only by the CLI.
+
+- **Start** with `agentic readonly begin`. While the window is open, the plugin's hook refuses Claude's file-tool writes inside the repository. Put scratch files and patches in the session scratchpad.
+- **End** with `agentic readonly end`. It fails if anything in the worktree changed since `begin`, including changes made through the shell, and lists each one. Report every listed change to the user. Do not revert anything without asking: it may be the user's own work.
+- If `begin` says the worktree already had uncommitted changes, say in the report that the assessment judged them as they were.
+- If `begin` refuses because a window is already open, run `agentic readonly end` and report what it lists. Use `--restart` only when the user confirms the earlier window was abandoned.
 
 ## Stable IDs
 
@@ -63,7 +66,7 @@ During `/agentic:assess` and `/agentic:reassess`, do not modify the target repos
 | Findings | `F-<DIM>-NNN`, for example `F-VER-003` |
 | Milestones | `M-NNN` |
 | Tasks | `T-NNN` |
-| Acceptance criteria | `T-NNN.ACn` |
+| Acceptance criteria (the handoff contract) | `T-NNN.ACn` |
 | Exit criteria | `M-NNN.Xn` |
 | Conventions assessments | `CV-NNN`, assigned by the CLI per (app root, rule) |
 
@@ -76,7 +79,7 @@ The Artifact is the only view, so every command that changes the record ends wit
 1. Run `agentic render`. It prints the path of a self-contained HTML file outside the repository.
 2. Run `agentic status --json` and read `artifact.url`.
    - **If there is a URL:** call the Artifact tool with `action: "read"` on that URL first. Then publish the rendered file with `url` set to it, so the same page updates in place. Omit `icon`.
-   - **If there is no URL:** publish the rendered file as a new Artifact with `icon: "chart"` and the description "Agentic readiness score, findings, roadmap and verification tracker for <repo>."
+   - **If there is no URL:** publish the rendered file as a new Artifact with `icon: "chart"` and the description "Agentic readiness score, findings and remediation roadmap for <repo>."
 3. Run `agentic published --url <artifact url>`.
 4. Tell the user the link and the record revision it shows.
 
@@ -86,10 +89,10 @@ If the Artifact tool is unavailable, say so plainly. Give the rendered file path
 
 Stop and ask the user before any of these:
 
-- Approving a roadmap.
+- Approving a roadmap, or re-approving one that changed since it was approved.
+- Accepting or declining a convention recommendation.
 - Adopting the record into the repository.
-- Touching enforcement policy, CI, baselines, CODEOWNERS, branch protection or secrets.
-- Any task with `requiresApproval: true`.
+- Switching the mode between greenfield and existing.
 - When requirements are ambiguous or architectural intent is unclear.
 
 Never invent product intent or architectural facts.

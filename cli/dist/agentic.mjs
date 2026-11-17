@@ -385,7 +385,7 @@ var require_directives = __commonJS({
         return tag[0] === "!" ? tag : `!<${tag}>`;
       }
       toString(doc) {
-        const lines = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
+        const lines3 = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
         const tagEntries = Object.entries(this.tags);
         let tagNames;
         if (doc && tagEntries.length > 0 && identity.isNode(doc.contents)) {
@@ -401,9 +401,9 @@ var require_directives = __commonJS({
           if (handle === "!!" && prefix === "tag:yaml.org,2002:")
             continue;
           if (!doc || tagNames.some((tn) => tn.startsWith(prefix)))
-            lines.push(`%TAG ${handle} ${prefix}`);
+            lines3.push(`%TAG ${handle} ${prefix}`);
         }
-        return lines.join("\n");
+        return lines3.join("\n");
       }
     };
     Directives.defaultYaml = { explicit: false, version: "1.2" };
@@ -1846,22 +1846,22 @@ var require_stringifyCollection = __commonJS({
       const { indent, options: { commentString } } = ctx;
       const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
       let chompKeep = false;
-      const lines = [];
+      const lines3 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment2 = null;
         if (identity.isNode(item)) {
           if (!chompKeep && item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, chompKeep);
+            lines3.push("");
+          addCommentBefore(ctx, lines3, item.commentBefore, chompKeep);
           if (item.comment)
             comment2 = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (!chompKeep && ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, chompKeep);
+              lines3.push("");
+            addCommentBefore(ctx, lines3, ik.commentBefore, chompKeep);
           }
         }
         chompKeep = false;
@@ -1870,15 +1870,15 @@ var require_stringifyCollection = __commonJS({
           str3 += stringifyComment.lineComment(str3, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
           chompKeep = false;
-        lines.push(blockItemPrefix + str3);
+        lines3.push(blockItemPrefix + str3);
       }
       let str2;
-      if (lines.length === 0) {
+      if (lines3.length === 0) {
         str2 = flowChars.start + flowChars.end;
       } else {
-        str2 = lines[0];
-        for (let i = 1; i < lines.length; ++i) {
-          const line = lines[i];
+        str2 = lines3[0];
+        for (let i = 1; i < lines3.length; ++i) {
+          const line = lines3[i];
           str2 += line ? `
 ${indent}${line}` : "\n";
         }
@@ -1901,22 +1901,22 @@ ${indent}${line}` : "\n";
       });
       let reqNewline = false;
       let linesAtValue = 0;
-      const lines = [];
+      const lines3 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment = null;
         if (identity.isNode(item)) {
           if (item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, false);
+            lines3.push("");
+          addCommentBefore(ctx, lines3, item.commentBefore, false);
           if (item.comment)
             comment = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, false);
+              lines3.push("");
+            addCommentBefore(ctx, lines3, ik.commentBefore, false);
             if (ik.comment)
               reqNewline = true;
           }
@@ -1937,37 +1937,37 @@ ${indent}${line}` : "\n";
           str2 += ",";
         if (comment)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment));
-        if (!reqNewline && (lines.length > linesAtValue || str2.includes("\n")))
+        if (!reqNewline && (lines3.length > linesAtValue || str2.includes("\n")))
           reqNewline = true;
-        lines.push(str2);
-        linesAtValue = lines.length;
+        lines3.push(str2);
+        linesAtValue = lines3.length;
       }
       const { start, end } = flowChars;
-      if (lines.length === 0) {
+      if (lines3.length === 0) {
         return start + end;
       } else {
         if (!reqNewline) {
-          const len = lines.reduce((sum, line) => sum + line.length + 2, 2);
+          const len = lines3.reduce((sum, line) => sum + line.length + 2, 2);
           reqNewline = ctx.options.lineWidth > 0 && len > ctx.options.lineWidth;
         }
         if (reqNewline) {
           let str2 = start;
-          for (const line of lines)
+          for (const line of lines3)
             str2 += line ? `
 ${indentStep}${indent}${line}` : "\n";
           return `${str2}
 ${indent}${end}`;
         } else {
-          return `${start}${fcPadding}${lines.join(" ")}${fcPadding}${end}`;
+          return `${start}${fcPadding}${lines3.join(" ")}${fcPadding}${end}`;
         }
       }
     }
-    function addCommentBefore({ indent, options: { commentString } }, lines, comment, chompKeep) {
+    function addCommentBefore({ indent, options: { commentString } }, lines3, comment, chompKeep) {
       if (comment && chompKeep)
         comment = comment.replace(/^\n+/, "");
       if (comment) {
         const ic = stringifyComment.indentComment(commentString(comment), indent);
-        lines.push(ic.trimStart());
+        lines3.push(ic.trimStart());
       }
     }
     exports.stringifyCollection = stringifyCollection;
@@ -2603,11 +2603,11 @@ var require_binary = __commonJS({
         if (type !== Scalar.Scalar.QUOTE_DOUBLE) {
           const lineWidth = Math.max(ctx.options.lineWidth - ctx.indent.length, ctx.options.minContentWidth);
           const n = Math.ceil(str2.length / lineWidth);
-          const lines = new Array(n);
+          const lines3 = new Array(n);
           for (let i = 0, o = 0; i < n; ++i, o += lineWidth) {
-            lines[i] = str2.substr(o, lineWidth);
+            lines3[i] = str2.substr(o, lineWidth);
           }
-          str2 = lines.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
+          str2 = lines3.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
         }
         return stringifyString.stringifyString({ comment, type, value: str2 }, ctx, onComment, onChompKeep);
       }
@@ -3287,35 +3287,35 @@ var require_stringifyDocument = __commonJS({
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
-      const lines = [];
+      const lines3 = [];
       let hasDirectives = options.directives === true;
       if (options.directives !== false && doc.directives) {
         const dir = doc.directives.toString(doc);
         if (dir) {
-          lines.push(dir);
+          lines3.push(dir);
           hasDirectives = true;
         } else if (doc.directives.docStart)
           hasDirectives = true;
       }
       if (hasDirectives)
-        lines.push("---");
+        lines3.push("---");
       const ctx = stringify.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
-        if (lines.length !== 1)
-          lines.unshift("");
+        if (lines3.length !== 1)
+          lines3.unshift("");
         const cs = commentString(doc.commentBefore);
-        lines.unshift(stringifyComment.indentComment(cs, ""));
+        lines3.unshift(stringifyComment.indentComment(cs, ""));
       }
       let chompKeep = false;
       let contentComment = null;
       if (doc.contents) {
         if (identity.isNode(doc.contents)) {
           if (doc.contents.spaceBefore && hasDirectives)
-            lines.push("");
+            lines3.push("");
           if (doc.contents.commentBefore) {
             const cs = commentString(doc.contents.commentBefore);
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines3.push(stringifyComment.indentComment(cs, ""));
           }
           ctx.forceBlockIndent = !!doc.comment;
           contentComment = doc.contents.comment;
@@ -3324,36 +3324,36 @@ var require_stringifyDocument = __commonJS({
         let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
-        if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
-          lines[lines.length - 1] = `--- ${body}`;
+        if ((body[0] === "|" || body[0] === ">") && lines3[lines3.length - 1] === "---") {
+          lines3[lines3.length - 1] = `--- ${body}`;
         } else
-          lines.push(body);
+          lines3.push(body);
       } else {
-        lines.push(stringify.stringify(doc.contents, ctx));
+        lines3.push(stringify.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
           const cs = commentString(doc.comment);
           if (cs.includes("\n")) {
-            lines.push("...");
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines3.push("...");
+            lines3.push(stringifyComment.indentComment(cs, ""));
           } else {
-            lines.push(`... ${cs}`);
+            lines3.push(`... ${cs}`);
           }
         } else {
-          lines.push("...");
+          lines3.push("...");
         }
       } else {
         let dc = doc.comment;
         if (dc && chompKeep)
           dc = dc.replace(/^\n+/, "");
         if (dc) {
-          if ((!chompKeep || contentComment) && lines[lines.length - 1] !== "")
-            lines.push("");
-          lines.push(stringifyComment.indentComment(commentString(dc), ""));
+          if ((!chompKeep || contentComment) && lines3[lines3.length - 1] !== "")
+            lines3.push("");
+          lines3.push(stringifyComment.indentComment(commentString(dc), ""));
         }
       }
-      return lines.join("\n") + "\n";
+      return lines3.join("\n") + "\n";
     }
     exports.stringifyDocument = stringifyDocument;
   }
@@ -3964,10 +3964,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep, value } = collItem;
+        const { start, key, sep: sep2, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -3981,7 +3981,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep) {
+          if (!keyProps.anchor && !keyProps.tag && !sep2) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -4005,7 +4005,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep ?? [], {
+        const valueProps = resolveProps.resolveProps(sep2 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -4021,7 +4021,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep2, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -4112,7 +4112,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep = "";
+        let sep2 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -4126,13 +4126,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep + cb;
-              sep = "";
+                comment += sep2 + cb;
+              sep2 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep += source;
+                sep2 += source;
               hasSpace = true;
               break;
             default:
@@ -4175,18 +4175,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep, value } = collItem;
+        const { start, key, sep: sep2, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep && !value) {
+          if (!props.anchor && !props.tag && !sep2 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -4240,8 +4240,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep, null, props, onError);
+        if (!isMap && !sep2 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -4253,7 +4253,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep ?? [], {
+          const valueProps = resolveProps.resolveProps(sep2 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -4264,8 +4264,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep)
-                for (const st of sep) {
+              if (sep2)
+                for (const st of sep2) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -4282,7 +4282,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep2, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -4417,17 +4417,17 @@ var require_resolve_block_scalar = __commonJS({
       if (!header)
         return { value: "", type: null, comment: "", range: [start, start, start] };
       const type = header.mode === ">" ? Scalar.Scalar.BLOCK_FOLDED : Scalar.Scalar.BLOCK_LITERAL;
-      const lines = scalar.source ? splitLines(scalar.source) : [];
-      let chompStart = lines.length;
-      for (let i = lines.length - 1; i >= 0; --i) {
-        const content = lines[i][1];
+      const lines3 = scalar.source ? splitLines(scalar.source) : [];
+      let chompStart = lines3.length;
+      for (let i = lines3.length - 1; i >= 0; --i) {
+        const content = lines3[i][1];
         if (content === "" || content === "\r")
           chompStart = i;
         else
           break;
       }
       if (chompStart === 0) {
-        const value2 = header.chomp === "+" && lines.length > 0 ? "\n".repeat(Math.max(1, lines.length - 1)) : "";
+        const value2 = header.chomp === "+" && lines3.length > 0 ? "\n".repeat(Math.max(1, lines3.length - 1)) : "";
         let end2 = start + header.length;
         if (scalar.source)
           end2 += scalar.source.length;
@@ -4437,7 +4437,7 @@ var require_resolve_block_scalar = __commonJS({
       let offset = scalar.offset + header.length;
       let contentStart = 0;
       for (let i = 0; i < chompStart; ++i) {
-        const [indent, content] = lines[i];
+        const [indent, content] = lines3[i];
         if (content === "" || content === "\r") {
           if (header.indent === 0 && indent.length > trimIndent)
             trimIndent = indent.length;
@@ -4457,17 +4457,17 @@ var require_resolve_block_scalar = __commonJS({
         }
         offset += indent.length + content.length + 1;
       }
-      for (let i = lines.length - 1; i >= chompStart; --i) {
-        if (lines[i][0].length > trimIndent)
+      for (let i = lines3.length - 1; i >= chompStart; --i) {
+        if (lines3[i][0].length > trimIndent)
           chompStart = i + 1;
       }
       let value = "";
-      let sep = "";
+      let sep2 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
-        value += lines[i][0].slice(trimIndent) + "\n";
+        value += lines3[i][0].slice(trimIndent) + "\n";
       for (let i = contentStart; i < chompStart; ++i) {
-        let [indent, content] = lines[i];
+        let [indent, content] = lines3[i];
         offset += indent.length + content.length + 1;
         const crlf = content[content.length - 1] === "\r";
         if (crlf)
@@ -4479,24 +4479,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep === " ")
-            sep = "\n";
-          else if (!prevMoreIndented && sep === "\n")
-            sep = "\n\n";
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          if (sep2 === " ")
+            sep2 = "\n";
+          else if (!prevMoreIndented && sep2 === "\n")
+            sep2 = "\n\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep === "\n")
+          if (sep2 === "\n")
             value += "\n";
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          value += sep + content;
-          sep = " ";
+          value += sep2 + content;
+          sep2 = " ";
           prevMoreIndented = false;
         }
       }
@@ -4504,8 +4504,8 @@ var require_resolve_block_scalar = __commonJS({
         case "-":
           break;
         case "+":
-          for (let i = chompStart; i < lines.length; ++i)
-            value += "\n" + lines[i][0].slice(trimIndent);
+          for (let i = chompStart; i < lines3.length; ++i)
+            value += "\n" + lines3[i][0].slice(trimIndent);
           if (value[value.length - 1] !== "\n")
             value += "\n";
           break;
@@ -4580,10 +4580,10 @@ var require_resolve_block_scalar = __commonJS({
       const first = split[0];
       const m = first.match(/^( *)/);
       const line0 = m?.[1] ? [m[1], first.slice(m[1].length)] : ["", first];
-      const lines = [line0];
+      const lines3 = [line0];
       for (let i = 1; i < split.length; i += 2)
-        lines.push([split[i], split[i + 1]]);
-      return lines;
+        lines3.push([split[i], split[i + 1]]);
+      return lines3;
     }
     exports.resolveBlockScalar = resolveBlockScalar;
   }
@@ -4678,25 +4678,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep = " ";
+      let sep2 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep === "\n")
-            res += sep;
+          if (sep2 === "\n")
+            res += sep2;
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          res += sep + match[1];
-          sep = " ";
+          res += sep2 + match[1];
+          sep2 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep + (match?.[1] ?? "");
+      return res + sep2 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -5498,14 +5498,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep, value }) {
+    function stringifyItem({ start, key, sep: sep2, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep)
-        for (const st of sep)
+      if (sep2)
+        for (const st of sep2)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -6654,18 +6654,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep;
+          let sep2;
           if (scalar.end) {
-            sep = scalar.end;
-            sep.push(this.sourceToken);
+            sep2 = scalar.end;
+            sep2.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep = [this.sourceToken];
+            sep2 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep }]
+            items: [{ start, key: scalar, sep: sep2 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -6818,15 +6818,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep = it.sep;
-                  sep.push(this.sourceToken);
+                  const sep2 = it.sep;
+                  sep2.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep }]
+                    items: [{ start: start2, key, sep: sep2 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -7010,13 +7010,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep = fc.end.splice(1, fc.end.length);
-            sep.push(this.sourceToken);
+            const sep2 = fc.end.splice(1, fc.end.length);
+            sep2.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep }]
+              items: [{ start, key: fc, sep: sep2 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -9496,8 +9496,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize) {
-      if (normalize !== false)
+    function getFullPath(resolver, id = "", normalize2) {
+      if (normalize2 !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -10158,9 +10158,9 @@ var require_compile = __commonJS({
       if (_sch)
         return _sch;
       const rootId = (0, resolve_1.getFullPath)(this.opts.uriResolver, sch.root.baseId);
-      const { es5, lines } = this.opts.code;
+      const { es5, lines: lines3 } = this.opts.code;
       const { ownProperties } = this.opts;
-      const gen = new codegen_1.CodeGen(this.scope, { es5, lines, ownProperties });
+      const gen = new codegen_1.CodeGen(this.scope, { es5, lines: lines3, ownProperties });
       let _ValidationError;
       if (sch.$async) {
         _ValidationError = gen.scopeValue("Error", {
@@ -10245,7 +10245,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve5.call(this, root, ref);
+      let _sch = resolve6.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -10272,7 +10272,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve5(root, ref) {
+    function resolve6(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -11126,7 +11126,7 @@ var require_fast_uri = __commonJS({
       }
       return stringScheme;
     }
-    function normalize(uri, options) {
+    function normalize2(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
@@ -11136,7 +11136,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve5(baseURI, relativeURI, options) {
+    function resolve6(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -11172,50 +11172,50 @@ var require_fast_uri = __commonJS({
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative3, options, skipNormalization) {
+    function resolveComponent(base, relative4, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse7(serialize(base, options), options);
-        relative3 = parse7(serialize(relative3, options), options);
+        relative4 = parse7(serialize(relative4, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative3.scheme) {
-        target.scheme = relative3.scheme;
-        target.userinfo = relative3.userinfo;
-        target.host = relative3.host;
-        target.port = relative3.port;
-        target.path = removeDotSegments(relative3.path || "");
-        target.query = relative3.query;
+      if (!options.tolerant && relative4.scheme) {
+        target.scheme = relative4.scheme;
+        target.userinfo = relative4.userinfo;
+        target.host = relative4.host;
+        target.port = relative4.port;
+        target.path = removeDotSegments(relative4.path || "");
+        target.query = relative4.query;
       } else {
-        if (relative3.userinfo !== void 0 || relative3.host !== void 0 || relative3.port !== void 0) {
-          target.userinfo = relative3.userinfo;
-          target.host = relative3.host;
-          target.port = relative3.port;
-          target.path = removeDotSegments(relative3.path || "");
-          target.query = relative3.query;
+        if (relative4.userinfo !== void 0 || relative4.host !== void 0 || relative4.port !== void 0) {
+          target.userinfo = relative4.userinfo;
+          target.host = relative4.host;
+          target.port = relative4.port;
+          target.path = removeDotSegments(relative4.path || "");
+          target.query = relative4.query;
         } else {
-          if (!relative3.path) {
+          if (!relative4.path) {
             target.path = base.path;
-            if (relative3.query !== void 0) {
-              target.query = relative3.query;
+            if (relative4.query !== void 0) {
+              target.query = relative4.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative3.path[0] === "/") {
-              target.path = removeDotSegments(relative3.path);
+            if (relative4.path[0] === "/") {
+              target.path = removeDotSegments(relative4.path);
             } else {
               const baseHasAuthority = base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0;
               if (baseHasAuthority && !base.path) {
-                target.path = "/" + relative3.path;
+                target.path = "/" + relative4.path;
               } else if (!base.path) {
-                target.path = relative3.path;
+                target.path = relative4.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative3.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative4.path;
               }
               target.path = base.scheme === void 0 && !baseHasAuthority && target.path[0] !== "/" ? removeDotSegmentsRelative(target.path) : removeDotSegments(target.path);
             }
-            target.query = relative3.query;
+            target.query = relative4.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -11223,7 +11223,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative3.fragment;
+      target.fragment = relative4.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -11526,8 +11526,8 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize,
-      resolve: resolve5,
+      normalize: normalize2,
+      resolve: resolve6,
       resolveComponent,
       equal,
       serialize,
@@ -11667,8 +11667,8 @@ var require_core = __commonJS({
         this._loading = {};
         this._cache = /* @__PURE__ */ new Map();
         opts = this.opts = { ...opts, ...requiredOptions(opts) };
-        const { es5, lines } = this.opts.code;
-        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines });
+        const { es5, lines: lines3 } = this.opts.code;
+        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines: lines3 });
         this.logger = getLogger(opts.logger);
         const formatOpt = opts.validateFormats;
         opts.validateFormats = false;
@@ -14191,9 +14191,9 @@ var require_ajv = __commonJS({
 });
 
 // src/cli.ts
-import { cpSync, existsSync as existsSync10, mkdirSync as mkdirSync2, readFileSync as readFileSync11, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { cpSync, existsSync as existsSync13, mkdirSync as mkdirSync3, readFileSync as readFileSync14, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname9, join as join11, resolve as resolve4 } from "node:path";
+import { dirname as dirname10, join as join15, resolve as resolve5 } from "node:path";
 
 // src/conventions.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -14245,7 +14245,7 @@ function playbookRoot() {
 }
 function repoRoot(start) {
   const top = git(["rev-parse", "--show-toplevel"], start);
-  return realpathSync(top ?? resolve(start));
+  return realpathSync.native(top ?? resolve(start));
 }
 function repoKey(root) {
   const hash = createHash("sha1").update(root).digest("hex").slice(0, 8);
@@ -15289,6 +15289,11 @@ function lintMaintenance(root, today = /* @__PURE__ */ new Date()) {
       for (const k of ["title", "purpose", "autofix", "needs_human", "noise_controls", "success"])
         if (!i[k] || typeof i[k] !== "string") problems.push(`maintenance: ${at} is missing "${k}"`);
       if (![1, 2, 3].includes(i.tier)) problems.push(`maintenance: ${at} tier must be 1, 2 or 3`);
+      if (i.autofix_risk !== "low" && i.autofix_risk !== "high") problems.push(`maintenance: ${at} autofix_risk must be low or high`);
+      if (i.safeguards !== void 0 && (!Array.isArray(i.safeguards) || i.safeguards.some((g) => typeof g !== "string" || !g.trim())))
+        problems.push(`maintenance: ${at} safeguards must be a list of non-empty strings`);
+      if (i.autofix_risk === "high" && !i.safeguards?.length)
+        problems.push(`maintenance: ${at} has a high-risk autofix and must list the safeguards that keep it from weakening what it guards`);
       if (i.tier > 1 && !i.when) problems.push(`maintenance: ${at} is Tier ${i.tier} and must say when it is worth it ("when")`);
       if (!Array.isArray(i.trigger) || !i.trigger.length) problems.push(`maintenance: ${at} needs at least one trigger`);
       for (const t of i.trigger ?? []) if (!JAN_TRIGGERS.includes(t)) problems.push(`maintenance: ${at} trigger must be one of ${JAN_TRIGGERS.join(", ")} (got "${t}")`);
@@ -15358,7 +15363,8 @@ function assessMaintenance(lib, files, read2, criteria) {
         status: hits.size ? "present" : "absent",
         paths: [...hits].sort().slice(0, 3),
         prerequisites,
-        prerequisitesMet: criteria ? prerequisites.every((p) => p.status === "passed" || p.status === "n_a") : null
+        // Only passed counts: n_a means the contract the janitor guards does not exist here.
+        prerequisitesMet: criteria ? prerequisites.every((p) => p.status === "passed") : null
       });
     }
   }
@@ -15621,24 +15627,24 @@ function scan(root, opts = {}) {
   const makeTargets = has2("Makefile") ? [...read(root, "Makefile").matchAll(/^([A-Za-z][\w-]*):/gm)].map((m) => m[1]) : [];
   const justTargets = has2("justfile") ? [...read(root, "justfile").matchAll(/^([A-Za-z][\w-]*)\s*(?:[^:=\n]*)?:/gm)].map((m) => m[1]) : [];
   const pyproject = read(root, "pyproject.toml");
-  const canonical = {};
+  const canonical2 = {};
   for (const [cat, re] of Object.entries(CANONICAL)) {
     const s = Object.keys(scripts).find((k) => re.test(k));
     const mk = makeTargets.find((t) => MAKE_CANONICAL[cat].test(t));
     const jt = justTargets.find((t) => MAKE_CANONICAL[cat].test(t));
-    canonical[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `justfile ${jt}` : null;
+    canonical2[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `justfile ${jt}` : null;
   }
-  if (!canonical.lint && /\[tool\.ruff\]/.test(pyproject)) canonical.lint = "pyproject.toml [tool.ruff] (no wrapper command)";
-  if (!canonical.typecheck && /\[tool\.mypy\]/.test(pyproject)) canonical.typecheck = "pyproject.toml [tool.mypy] (no wrapper command)";
-  if (!canonical.test && /\[tool\.pytest/.test(pyproject)) canonical.test = "pyproject.toml [tool.pytest] (no wrapper command)";
-  if (has2("Cargo.toml")) for (const c of ["build", "test", "lint", "format"]) canonical[c] ??= `cargo (${c === "lint" ? "clippy" : c === "format" ? "fmt" : c})`;
-  if (has2("go.mod")) for (const c of ["build", "test", "format"]) canonical[c] ??= `go ${c === "format" ? "fmt" : c}`;
+  if (!canonical2.lint && /\[tool\.ruff\]/.test(pyproject)) canonical2.lint = "pyproject.toml [tool.ruff] (no wrapper command)";
+  if (!canonical2.typecheck && /\[tool\.mypy\]/.test(pyproject)) canonical2.typecheck = "pyproject.toml [tool.mypy] (no wrapper command)";
+  if (!canonical2.test && /\[tool\.pytest/.test(pyproject)) canonical2.test = "pyproject.toml [tool.pytest] (no wrapper command)";
+  if (has2("Cargo.toml")) for (const c of ["build", "test", "lint", "format"]) canonical2[c] ??= `cargo (${c === "lint" ? "clippy" : c === "format" ? "fmt" : c})`;
+  if (has2("go.mod")) for (const c of ["build", "test", "format"]) canonical2[c] ??= `go ${c === "format" ? "fmt" : c}`;
   facts.scripts = scripts;
   facts.workspaceScripts = Object.keys(workspaceScripts).slice(0, 200);
   facts.makeTargets = makeTargets;
-  facts.canonicalCommands = canonical;
-  const found = Object.entries(canonical).filter(([, v]) => v);
-  const missing = Object.entries(canonical).filter(([, v]) => !v).map(([k]) => k);
+  facts.canonicalCommands = canonical2;
+  const found = Object.entries(canonical2).filter(([, v]) => v);
+  const missing = Object.entries(canonical2).filter(([, v]) => !v).map(([k]) => k);
   probes.canonical_commands = {
     status: missing.length === 0 ? "passed" : found.length >= 2 ? "partial" : "failed",
     evidence: [...found.map(([k, v]) => `${k}: ${v}`), ...missing.length ? [`missing: ${missing.join(", ")}`] : []]
@@ -15875,22 +15881,364 @@ function lintPlaybook(root) {
   return problems;
 }
 
-// src/record.ts
-import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync10, renameSync, writeFileSync } from "node:fs";
-import { basename as basename7, dirname as dirname8 } from "node:path";
+// src/drift.ts
+import { existsSync as existsSync10, readFileSync as readFileSync10 } from "node:fs";
+import { extname as extname4, join as join11 } from "node:path";
+
+// src/readonly.ts
+import { execFileSync as execFileSync3 } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
+import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync9, realpathSync as realpathSync2, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname as dirname8, join as join10, relative as relative3, resolve as resolve4, sep } from "node:path";
 
 // src/types.ts
+var SCHEMA_VERSION = 2;
 var UsageError = class extends Error {
 };
 
+// src/readonly.ts
+var WINDOW_HOURS = 6;
+var EXCLUDED = /^\.agentic(\/|$)/;
+function uncommittedPaths(repoRoot2) {
+  let raw = "";
+  try {
+    raw = execFileSync3("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd: repoRoot2, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 });
+  } catch {
+    raw = "";
+  }
+  const entries = [];
+  const parts = raw.split("\0");
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.length < 4) continue;
+    const code = p.slice(0, 2);
+    const path = p.slice(3);
+    if (!EXCLUDED.test(path)) entries.push([path, code]);
+    if (code[0] === "R" || code[0] === "C") {
+      const from = parts[++i];
+      if (from && !EXCLUDED.test(from)) entries.push([from, code]);
+    }
+  }
+  return entries;
+}
+function fingerprint(repoRoot2) {
+  const head = git(["rev-parse", "HEAD"], repoRoot2);
+  const branch = git(["symbolic-ref", "-q", "--short", "HEAD"], repoRoot2);
+  const entries = uncommittedPaths(repoRoot2);
+  const hashes = /* @__PURE__ */ new Map();
+  const files = [];
+  for (const [p] of entries) {
+    const st = statOrNull(join10(repoRoot2, p));
+    if (!st) continue;
+    if (st.isDirectory()) hashes.set(p, directoryHash(join10(repoRoot2, p)));
+    else if (st.isFile() && !p.includes("\n")) files.push(p);
+    else hashes.set(p, st.isFile() ? fileHash(join10(repoRoot2, p)) : `special:${st.mode}:${st.size}`);
+  }
+  if (files.length) {
+    try {
+      const out = execFileSync3("git", ["hash-object", "--stdin-paths"], { cwd: repoRoot2, input: files.join("\n") + "\n", encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
+      out.trim().split("\n").forEach((h, i) => hashes.set(files[i], h));
+    } catch {
+      for (const p of files) hashes.set(p, fileHash(join10(repoRoot2, p)));
+    }
+  }
+  const paths = {};
+  for (const [p, code] of entries) paths[p] = `${code} ${hashes.get(p) ?? "deleted"}`;
+  const exclude = join10(repoRoot2, ".git", "info", "exclude");
+  if (existsSync9(exclude)) paths[".git/info/exclude"] = `exclude ${fileHash(exclude)}`;
+  return { head, branch, paths };
+}
+function statOrNull(p) {
+  try {
+    return statSync(p);
+  } catch {
+    return null;
+  }
+}
+function fileHash(p) {
+  try {
+    return createHash2("sha1").update(readFileSync9(p)).digest("hex");
+  } catch {
+    return "unreadable";
+  }
+}
+function directoryHash(dir) {
+  const head = git(["rev-parse", "HEAD"], dir) ?? "";
+  let status = "";
+  try {
+    status = execFileSync3("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    status = "";
+  }
+  return `dir:${createHash2("sha1").update(`${head}\0${status}`).digest("hex")}`;
+}
+function diffFingerprints(a, b) {
+  const out = [];
+  if (a.head !== b.head) out.push(`HEAD moved: ${a.head?.slice(0, 12) ?? "none"} -> ${b.head?.slice(0, 12) ?? "none"}`);
+  if (a.branch !== b.branch) out.push(`branch changed: ${a.branch ?? "(detached)"} -> ${b.branch ?? "(detached)"}`);
+  for (const p of [.../* @__PURE__ */ new Set([...Object.keys(a.paths), ...Object.keys(b.paths)])].sort()) {
+    const was = a.paths[p];
+    const now2 = b.paths[p];
+    if (was === now2) continue;
+    if (!was) {
+      const code = now2.slice(0, 2);
+      const kind = code === "??" ? "created" : code.includes("D") ? "deleted" : code.includes("R") ? "renamed" : "modified";
+      out.push(`${p}: ${kind} during the assessment`);
+    } else if (!now2) out.push(`${p}: change reverted or committed during the assessment`);
+    else out.push(`${p}: content changed during the assessment`);
+  }
+  return out;
+}
+function lockPath(repoRoot2) {
+  return join10(stagingHome(), repoKey(repoRoot2), "readonly.json");
+}
+function readLock(repoRoot2) {
+  const p = lockPath(repoRoot2);
+  if (!existsSync9(p)) return null;
+  try {
+    return JSON.parse(readFileSync9(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function liveLock(repoRoot2, at = /* @__PURE__ */ new Date()) {
+  const l = readLock(repoRoot2);
+  if (!l) return null;
+  if (new Date(l.expiresAt) > at) return l;
+  rmSync(lockPath(repoRoot2), { force: true });
+  return null;
+}
+function beginWindow(repoRoot2, opts = {}) {
+  const open = liveLock(repoRoot2);
+  if (open && !opts.restart) {
+    throw new UsageError(
+      `A read-only window is already open for ${repoRoot2} (since ${open.startedAt}). Starting a new one would discard changes made since then. Run \`agentic readonly end\` first and report what it lists, or pass --restart if that window was abandoned.`
+    );
+  }
+  const replaced = !!open;
+  const started = /* @__PURE__ */ new Date();
+  const lock = {
+    repoRoot: repoRoot2,
+    startedAt: started.toISOString(),
+    expiresAt: new Date(started.getTime() + WINDOW_HOURS * 36e5).toISOString(),
+    fingerprint: fingerprint(repoRoot2)
+  };
+  const p = lockPath(repoRoot2);
+  mkdirSync(dirname8(p), { recursive: true });
+  writeFileSync(p, JSON.stringify(lock, null, 2) + "\n");
+  return { lock, dirty: Object.keys(lock.fingerprint.paths).length, replaced };
+}
+function endWindow(repoRoot2) {
+  const lock = readLock(repoRoot2);
+  if (!lock) return { lock: null, changes: [] };
+  const changes = diffFingerprints(lock.fingerprint, fingerprint(repoRoot2));
+  rmSync(lockPath(repoRoot2), { force: true });
+  return { lock, changes };
+}
+function realish(path) {
+  let dir = resolve4(path);
+  const rest = [];
+  while (!existsSync9(dir)) {
+    const up = dirname8(dir);
+    if (up === dir) return null;
+    rest.unshift(dir.slice(up.length).replace(/^[\\/]/, ""));
+    dir = up;
+  }
+  const base = realpathSync2.native(dir);
+  return { real: join10(base, ...rest), existing: statSync(base).isDirectory() ? base : dirname8(base) };
+}
+function repoOf(path) {
+  const r = realish(path);
+  if (!r) return null;
+  const segs = r.existing.split(sep);
+  const gitAt = segs.lastIndexOf(".git");
+  const start = gitAt > 0 ? segs.slice(0, gitAt).join(sep) || sep : r.existing;
+  const top = git(["rev-parse", "--show-toplevel"], start);
+  return top ? realpathSync2.native(top) : null;
+}
+function writeRefusal(path, at = /* @__PURE__ */ new Date()) {
+  const r = realish(path);
+  if (!r) return null;
+  const root = repoOf(path);
+  if (!root) return null;
+  const lock = liveLock(root, at);
+  if (!lock) return null;
+  const rel = relative3(root, r.real).split(sep).join("/");
+  if (rel.startsWith("..")) return null;
+  const what = /^\.git(\/|$)/.test(rel) ? `${rel} (git metadata, which can hide or rewrite changes)` : EXCLUDED.test(rel) ? `${rel} (the record is written only by the agentic CLI, which validates it)` : rel;
+  return `Refused: a read-only assessment of ${root} is in progress (since ${lock.startedAt}), so writes to ${what} are not allowed. Assessment commands must not modify the repository. Put scratch files and patches in the session scratchpad, or, if the assessment is finished, close the window with \`agentic readonly end\`.`;
+}
+
+// src/drift.ts
+var AREAS = [
+  { label: "CI configuration", re: /^\.github\/workflows\/|^\.gitlab-ci\.ya?ml$|^\.circleci\/|(^|\/)Jenkinsfile$|^azure-pipelines\.ya?ml$|^bitbucket-pipelines\.ya?ml$|^\.buildkite\//, dims: ["VER", "WF", "SEC"], snapshots: ["maintenance", "strictness"] },
+  { label: "agent guidance", re: /(^|\/)(CLAUDE|AGENTS)\.md$|^\.claude\/(rules|skills|agents|commands)\//, dims: ["CTX", "WF"], snapshots: ["docs", "conventions", "maintenance"] },
+  { label: "agent settings and hooks", re: /^\.claude\/settings[^/]*\.json$|^\.mcp\.json$/, dims: ["SEC", "WF"], snapshots: ["maintenance"] },
+  { label: "documentation", re: /(^|\/)(README|CONTRIBUTING|ARCHITECTURE)[^/]*\.md$|^docs\/|(^|\/)(adr|decisions)\//i, dims: ["CTX"], snapshots: ["docs"] },
+  { label: "type-check and lint configuration", re: /(^|\/)(tsconfig[^/]*\.json|\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s|biome\.jsonc?|ruff\.toml|\.ruff\.toml|mypy\.ini|pyproject\.toml|setup\.cfg|\.golangci\.(ya?ml|toml|json)|clippy\.toml|\.prettierrc[^/]*)$/, dims: ["VER", "ARC"], snapshots: ["strictness"] },
+  { label: "suppression baselines", re: /(^|\/)(eslint-suppressions\.json|\.betterer\.results|\.basedpyright\/baseline\.json)$/, dims: ["ARC", "VER"], snapshots: ["strictness"] },
+  { label: "architecture boundaries", re: /(^|\/)(\.dependency-cruiser[^/]*|\.importlinter|importlinter\.ini|\.sheriffrc[^/]*|nx\.json)$/, dims: ["ARC"], snapshots: [] },
+  { label: "test configuration", re: /(^|\/)((vitest|jest|playwright|cypress)\.config\.[cm]?[jt]s|pytest\.ini|conftest\.py|\.nycrc[^/]*|codecov\.ya?ml)$/, dims: ["VER"], snapshots: ["testing"] },
+  { label: "ownership and dependency automation", re: /(^|\/)CODEOWNERS$|^\.github\/dependabot\.ya?ml$|(^|\/)(renovate\.json5?|\.renovaterc[^/]*)$/, dims: ["SEC", "WF"], snapshots: ["maintenance"] },
+  { label: "dependencies and toolchain", re: /(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|poetry\.lock|uv\.lock|requirements[^/]*\.txt|Cargo\.(toml|lock)|go\.(mod|sum)|\.nvmrc|\.tool-versions|Dockerfile|devcontainer\.json)$/, dims: ["VER", "SEC"], snapshots: [] },
+  { label: "agent evaluations", re: /(^|\/)evals?\//, dims: ["EVAL"], snapshots: [] }
+];
+var lines = (s) => s ? s.split("\n").filter(Boolean) : [];
+function changedAreas(repoRoot2, assessedRevision, opts = {}) {
+  const head = git(["rev-parse", "HEAD"], repoRoot2);
+  const revisionKnown = !!assessedRevision && git(["cat-file", "-e", `${assessedRevision}^{commit}`], repoRoot2) !== null;
+  const committed = revisionKnown && head && head !== assessedRevision ? lines(git(["diff", "--name-only", "--no-renames", `${assessedRevision}`, "HEAD"], repoRoot2)) : [];
+  const commits = revisionKnown && head ? Number(git(["rev-list", "--count", `${assessedRevision}..HEAD`], repoRoot2) ?? 0) : 0;
+  const uncommitted = uncommittedPaths(repoRoot2).map(([p]) => p);
+  const all = [.../* @__PURE__ */ new Set([...committed, ...uncommitted])].filter((p) => !/^\.agentic(\/|$)/.test(p)).sort();
+  const areas = [];
+  const dimensions = {};
+  const snapshots = {};
+  const add = (m, k, p) => {
+    const xs = m[k] ??= [];
+    if (!xs.includes(p)) xs.push(p);
+  };
+  for (const a of AREAS) {
+    const paths = all.filter((p) => a.re.test(p));
+    if (!paths.length) continue;
+    areas.push({ label: a.label, dims: a.dims, snapshots: a.snapshots, paths });
+    for (const p of paths) {
+      for (const d of a.dims) add(dimensions, d, p);
+      for (const s of a.snapshots) add(snapshots, s, p);
+    }
+  }
+  const tests = all.filter((p) => SOURCE_EXT.has(extname4(p)) && isTest(p));
+  if (tests.length) {
+    areas.push({ label: "tests", dims: ["VER"], snapshots: ["testing"], paths: tests });
+    for (const p of tests) {
+      add(dimensions, "VER", p);
+      add(snapshots, "testing", p);
+    }
+  }
+  const apps = {};
+  const code = all.filter((p) => SOURCE_EXT.has(extname4(p)));
+  if (code.length && opts.apps !== false) {
+    const { files } = walk(repoRoot2);
+    const read2 = (rel) => {
+      try {
+        return readFileSync10(join11(repoRoot2, rel), "utf8");
+      } catch {
+        return "";
+      }
+    };
+    const roots = detectApps(files, read2).map((a) => a.root).sort((a, b) => b.length - a.length);
+    for (const p of code) {
+      const root = roots.find((r) => r !== "." && p.startsWith(`${r}/`)) ?? (roots.includes(".") ? "." : null);
+      if (root) (apps[root] ??= []).push(p);
+    }
+  }
+  {
+    const source = code.filter((p) => !isTest(p));
+    if (source.length) {
+      areas.push({ label: "application code", dims: ["ARC"], snapshots: ["conventions", "testing"], paths: source });
+      for (const p of source) {
+        add(dimensions, "ARC", p);
+        add(snapshots, "conventions", p);
+        add(snapshots, "testing", p);
+      }
+    }
+  }
+  return { assessedRevision, head, revisionKnown, commits, committed, uncommitted, areas, dimensions, snapshots, apps };
+}
+var RANK = { passed: 2, partial: 1, failed: 0 };
+function probeRegressions(store) {
+  if (!existsSync10(store.scanPath)) return { scannedAt: null, regressions: [] };
+  let stored;
+  try {
+    stored = JSON.parse(readFileSync10(store.scanPath, "utf8"));
+  } catch {
+    return { scannedAt: null, regressions: [] };
+  }
+  const fresh = scan(store.repoRoot);
+  const regressions = [];
+  for (const [probe, was] of Object.entries(stored.probes ?? {})) {
+    const now2 = fresh.probes[probe];
+    if (!now2 || RANK[was.status] === void 0 || RANK[now2.status] === void 0) continue;
+    if (RANK[now2.status] < RANK[was.status]) regressions.push({ probe, was: was.status, now: now2.status, evidence: now2.evidence });
+  }
+  return { scannedAt: stored.scannedAt, regressions };
+}
+
+// src/record.ts
+import { createHash as createHash3 } from "node:crypto";
+import { existsSync as existsSync11, mkdirSync as mkdirSync2, readFileSync as readFileSync12, renameSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { basename as basename7, dirname as dirname9, join as join13 } from "node:path";
+
 // src/validate.ts
 var import_ajv = __toESM(require_ajv(), 1);
-import { readFileSync as readFileSync9 } from "node:fs";
-import { join as join10 } from "node:path";
+import { readFileSync as readFileSync11 } from "node:fs";
+import { join as join12 } from "node:path";
+
+// src/score.ts
+var CREDIT = {
+  passed: 1,
+  partial: 0.5,
+  failed: 0,
+  unverified: 0,
+  n_a: null,
+  deferred: null
+};
+var round = (n) => Math.round(n * 10) / 10;
+function computeScore(record) {
+  const rubric = loadRubric();
+  const state = new Map(record.criteria.map((c) => [c.id, c]));
+  const counts = { passed: 0, partial: 0, failed: 0, unverified: 0, n_a: 0, deferred: 0 };
+  let earned = 0;
+  let possible = 0;
+  let verifiedWeight = 0;
+  const dims = /* @__PURE__ */ new Map();
+  for (const d of rubric.dimensions) dims.set(d.id, { earned: 0, possible: 0, applicable: 0, passed: 0 });
+  for (const c of rubric.criteria) {
+    const status = state.get(c.id)?.status ?? "unverified";
+    counts[status] += 1;
+    const credit = CREDIT[status];
+    if (credit === null) continue;
+    const w = rubric.priorities[c.priority].weight;
+    earned += credit * w;
+    possible += w;
+    if (status !== "unverified") verifiedWeight += w;
+    const d = dims.get(c.dimension);
+    d.earned += credit * w;
+    d.possible += w;
+    d.applicable += 1;
+    if (status === "passed") d.passed += 1;
+  }
+  let achieved = 0;
+  let nextLevel = null;
+  for (let n = 1; n < rubric.levels.length; n++) {
+    const blocking = rubric.criteria.filter((c) => levelIndex(c.gate) <= n).map((c) => ({ id: c.id, title: c.title, status: state.get(c.id)?.status ?? "unverified" })).filter((c) => CREDIT[c.status] !== null && c.status !== "passed");
+    if (blocking.length === 0) {
+      achieved = n;
+      continue;
+    }
+    nextLevel = { level: rubric.levels[n].id, name: rubric.levels[n].name, blocking };
+    break;
+  }
+  const lvl = rubric.levels[achieved];
+  return {
+    score: possible ? round(earned / possible * 100) : 0,
+    confidence: possible ? round(verifiedWeight / possible * 100) : 0,
+    level: lvl.id,
+    levelName: lvl.name,
+    dimensions: rubric.dimensions.map((d) => {
+      const s = dims.get(d.id);
+      return { id: d.id, name: d.name, score: s.possible ? round(s.earned / s.possible * 100) : null, applicable: s.applicable, passed: s.passed };
+    }),
+    nextLevel,
+    counts
+  };
+}
+
+// src/validate.ts
 var validator = null;
 function schemaValidator() {
   if (!validator) {
-    const schema = JSON.parse(readFileSync9(join10(playbookRoot(), "schema", "record.schema.json"), "utf8"));
+    const schema = JSON.parse(readFileSync11(join12(playbookRoot(), "schema", "record.schema.json"), "utf8"));
     const ajv = new import_ajv.Ajv({ allErrors: true, strict: false });
     validator = ajv.compile(schema);
   }
@@ -15939,19 +16287,17 @@ function validateRecord(record) {
   const taskIds = new Set(record.tasks.map((t) => t.id));
   const milestoneIds = new Set(record.milestones.map((m) => m.id));
   const findingIds = new Set(record.findings.map((f) => f.id));
-  const evidenceIds = new Set(record.evidence.map((e) => e.id));
   for (const [kind, ids] of [
     ["criterion", record.criteria.map((c) => c.id)],
     ["finding", record.findings.map((f) => f.id)],
     ["milestone", record.milestones.map((m) => m.id)],
     ["task", record.tasks.map((t) => t.id)],
-    ["evidence", record.evidence.map((e) => e.id)],
     ["approval", record.approvals.map((a) => a.id)],
     ["convention", record.conventions.map((c) => c.id)]
   ]) {
     for (const d of dupes(ids)) errors.push(`duplicate ${kind} id ${d}`);
   }
-  const allIds = [...taskIds, ...milestoneIds, ...findingIds, ...evidenceIds];
+  const allIds = [...taskIds, ...milestoneIds, ...findingIds];
   for (const d of dupes(allIds)) errors.push(`id ${d} is used by more than one collection`);
   for (const c of record.criteria) {
     if (!rubricIds.has(c.id)) errors.push(`criterion ${c.id} is not in rubric v${rubric.version}`);
@@ -15974,19 +16320,49 @@ function validateRecord(record) {
     if (!milestoneIds.has(t.milestoneId)) errors.push(`task ${t.id} belongs to unknown milestone ${t.milestoneId}`);
     for (const d of t.dependsOn) if (!taskIds.has(d)) errors.push(`task ${t.id} depends on unknown task ${d}`);
     for (const f of t.findingIds) if (!findingIds.has(f)) errors.push(`task ${t.id} links unknown finding ${f}`);
-    if (t.status === "blocked" && !t.blockedReason) errors.push(`task ${t.id} is blocked without blockedReason`);
-    if (t.status === "deferred" && !t.deferredTrigger) warnings.push(`task ${t.id} is deferred without deferredTrigger`);
     for (const d of dupes(t.acceptanceCriteria.map((a) => a.id))) errors.push(`task ${t.id} has duplicate acceptance id ${d}`);
+    if (!t.findingIds.length && !t.deferredTrigger)
+      warnings.push(`task ${t.id} links no findings, so reassessment can never mark it addressed; link the findings it fixes, or rely on its milestone's exit criteria`);
     for (const a of t.acceptanceCriteria) if (!a.id.startsWith(`${t.id}.`)) errors.push(`acceptance id ${a.id} must be prefixed with ${t.id}.`);
   }
   for (const m of record.milestones) {
     for (const d of m.dependsOn) if (!milestoneIds.has(d)) errors.push(`milestone ${m.id} depends on unknown milestone ${d}`);
     if (!record.tasks.some((t) => t.milestoneId === m.id)) warnings.push(`milestone ${m.id} has no tasks`);
-    for (const x of m.exitCriteria) if (!x.id.startsWith(`${m.id}.`)) errors.push(`exit criterion id ${x.id} must be prefixed with ${m.id}.`);
+    for (const d of dupes(m.exitCriteria.map((x) => x.id))) errors.push(`milestone ${m.id} has duplicate exit criterion id ${d}`);
+    for (const x of m.exitCriteria) {
+      if (!x.id.startsWith(`${m.id}.`)) errors.push(`exit criterion id ${x.id} must be prefixed with ${m.id}.`);
+      if (x.status === "met" && !x.evidence?.length) errors.push(`exit criterion ${x.id} is met without evidence (cite what reassessment observed)`);
+      if (x.status === "unverified" && !x.reason) errors.push(`exit criterion ${x.id} is unverified without a reason`);
+    }
   }
-  for (const e of record.evidence) {
-    if (e.taskId && !taskIds.has(e.taskId)) errors.push(`evidence ${e.id} references unknown task ${e.taskId}`);
-    if (e.milestoneId && !milestoneIds.has(e.milestoneId)) errors.push(`evidence ${e.id} references unknown milestone ${e.milestoneId}`);
+  const msDeps = new Map(record.milestones.map((m) => [m.id, m.dependsOn]));
+  const closure = (id) => {
+    const seen = /* @__PURE__ */ new Set();
+    const stack = [...msDeps.get(id) ?? []];
+    while (stack.length) {
+      const x = stack.pop();
+      if (seen.has(x)) continue;
+      seen.add(x);
+      stack.push(...msDeps.get(x) ?? []);
+    }
+    return seen;
+  };
+  for (const t of record.tasks) {
+    const upstream = closure(t.milestoneId);
+    for (const d of t.dependsOn) {
+      const dep = record.tasks.find((x) => x.id === d);
+      if (dep && dep.milestoneId !== t.milestoneId && !upstream.has(dep.milestoneId))
+        errors.push(`task ${t.id} (${t.milestoneId}) depends on ${d} in ${dep.milestoneId}, which ${t.milestoneId} does not depend on. Add ${dep.milestoneId} to ${t.milestoneId}.dependsOn, or move one of the tasks`);
+    }
+  }
+  if (record.milestones.length) {
+    const blocking = computeScore(record).nextLevel?.blocking ?? [];
+    const planned = new Set(record.findings.filter((f) => f.taskIds.length).flatMap((f) => f.criterionIds));
+    const unplanned = blocking.filter((b) => !planned.has(b.id) && b.status !== "unverified");
+    if (unplanned.length) warnings.push(`criteria blocking the next level have no planned task: ${unplanned.map((b) => `${b.id} (${b.status})`).join(", ")}`);
+  }
+  for (const a of record.approvals) {
+    if (a.scope === "roadmap" && !a.planHash) errors.push(`roadmap approval ${a.id} does not record the plan it approved (planHash)`);
   }
   const library = loadLibrary();
   const pairs = /* @__PURE__ */ new Set();
@@ -16049,8 +16425,8 @@ function validateRecord(record) {
       if (r.status === "n_a" && !r.reason) errors.push(`${at} is n_a without a reason`);
       for (const b of r.blockedBy ?? []) if (!crit.has(b)) errors.push(`${at} is blocked by ${b}, which is not a criterion in this record`);
       if (j && r.recommend === "now") {
-        const failing = j.prerequisites.filter((p) => crit.has(p) && crit.get(p) !== "passed" && crit.get(p) !== "n_a");
-        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.join(", ")}. Use after-prerequisites with blockedBy`);
+        const failing = j.prerequisites.filter((p) => crit.get(p) !== "passed");
+        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.map((p) => `${p} (${crit.get(p) ?? "missing"})`).join(", ")}. Reassess, or use after-prerequisites with blockedBy`);
       }
       if (r.recommend === "after-prerequisites" && !r.blockedBy?.length) warnings.push(`${at} waits on prerequisites but does not name them in blockedBy`);
       for (const f of r.findingIds ?? []) if (!findingIds2.has(f)) errors.push(`${at} links unknown finding ${f}`);
@@ -16071,7 +16447,7 @@ function createRecord(store, mode) {
   const rubric = loadRubric();
   const at = now();
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     assessmentId: `agentic-${basename7(store.repoRoot)}-${at.slice(0, 10)}`,
     mode,
     rubricVersion: rubric.version,
@@ -16084,18 +16460,26 @@ function createRecord(store, mode) {
     findings: [],
     milestones: [],
     tasks: [],
-    evidence: [],
     approvals: [],
     conventions: [],
     scoreHistory: [],
     artifact: null
   };
 }
+var pendingBackups = /* @__PURE__ */ new WeakMap();
 function loadRecord(store) {
-  if (!existsSync9(store.recordPath)) {
+  if (!existsSync11(store.recordPath)) {
     throw new UsageError(`No assessment record for this repository (looked in ${store.recordPath}). Run \`agentic init\` first.`);
   }
-  const record = JSON.parse(readFileSync10(store.recordPath, "utf8"));
+  const text = readFileSync12(store.recordPath, "utf8");
+  let record = JSON.parse(text);
+  const version = record.schemaVersion;
+  if (version === 1) {
+    record = migrateV1(record);
+    pendingBackups.set(record, { text, from: 1 });
+  } else if (version !== SCHEMA_VERSION) {
+    throw new UsageError(`Record schemaVersion ${String(version)} is not supported by this CLI (expects ${SCHEMA_VERSION}). Update the plugin.`);
+  }
   record.conventions ??= [];
   const rubric = loadRubric();
   for (const c of rubric.criteria) {
@@ -16105,23 +16489,111 @@ function loadRecord(store) {
   }
   return record;
 }
+function pendingMigration(record) {
+  return pendingBackups.get(record)?.from ?? null;
+}
+var V1_BACKUP = "record.v1-backup.json";
+function migrateV1(v1) {
+  const r = structuredClone(v1);
+  const evidence = Array.isArray(r.evidence) ? r.evidence : [];
+  for (const t of r.tasks ?? []) {
+    if (t.status !== "deferred") delete t.deferredTrigger;
+    for (const k of ["status", "history", "implementer", "blockedReason"]) delete t[k];
+  }
+  for (const m of r.milestones ?? []) {
+    for (const x of m.exitCriteria ?? []) {
+      const covering = evidence.filter((e) => (e.covers ?? []).includes(x.id) && (!e.milestoneId || e.milestoneId === m.id));
+      if (!covering.length) continue;
+      const latest = [...covering].sort((a, b) => String(a.at).localeCompare(String(b.at))).at(-1);
+      x.status = "unverified";
+      x.evidence = covering.map((e) => `v1 evidence ${e.id} (${e.result}): ${e.action}${e.location ? ` (${e.location})` : ""} at ${String(e.revision ?? "no revision").slice(0, 12)} by ${e.verifier}`);
+      x.reason = `Carried over from v1 evidence (latest ${latest.id}: ${latest.result}), which was agent-reported and not checked. Reassess to judge it; the original record is in ${V1_BACKUP}.`;
+      x.assessedBy = "migration:v1";
+      x.assessedAt = now();
+    }
+  }
+  delete r.evidence;
+  r.schemaVersion = SCHEMA_VERSION;
+  const record = r;
+  const hash = planHash(record);
+  const notes = [];
+  const approvals = (r.approvals ?? []).filter((a) => {
+    if (typeof a.approvedBy === "string" && /^human:.+/.test(a.approvedBy)) return true;
+    notes.push(`dropped approval ${a.id} for ${a.subject}: approvedBy "${a.approvedBy}" is not a human attribution (likely written by a patch)`);
+    return false;
+  });
+  record.approvals = approvals.map((a) => {
+    const roadmap = a.subject === "roadmap";
+    return {
+      id: a.id,
+      subject: a.subject,
+      approvedBy: a.approvedBy,
+      at: a.at,
+      source: "local",
+      scope: roadmap ? "roadmap" : "decision",
+      ...roadmap ? { planHash: hash, migrated: true } : {},
+      ...a.note ? { note: a.note } : {}
+    };
+  });
+  if (evidence.length) notes.push(`removed ${evidence.length} v1 evidence entr${evidence.length === 1 ? "y" : "ies"}; exit criteria it covered are unverified until reassessment judges them`);
+  record.migrations = [...record.migrations ?? [], { from: 1, to: SCHEMA_VERSION, at: now(), backup: V1_BACKUP, ...notes.length ? { notes } : {} }];
+  for (const m of record.milestones) m.status = deriveMilestoneStatus(record, m);
+  return record;
+}
+function taskAddressed(record, t) {
+  if (!t.findingIds.length) return false;
+  return t.findingIds.every((id) => record.findings.find((f) => f.id === id)?.resolved === true);
+}
 function deriveMilestoneStatus(record, m) {
   const tasks = record.tasks.filter((t) => t.milestoneId === m.id);
-  if (tasks.length === 0) return "pending";
-  const statuses = tasks.map((t) => t.status);
-  if (statuses.every((s) => s === "deferred")) return "deferred";
-  const live = statuses.filter((s) => s !== "deferred");
-  if (live.every((s) => s === "completed")) {
-    return exitCriteriaMet(record, m) ? "completed" : "verification_required";
-  }
-  if (live.some((s) => s === "in_progress" || s === "verification_required" || s === "completed")) return "in_progress";
-  if (live.some((s) => s === "blocked")) return "blocked";
+  if (tasks.length && tasks.every((t) => t.deferredTrigger)) return "deferred";
+  if (m.exitCriteria.length && m.exitCriteria.every((x) => x.status === "met")) return "completed";
+  if (m.exitCriteria.some((x) => x.status === "met") || tasks.some((t) => taskAddressed(record, t))) return "in_progress";
   return "pending";
 }
-function exitCriteriaMet(record, m) {
-  return m.exitCriteria.every(
-    (ec) => record.evidence.some((e) => e.result === "pass" && e.covers.includes(ec.id) && (e.milestoneId === m.id || !e.milestoneId))
-  );
+var canonical = (v) => {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === "object") {
+    const empty = (x) => x === void 0 || x === null || x === "" || Array.isArray(x) && x.length === 0;
+    return Object.fromEntries(
+      Object.keys(v).sort().filter((k) => !empty(v[k])).map((k) => [k, canonical(v[k])])
+    );
+  }
+  return v;
+};
+var sortedIds = (xs) => xs ? [...xs].sort() : xs;
+function planHash(record) {
+  const byId = (xs) => [...xs].sort((a, b) => a.id.localeCompare(b.id));
+  const plan = {
+    milestones: byId(record.milestones).map((m) => ({
+      id: m.id,
+      title: m.title,
+      objective: m.objective,
+      scope: m.scope,
+      outcomes: m.outcomes,
+      dependsOn: sortedIds(m.dependsOn),
+      exitCriteria: m.exitCriteria.map((x) => ({ id: x.id, text: x.text }))
+    })),
+    tasks: byId(record.tasks).map((t) => ({
+      id: t.id,
+      milestoneId: t.milestoneId,
+      title: t.title,
+      description: t.description,
+      priority: t.priority,
+      dependsOn: sortedIds(t.dependsOn),
+      findingIds: sortedIds(t.findingIds),
+      acceptanceCriteria: t.acceptanceCriteria,
+      verification: t.verification,
+      requiresApproval: t.requiresApproval || void 0,
+      deferredTrigger: t.deferredTrigger
+    }))
+  };
+  return createHash3("sha256").update(JSON.stringify(canonical(plan))).digest("hex");
+}
+function roadmapApproval(record) {
+  const approval = [...record.approvals].reverse().find((a) => a.scope === "roadmap");
+  if (!approval) return { approval: null, current: false };
+  return { approval, current: approval.planHash === planHash(record) };
 }
 function saveRecord(store, record, opts = {}) {
   for (const m of record.milestones) m.status = deriveMilestoneStatus(record, m);
@@ -16132,9 +16604,15 @@ function saveRecord(store, record, opts = {}) {
   const { errors } = validateRecord(record);
   if (errors.length) throw new UsageError(`Refusing to write an invalid record:
   - ${errors.join("\n  - ")}`);
-  mkdirSync(dirname8(store.recordPath), { recursive: true });
+  mkdirSync2(dirname9(store.recordPath), { recursive: true });
+  const pending = pendingBackups.get(record);
+  if (pending) {
+    const backup = join13(dirname9(store.recordPath), V1_BACKUP);
+    if (!existsSync11(backup)) writeFileSync2(backup, pending.text);
+    pendingBackups.delete(record);
+  }
   const tmp = `${store.recordPath}.tmp`;
-  writeFileSync(tmp, JSON.stringify(record, null, 2) + "\n");
+  writeFileSync2(tmp, JSON.stringify(record, null, 2) + "\n");
   renameSync(tmp, store.recordPath);
   return record;
 }
@@ -16147,71 +16625,16 @@ function nextId(prefix, existing) {
   return `${prefix}-${String(max + 1).padStart(3, "0")}`;
 }
 
-// src/score.ts
-var CREDIT = {
-  passed: 1,
-  partial: 0.5,
-  failed: 0,
-  unverified: 0,
-  n_a: null,
-  deferred: null
-};
-var round = (n) => Math.round(n * 10) / 10;
-function computeScore(record) {
-  const rubric = loadRubric();
-  const state = new Map(record.criteria.map((c) => [c.id, c]));
-  const counts = { passed: 0, partial: 0, failed: 0, unverified: 0, n_a: 0, deferred: 0 };
-  let earned = 0;
-  let possible = 0;
-  let verifiedWeight = 0;
-  const dims = /* @__PURE__ */ new Map();
-  for (const d of rubric.dimensions) dims.set(d.id, { earned: 0, possible: 0, applicable: 0, passed: 0 });
-  for (const c of rubric.criteria) {
-    const status = state.get(c.id)?.status ?? "unverified";
-    counts[status] += 1;
-    const credit = CREDIT[status];
-    if (credit === null) continue;
-    const w = rubric.priorities[c.priority].weight;
-    earned += credit * w;
-    possible += w;
-    if (status !== "unverified") verifiedWeight += w;
-    const d = dims.get(c.dimension);
-    d.earned += credit * w;
-    d.possible += w;
-    d.applicable += 1;
-    if (status === "passed") d.passed += 1;
-  }
-  let achieved = 0;
-  let nextLevel = null;
-  for (let n = 1; n < rubric.levels.length; n++) {
-    const blocking = rubric.criteria.filter((c) => levelIndex(c.gate) <= n).map((c) => ({ id: c.id, title: c.title, status: state.get(c.id)?.status ?? "unverified" })).filter((c) => CREDIT[c.status] !== null && c.status !== "passed");
-    if (blocking.length === 0) {
-      achieved = n;
-      continue;
-    }
-    nextLevel = { level: rubric.levels[n].id, name: rubric.levels[n].name, blocking };
-    break;
-  }
-  const lvl = rubric.levels[achieved];
-  return {
-    score: possible ? round(earned / possible * 100) : 0,
-    confidence: possible ? round(verifiedWeight / possible * 100) : 0,
-    level: lvl.id,
-    levelName: lvl.name,
-    dimensions: rubric.dimensions.map((d) => {
-      const s = dims.get(d.id);
-      return { id: d.id, name: d.name, score: s.possible ? round(s.earned / s.possible * 100) : null, applicable: s.applicable, passed: s.passed };
-    }),
-    nextLevel,
-    counts
-  };
-}
-
 // src/render.ts
 function renderHtml(record, opts) {
   const rubric = loadRubric();
+  const { approval, current } = roadmapApproval(record);
   const payload = {
     record,
+    plan: {
+      approval: approval ? { id: approval.id, approvedBy: approval.approvedBy, at: approval.at, current, migrated: !!approval.migrated } : null,
+      addressed: record.tasks.filter((t) => taskAddressed(record, t)).map((t) => t.id)
+    },
     score: computeScore(record),
     rubric: { levels: rubric.levels, dimensions: rubric.dimensions, criteria: rubric.criteria, priorities: rubric.priorities },
     library: Object.fromEntries(
@@ -16247,7 +16670,7 @@ var TEMPLATE = String.raw`<title>__TITLE__</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: an instrument panel. Score and readiness ladder up top, then tabbed detail views (criteria, findings, conventions, roadmap, evidence). */
+/* Layout: an instrument panel. Score and readiness ladder up top, then tabbed detail views (criteria, findings, conventions, testing, docs, maintenance, roadmap). */
 :root {
   --bg: #f5f6f8; --surface: #ffffff; --sunk: #eceef3; --line: #d9dde6;
   --fg: #161a23; --muted: #5b6273; --accent: #2f4bd6; --accent-soft: #e3e8fd;
@@ -16303,7 +16726,7 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; background: var(--idle-soft); color: var(--idle); }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .s-passed, .s-completed, .s-pass { background: var(--ok-soft); color: var(--ok); }
-.s-partial, .s-in_progress, .s-verification_required { background: var(--warn-soft); color: var(--warn); }
+.s-partial, .s-in_progress { background: var(--warn-soft); color: var(--warn); }
 .s-failed, .s-blocked, .s-fail { background: var(--bad-soft); color: var(--bad); }
 .s-P0 { background: var(--bad-soft); color: var(--bad); }
 .s-P1 { background: var(--warn-soft); color: var(--warn); }
@@ -16361,7 +16784,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
 <script>
 (function () {
   var D = JSON.parse(document.getElementById("data").textContent);
-  var R = D.record, S = D.score, RB = D.rubric;
+  var R = D.record, S = D.score, RB = D.rubric, P = D.plan;
   var crit = {}; RB.criteria.forEach(function (c) { crit[c.id] = c; });
   var state = {}; R.criteria.forEach(function (c) { state[c.id] = c; });
   var dimName = {}; RB.dimensions.forEach(function (d) { dimName[d.id] = d.name; });
@@ -16375,6 +16798,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
   function header() {
     var stale = [];
     if (D.commitsBehind) stale.push("HEAD is " + D.commitsBehind + " commit" + (D.commitsBehind === 1 ? "" : "s") + " ahead of the assessed revision. Run /agentic:reassess to refresh the score.");
+    if (P.approval && !P.approval.current) stale.push("The roadmap changed after approval " + P.approval.id + " by " + P.approval.approvedBy + ". It needs re-approval.");
     return '<header class="top"><div><div class="label">Agentic readiness</div><h1>' + esc(R.repo.name) + '</h1></div>' +
       '<div class="meta"><span>Mode <b>' + esc(R.mode) + '</b></span><span>Assessed at <code>' + short(R.assessedRevision) + '</code></span>' +
       '<span>Record rev <b class="num">' + R.recordRevision + '</b></span><span>Rendered ' + esc(when(D.renderedAt)) + '</span></div></header>' +
@@ -16406,7 +16830,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       return '<div class="dim"><span>' + esc(d.name) + ' <span class="muted" style="font-size:.8rem">' + d.passed + "/" + d.applicable + ' passed</span></span><b class="num" style="text-align:right">' + (d.score == null ? "n/a" : d.score) + '</b><div class="bar"><i style="width:' + (d.score || 0) + '%"></i></div></div>';
     }).join("");
     var tasks = R.tasks;
-    var count = function (s) { return tasks.filter(function (t) { return t.status === s; }).length; };
+    var deferred = tasks.filter(function (t) { return t.deferredTrigger; }).length;
     var openP0 = R.findings.filter(function (f) { return f.priority === "P0" && !f.resolved && f.kind !== "deferred"; }).length;
     var blockers = S.nextLevel ? S.nextLevel.blocking.map(function (b) {
       return '<li><code>' + esc(b.id) + "</code> " + esc(b.title) + " " + pill(b.status) + "</li>";
@@ -16417,7 +16841,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       (S.nextLevel ? '<div><h3>To reach ' + esc(S.nextLevel.level + " " + S.nextLevel.name) + '</h3><ul class="ev" style="margin-top:6px">' + blockers + "</ul></div>" : '<p class="muted">Every gated criterion is passed.</p>') +
       '</div></section><section class="grid2"><div class="panel" style="display:grid;gap:14px"><h2>By dimension</h2><div class="dims">' + dims + '</div></div>' +
       '<div class="panel" style="display:grid;gap:14px"><h2>Work</h2><div class="stats">' +
-      [["Tasks", tasks.length], ["In progress", count("in_progress")], ["Awaiting verification", count("verification_required")], ["Blocked", count("blocked")], ["Completed", count("completed")], ["Open P0 findings", openP0]]
+      [["Tasks", tasks.length], ["Open", tasks.length - P.addressed.length - deferred], ["Addressed", P.addressed.length], ["Deferred", deferred], ["Milestones met", R.milestones.filter(function (m) { return m.status === "completed"; }).length], ["Open P0 findings", openP0]]
         .map(function (s) { return '<div class="stat"><span class="label">' + s[0] + '</span><b class="num">' + s[1] + "</b></div>"; }).join("") +
       "</div>" + milestoneSummary() + "</div></section>";
   }
@@ -16426,7 +16850,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     if (!R.milestones.length) return '<p class="muted" style="margin:0">No milestones yet. Run /agentic:plan to build the roadmap.</p>';
     return '<div class="list">' + R.milestones.map(function (m) {
       var ts = R.tasks.filter(function (t) { return t.milestoneId === m.id; });
-      var done = ts.filter(function (t) { return t.status === "completed"; }).length;
+      var done = ts.filter(function (t) { return addressed(t); }).length;
       var pct = ts.length ? Math.round((done / ts.length) * 100) : 0;
       return '<div class="dim"><span><code>' + esc(m.id) + "</code> " + esc(m.title) + " " + pill(m.status) + '</span><b class="num" style="text-align:right">' + done + "/" + ts.length + '</b><div class="bar"><i style="width:' + pct + '%"></i></div></div>';
     }).join("") + "</div>";
@@ -16662,47 +17086,44 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       (gaps.length ? '<div class="muted" style="font-size:.84rem">Open workflow findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
   }
 
+  function addressed(t) { return P.addressed.indexOf(t.id) >= 0; }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
-    var cols = [["pending", "Pending"], ["in_progress", "In progress"], ["verification_required", "Awaiting verification"], ["completed", "Completed"]];
-    var other = ts.filter(function (t) { return t.status === "blocked" || t.status === "deferred"; });
+    var approval = P.approval
+      ? '<div class="' + (P.approval.current ? "legend" : "banner") + '">Roadmap approval ' + esc(P.approval.id) + " by " + esc(P.approval.approvedBy) + " on " + esc(String(P.approval.at).slice(0, 10)) +
+        (P.approval.current ? " covers this plan." : ": the plan has changed since, so it needs re-approval.") + " Approvals are attributed locally and are not authenticated.</div>"
+      : '<div class="banner">This roadmap has not been approved.</div>';
+    var legend = '<div class="legend">The plan is handed to your own workflow. Tasks are not tracked here while they are worked on: a task shows as addressed once /agentic:reassess finds its findings resolved, and a milestone is met once reassessment judges every exit criterion met, with evidence.</div>';
     var card = function (t) {
-      var unmet = t.dependsOn.filter(function (d) { var x = R.tasks.find(function (y) { return y.id === d; }); return !x || x.status !== "completed"; });
-      return '<div class="card"><div class="row"><code>' + esc(t.id) + "</code>" + pill(t.priority) + (t.status === "blocked" || t.status === "deferred" ? pill(t.status) : "") + "</div><b>" + esc(t.title) + "</b>" +
-        (unmet.length ? '<span class="muted" style="font-size:.8rem">Waiting on ' + unmet.map(esc).join(", ") + "</span>" : "") +
-        (t.blockedReason ? '<span style="font-size:.8rem;color:var(--bad)">' + esc(t.blockedReason) + "</span>" : "") +
+      var unmet = t.dependsOn.filter(function (d) { var x = R.tasks.find(function (y) { return y.id === d; }); return !x || !addressed(x); });
+      return '<div class="card"><div class="row"><code>' + esc(t.id) + "</code>" + pill(t.priority) + (t.requiresApproval ? pill("unverified", "needs a decision") : "") + (t.deferredTrigger ? pill("deferred") : "") + "</div><b>" + esc(t.title) + "</b>" +
+        (unmet.length && !addressed(t) ? '<span class="muted" style="font-size:.8rem">After ' + unmet.map(esc).join(", ") + "</span>" : "") +
+        (t.deferredTrigger ? '<span class="muted" style="font-size:.8rem">When: ' + esc(t.deferredTrigger) + "</span>" : "") +
+        (t.findingIds.length ? '<span class="muted" style="font-size:.8rem">Fixes ' + t.findingIds.map(esc).join(", ") + "</span>" : "") +
         '<details><summary>Acceptance and verification</summary><ul class="ev">' + t.acceptanceCriteria.map(function (a) {
-          var ok = R.evidence.some(function (e) { return e.taskId === t.id && e.result === "pass" && e.covers.indexOf(a.id) >= 0 && e.verifier !== t.implementer; });
-          return "<li>" + (ok ? "✓ " : "") + "<code>" + esc(a.id) + "</code> " + esc(a.text) + "</li>";
+          return "<li><code>" + esc(a.id) + "</code> " + esc(a.text) + "</li>";
         }).join("") + '</ul><ul class="ev">' + t.verification.map(function (v) { return '<li class="muted">' + esc(v) + "</li>"; }).join("") + "</ul></details></div>";
     };
     var ms = '<div class="list">' + R.milestones.filter(function (m) { return filters.milestone === "all" || m.id === filters.milestone; }).map(function (m) {
+      var met = m.exitCriteria.filter(function (x) { return x.status === "met"; }).length;
       return '<div class="item"><div class="row"><code>' + esc(m.id) + '</code><h3 class="grow">' + esc(m.title) + "</h3>" + pill(m.status) + "</div><p>" + esc(m.objective) + "</p>" +
         (m.dependsOn.length ? '<span class="muted" style="font-size:.84rem">Depends on ' + m.dependsOn.map(esc).join(", ") + "</span>" : "") +
-        '<details><summary>Exit criteria</summary><ul class="ev">' + m.exitCriteria.map(function (x) {
-          var ok = R.evidence.some(function (e) { return e.result === "pass" && e.covers.indexOf(x.id) >= 0; });
-          return "<li>" + (ok ? "✓ " : "") + "<code>" + esc(x.id) + "</code> " + esc(x.text) + "</li>";
+        "<details><summary>Exit criteria (" + met + "/" + m.exitCriteria.length + ' met)</summary><ul class="ev">' + m.exitCriteria.map(function (x) {
+          var detail = (x.evidence && x.evidence.length ? '<ul class="ev">' + x.evidence.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + (x.reason ? '<div class="muted">' + esc(x.reason) + "</div>" : "");
+          return "<li>" + pill(x.status === "met" ? "passed" : x.status === "unmet" ? "failed" : "unverified", x.status || "not judged") + " <code>" + esc(x.id) + "</code> " + esc(x.text) + detail + "</li>";
         }).join("") + "</ul></details></div>";
     }).join("") + "</div>";
-    return '<div class="filters">' + sel("milestone", R.milestones.map(function (m) { return [m.id, m.id + " " + m.title]; })) + "</div>" + ms +
+    var cols = [["Open", function (t) { return !addressed(t) && !t.deferredTrigger; }], ["Addressed", addressed], ["Deferred", function (t) { return !addressed(t) && t.deferredTrigger; }]];
+    return approval + legend + '<div class="filters">' + sel("milestone", R.milestones.map(function (m) { return [m.id, m.id + " " + m.title]; })) + "</div>" + ms +
       '<div class="board">' + cols.map(function (c) {
-        var items = ts.filter(function (t) { return t.status === c[0]; });
-        return '<div class="col"><div class="row"><span class="label grow">' + c[1] + '</span><b class="num">' + items.length + "</b></div>" + items.map(card).join("") + "</div>";
-      }).join("") + "</div>" +
-      (other.length ? '<div class="panel" style="display:grid;gap:10px"><h2>Blocked and deferred</h2><div class="board">' + other.map(card).join("") + "</div></div>" : "");
+        var items = ts.filter(c[1]);
+        return '<div class="col"><div class="row"><span class="label grow">' + c[0] + '</span><b class="num">' + items.length + "</b></div>" + items.map(card).join("") + "</div>";
+      }).join("") + "</div>";
   }
 
-  function evidenceView() {
-    if (!R.evidence.length) return '<div class="empty">No verification evidence recorded yet. Evidence appears here after /agentic:verify.</div>';
-    var rows = R.evidence.slice().reverse().map(function (e) {
-      return "<tr><td><code>" + esc(e.id) + "</code></td><td><code>" + esc(e.taskId || e.milestoneId || "") + "</code></td><td>" + pill(e.result) + "</td><td>" + esc(e.verifier) + "</td><td>" + esc(e.action) +
-        (e.location ? '<div class="muted" style="font-size:.8rem">' + esc(e.location) + "</div>" : "") + "</td><td><code>" + short(e.revision) + "</code></td><td>" + esc(String(e.at).slice(0, 10)) + "</td></tr>";
-    }).join("");
-    return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
-  }
-
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], maintenance: ["Maintenance", maintenanceView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], maintenance: ["Maintenance", maintenanceView], roadmap: ["Roadmap", roadmapView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";
@@ -16720,105 +17141,169 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
 </script>
 `;
 
+// src/citations.ts
+import { existsSync as existsSync12, readFileSync as readFileSync13, statSync as statSync2 } from "node:fs";
+import { isAbsolute, join as join14, normalize } from "node:path";
+var URL2 = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+var CITATION = /(?:^|[\s(`'"[,;])([\w@+.$~-][\w@+./$~()[\]-]*):(\d+)(?:-(\d+))?(?=$|[\s)`'",;:\]]|\.(?:\s|$))/g;
+var QUOTED = /`([^`\n]*\s[^`\n]*):(\d+)(?:-(\d+))?`/g;
+var FILE_EXT = /\.(c|cc|cfg|cjs|clj|conf|cpp|cs|css|cts|dart|env|ex|exs|gradle|graphql|go|h|hpp|html?|ini|ipynb|java|js|json5?|jsonc|jsx|kt|kts|lock|md|mdx|mjs|mts|php|proto|py|rb|rs|scala|scss|sh|sql|svelte|swift|tf|toml|ts|tsx|txt|vue|xml|ya?ml)$/i;
+function citationsIn(text, repoRoot2) {
+  const out = [];
+  const push = (raw, a, b) => {
+    const path = raw.replace(/^\.\//, "");
+    if (!/[./]/.test(path) || /^\.+$/.test(path)) return;
+    const first = path.split("/")[0];
+    const known = !!repoRoot2 && first !== "" && first !== "." && first !== ".." && existsSync12(join14(repoRoot2, first));
+    if (!known && !FILE_EXT.test(path) && !path.startsWith("../") && !path.startsWith("/")) return;
+    const start = Number(a);
+    out.push({ path, start, end: b ? Number(b) : start });
+  };
+  let clean = text.replace(URL2, " ");
+  clean = clean.replace(QUOTED, (_m, p, a, b) => {
+    push(p, a, b);
+    return " ";
+  });
+  for (const m of clean.matchAll(CITATION)) push(m[1], m[2], m[3]);
+  return out;
+}
+var lineCounts = /* @__PURE__ */ new Map();
+function lines2(repoRoot2, rel) {
+  const abs = join14(repoRoot2, rel);
+  if (lineCounts.has(abs)) return lineCounts.get(abs);
+  let n;
+  try {
+    if (statSync2(abs).isDirectory()) n = "dir";
+    else {
+      const text = readFileSync13(abs, "utf8");
+      n = text.length === 0 ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+    }
+  } catch {
+    n = null;
+  }
+  lineCounts.set(abs, n);
+  return n;
+}
+function checkCitations(repoRoot2, label, evidence) {
+  lineCounts.clear();
+  if (!Array.isArray(evidence)) return [];
+  const problems = [];
+  for (const e of evidence) {
+    if (typeof e !== "string") continue;
+    for (const c of citationsIn(e, repoRoot2)) {
+      const cite = `${c.path}:${c.start}${c.end !== c.start ? `-${c.end}` : ""}`;
+      const rel = normalize(c.path);
+      if (isAbsolute(c.path) || rel.startsWith("..")) {
+        problems.push(`${label} cites ${cite}, which is outside the repository. Cite a repo-relative path.`);
+        continue;
+      }
+      const n = lines2(repoRoot2, rel);
+      if (n === null) problems.push(`${label} cites ${cite}, but ${c.path} does not exist in the worktree. Cite the repo-relative path you read (in backticks if it contains spaces), or drop the line number for an absence claim.`);
+      else if (n === "dir") problems.push(`${label} cites ${cite}, but ${c.path} is a directory. Cite a file.`);
+      else if (c.start < 1 || c.end < c.start) problems.push(`${label} cites ${cite}, which is not a valid line range.`);
+      else if (c.end > n) problems.push(`${label} cites ${cite}, but ${c.path} has only ${n} line${n === 1 ? "" : "s"}. Re-read the file and cite the real line.`);
+    }
+  }
+  return problems;
+}
+
 // src/workflow.ts
-var TRANSITIONS = {
-  pending: ["in_progress", "blocked", "deferred"],
-  in_progress: ["verification_required", "blocked", "pending"],
-  verification_required: ["completed", "in_progress", "blocked"],
-  blocked: ["pending", "in_progress"],
-  deferred: ["pending"],
-  completed: ["in_progress"]
-};
-function getTask(record, id) {
-  const t = record.tasks.find((x) => x.id === id);
-  if (!t) throw new UsageError(`Unknown task ${id}`);
-  return t;
-}
-function unmetDependencies(record, task) {
-  return task.dependsOn.filter((d) => record.tasks.find((t) => t.id === d)?.status !== "completed");
-}
-function uncoveredAcceptance(record, task) {
-  const independent = record.evidence.filter(
-    (e) => e.taskId === task.id && e.result === "pass" && e.revision && e.verifier !== task.implementer
+var PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2 };
+function roadmapOrder(record) {
+  const msOrder = new Map(record.milestones.map((m, i) => [m.id, i]));
+  const open = record.tasks.filter((t) => !t.deferredTrigger && !taskAddressed(record, t));
+  const openIds = new Set(open.map((t) => t.id));
+  const sorted = [...open].sort(
+    (a, b) => (msOrder.get(a.milestoneId) ?? 0) - (msOrder.get(b.milestoneId) ?? 0) || PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.id.localeCompare(b.id)
   );
-  return task.acceptanceCriteria.filter((ac) => !independent.some((e) => e.covers.includes(ac.id))).map((ac) => ac.id);
+  const out = [];
+  const placed = /* @__PURE__ */ new Set();
+  const place = (t, seen) => {
+    if (placed.has(t.id) || seen.has(t.id)) return;
+    seen.add(t.id);
+    for (const d of t.dependsOn) {
+      const dep = open.find((x) => x.id === d);
+      if (dep) place(dep, seen);
+    }
+    placed.add(t.id);
+    out.push(t);
+  };
+  for (const t of sorted) place(t, /* @__PURE__ */ new Set());
+  return out.map((task) => {
+    const waitingOn = task.dependsOn.filter((d) => openIds.has(d));
+    return { task, ready: waitingOn.length === 0, waitingOn };
+  });
 }
-function transitionTask(record, id, to, opts) {
-  const task = getTask(record, id);
-  const from = task.status;
-  if (from === to) throw new UsageError(`Task ${id} is already ${to}`);
-  if (!TRANSITIONS[from].includes(to)) {
-    throw new UsageError(`Illegal transition for ${id}: ${from} -> ${to}. Allowed from ${from}: ${TRANSITIONS[from].join(", ")}`);
-  }
-  if (to === "in_progress") {
-    const unmet = unmetDependencies(record, task);
-    if (unmet.length) throw new UsageError(`Task ${id} has unmet dependencies: ${unmet.join(", ")}`);
-    if (task.requiresApproval && !record.approvals.some((a) => a.subject === id)) {
-      throw new UsageError(`Task ${id} requires an explicit approval first (agentic approve ${id} --by <human>)`);
-    }
-    if (from === "completed" && !opts.reason) throw new UsageError(`Reopening completed task ${id} requires --reason`);
-    if (from === "pending" || from === "blocked") task.implementer = opts.by;
-  }
-  if (to === "blocked") {
-    if (!opts.reason) throw new UsageError(`Blocking ${id} requires --reason`);
-    task.blockedReason = opts.reason;
-  } else if (from === "blocked") {
-    delete task.blockedReason;
-  }
-  if (to === "deferred") {
-    if (!opts.reason) throw new UsageError(`Deferring ${id} requires --reason (the activation trigger)`);
-    task.deferredTrigger = opts.reason;
-  }
-  if (to === "completed") {
-    if (opts.by === task.implementer) {
-      throw new UsageError(`Task ${id} cannot be completed by its implementer (${task.implementer}). Completion requires an independent verifier.`);
-    }
-    const missing = uncoveredAcceptance(record, task);
-    if (missing.length) {
-      throw new UsageError(
-        `Task ${id} cannot be completed: acceptance criteria without passing independent evidence: ${missing.join(", ")}. Record evidence with \`agentic evidence --task ${id} --covers <ids> --verifier <not ${task.implementer}> ...\``
+var PATCHABLE = ["criteria", "findings", "milestones", "tasks", "conventions"];
+var FORBIDDEN = {
+  approvals: "Approvals record a human decision and are written only by `agentic approve <subject> --by human:<name>`, after the user says so in the session.",
+  evidence: "The record keeps no execution evidence. Cite what you observed in the item's own `evidence` strings.",
+  scoreHistory: "It is computed by the CLI (`agentic score`).",
+  recordRevision: "It is computed by the CLI.",
+  artifact: "It is set by `agentic published`.",
+  schemaVersion: "It is set by the CLI.",
+  createdAt: "It is set by the CLI.",
+  updatedAt: "It is set by the CLI.",
+  rubricVersion: "It is set by the CLI.",
+  migrations: "It is set by the CLI when it migrates a record."
+};
+var TASK_EXECUTION_FIELDS = ["status", "history", "implementer", "blockedReason"];
+function precheck(record, patch, repoRoot2, hints) {
+  const problems = [];
+  const cite = (label, ev) => problems.push(...checkCitations(repoRoot2, label, ev));
+  for (const c of patch.criteria ?? []) {
+    cite(`criterion ${String(c.id)}`, c.evidence);
+    const hint = hints?.[c.id];
+    const existing = record.criteria.find((x) => x.id === c.id);
+    const notes = existing?.status === "passed" ? c.notes ?? existing.notes : c.notes;
+    if (c.status === "passed" && hint?.status === "failed" && !notes?.trim()) {
+      problems.push(
+        `criterion ${String(c.id)} is marked passed, but the deterministic probe ${hint.probe} failed: ${hint.evidence.join("; ") || "no evidence"}. Either the probe is wrong here (say why in "notes", citing what you read) or the criterion is not passed.`
       );
     }
   }
-  task.status = to;
-  task.history.push({ at: now(), from, to, by: opts.by, revision: headRevision(opts.repoRoot), ...opts.reason ? { reason: opts.reason } : {} });
-  return task;
+  for (const f of patch.findings ?? []) cite(`finding ${String(f.id)}`, f.evidence);
+  for (const c of patch.conventions ?? []) cite(`convention ${String(c.id ?? `${String(c.scope)} ${String(c.rule)}`)}`, c.evidence);
+  for (const m of patch.milestones ?? []) {
+    if (m.exitCriteria !== void 0 && !Array.isArray(m.exitCriteria)) {
+      problems.push(`milestone ${String(m.id)} exitCriteria must be a list`);
+      continue;
+    }
+    const current = record.milestones.find((x) => x.id === m.id)?.exitCriteria ?? [];
+    for (const x of m.exitCriteria ?? []) {
+      cite(`exit criterion ${String(x.id)}`, x.evidence);
+      const was = current.find((y) => y.id === x.id)?.status;
+      if (x.status === "met" && was !== "met" && !(Array.isArray(x.evidence) && x.evidence.length))
+        problems.push(`exit criterion ${String(x.id)} is judged met without evidence in this patch. Cite what reassessment observed.`);
+      if (x.status === "unverified" && was !== "unverified" && !x.reason) problems.push(`exit criterion ${String(x.id)} is judged unverified without a reason in this patch.`);
+    }
+  }
+  for (const t of patch.testing ?? []) for (const l of Array.isArray(t.layers) ? t.layers : []) cite(`testing ${String(t.scope)} layer ${String(l.id)}`, l.evidence);
+  for (const d of Array.isArray(patch.docs?.target) ? patch.docs.target : []) cite(`docs target ${String(d.id)} (${String(d.scope)})`, d.evidence);
+  for (const r of Array.isArray(patch.maintenance?.roster) ? patch.maintenance.roster : []) cite(`maintenance ${String(r.id)}`, r.evidence);
+  return problems;
 }
-function addEvidence(record, input, repoRoot2) {
-  if (input.taskId) getTask(record, input.taskId);
-  const known = /* @__PURE__ */ new Set([
-    ...record.tasks.flatMap((t) => t.acceptanceCriteria.map((a) => a.id)),
-    ...record.milestones.flatMap((m) => m.exitCriteria.map((x) => x.id))
-  ]);
-  for (const c of input.covers) if (!known.has(c)) throw new UsageError(`Evidence covers unknown acceptance/exit criterion ${c}`);
-  const evidence = {
-    ...input,
-    id: nextId("E", record.evidence.map((e) => e.id)),
-    revision: input.revision ?? headRevision(repoRoot2),
-    at: now()
-  };
-  record.evidence.push(evidence);
-  return evidence;
-}
-var PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2 };
-function readyTasks(record) {
-  const msOrder = new Map(record.milestones.map((m, i) => [m.id, i]));
-  const msReady = (mid) => {
-    const m = record.milestones.find((x) => x.id === mid);
-    return !m || m.dependsOn.every((d) => record.milestones.find((x) => x.id === d)?.status === "completed");
-  };
-  return record.tasks.filter((t) => t.status === "pending" && unmetDependencies(record, t).length === 0 && msReady(t.milestoneId)).sort(
-    (a, b) => (msOrder.get(a.milestoneId) ?? 0) - (msOrder.get(b.milestoneId) ?? 0) || PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.id.localeCompare(b.id)
-  );
-}
-var PATCHABLE = ["criteria", "findings", "milestones", "tasks", "approvals", "conventions"];
-var FORBIDDEN = ["scoreHistory", "recordRevision", "artifact", "evidence", "schemaVersion", "createdAt", "updatedAt", "rubricVersion"];
 function applyPatch(record, patch, opts) {
   const log = [];
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new UsageError("A patch must be a JSON object");
   for (const key of Object.keys(patch)) {
-    if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
+    if (FORBIDDEN[key]) throw new UsageError(`Refused: "${key}" cannot be written with apply. ${FORBIDDEN[key]}`);
     if (![...PATCHABLE, "testing", "docs", "maintenance", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
+  for (const key of Object.keys(patch.remove ?? {})) {
+    if (FORBIDDEN[key]) throw new UsageError(`Refused: "${key}" cannot be removed with apply. ${FORBIDDEN[key]}`);
+  }
+  for (const t of patch.tasks ?? []) {
+    const exec = TASK_EXECUTION_FIELDS.filter((k) => k in t);
+    if (exec.length) {
+      throw new UsageError(
+        `Refused: task ${String(t.id)} sets ${exec.join(", ")}. Tasks carry no execution state; the team implements them in its own workflow. Progress shows up when /agentic:reassess resolves the task's findings and judges its milestone's exit criteria. To defer a task, set deferredTrigger.`
+      );
+    }
+  }
+  const problems = precheck(record, patch, opts.repoRoot, opts.hints ?? null);
+  if (problems.length) throw new UsageError(`Refusing the patch: ${problems.length} evidence problem${problems.length === 1 ? "" : "s"}:
+  - ${problems.join("\n  - ")}`);
   if (patch.assessedRevision !== void 0) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
     log.push(`assessedRevision = ${record.assessedRevision}`);
@@ -16844,29 +17329,36 @@ function applyPatch(record, patch, opts) {
         if (item.status !== "n_a" && item.status !== "unverified" && existing) delete existing.reason;
         if (item.status !== "deferred" && existing) delete existing.trigger;
       }
-      if (coll === "milestones") item.status = existing?.status ?? "pending";
-      if (coll === "tasks") {
-        if (existing && item.status !== void 0 && item.status !== existing.status) {
-          throw new UsageError(`Task ${id} status must change through \`agentic task ${id} <status>\`, not apply`);
+      if (coll === "milestones") {
+        delete item.status;
+        item.status = existing?.status ?? "pending";
+        if (Array.isArray(item.exitCriteria)) {
+          const merged = (existing?.exitCriteria ?? []).map((x) => ({ ...x }));
+          for (const x of item.exitCriteria) {
+            const judged = x.status !== void 0 && x.status !== merged.find((y) => y.id === x.id)?.status;
+            if (judged || x.evidence !== void 0) {
+              x.assessedBy ??= opts.by;
+              x.assessedAt ??= now();
+            }
+            const cur = merged.find((y) => y.id === x.id);
+            if (cur) {
+              if (typeof x.text === "string" && x.text !== cur.text) for (const k of ["status", "evidence", "reason", "assessedBy", "assessedAt"]) delete cur[k];
+              if (x.status && x.status !== cur.status) for (const k of ["evidence", "reason"]) delete cur[k];
+              Object.assign(cur, x);
+            } else merged.push(x);
+          }
+          item.exitCriteria = merged;
         }
-        if (!existing) {
-          const s = item.status ?? "pending";
-          if (!["pending", "deferred", "blocked"].includes(s)) throw new UsageError(`New task ${id} must start pending, deferred or blocked`);
-          item.status = s;
-          item.history ??= [];
-          item.dependsOn ??= [];
-          item.findingIds ??= [];
-        } else {
-          delete item.history;
-          delete item.implementer;
-        }
+      }
+      if (coll === "tasks" && !existing) {
+        item.dependsOn ??= [];
+        item.findingIds ??= [];
       }
       if (coll === "findings" && !existing) {
         item.taskIds ??= [];
         item.criterionIds ??= [];
         item.evidence ??= [];
       }
-      if (coll === "approvals" && !existing) item.at ??= now();
       if (coll === "conventions") {
         item.assessedBy ??= opts.by;
         item.assessedAt ??= now();
@@ -16904,6 +17396,19 @@ function applyPatch(record, patch, opts) {
     const replaced = !!record.maintenance;
     record.maintenance = { ...m, assessedBy: m.assessedBy ?? opts.by, assessedAt: m.assessedAt ?? now() };
     log.push(`${replaced ? "replaced" : "added"} maintenance (${m.roster.length} janitors)`);
+    const lib = loadMaintenance();
+    const crit = new Map(record.criteria.map((c) => [c.id, c.status]));
+    const unmet = m.roster.filter((r) => r.recommend === "now").flatMap((r) => {
+      const missing = (lib.items.get(r.id)?.prerequisites ?? []).filter((p) => crit.get(p) !== "passed");
+      return missing.length ? [`${r.id} needs ${missing.map((p) => `${p} (${crit.get(p) ?? "missing"})`).join(", ")}`] : [];
+    });
+    if (unmet.length) {
+      throw new UsageError(
+        `Refused: janitors recommended "now" whose prerequisites have not passed:
+  - ${unmet.join("\n  - ")}
+A prerequisite must be passed, not n_a: the janitor guards a contract that has to exist. Use "recommend": "after-prerequisites" with those criteria in "blockedBy".`
+      );
+    }
   }
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
@@ -16927,6 +17432,16 @@ function applyPatch(record, patch, opts) {
       continue;
     }
     if (typeof ids === "boolean") throw new UsageError(`remove.${coll} must be a list of ids`);
+    if (coll === "exitCriteria") {
+      for (const id of ids) {
+        const m = record.milestones.find((x) => x.exitCriteria.some((e) => e.id === id));
+        if (!m) throw new UsageError(`Cannot remove unknown exit criterion ${id}`);
+        if (m.exitCriteria.length === 1) throw new UsageError(`Cannot remove ${id}: milestone ${m.id} needs at least one exit criterion`);
+        m.exitCriteria = m.exitCriteria.filter((e) => e.id !== id);
+        log.push(`removed ${id}`);
+      }
+      continue;
+    }
     if (coll === "testing") {
       for (const scope of ids) {
         const idx = (record.testing ?? []).findIndex((t) => t.scope === scope);
@@ -16941,7 +17456,9 @@ function applyPatch(record, patch, opts) {
     for (const id of ids) {
       const idx = target.findIndex((x) => x.id === id);
       if (idx < 0) throw new UsageError(`Cannot remove unknown ${coll} id ${id}`);
-      if (coll === "tasks" && target[idx].status === "completed") throw new UsageError(`Completed task ${id} cannot be removed`);
+      if (coll === "tasks" && taskAddressed(record, target[idx])) {
+        throw new UsageError(`Task ${id} cannot be removed: reassessment found it addressed (its findings are resolved). Keep it as the record of that work.`);
+      }
       target.splice(idx, 1);
       log.push(`removed ${id}`);
     }
@@ -16973,15 +17490,19 @@ Setup
   adopt                                         Move the staged record into <repo>/.agentic/
   where                                         Print the record location
 
-Assessment content (the only write path for findings/milestones/tasks/criteria)
-  apply <patch.json|-> [--by <who>]             Upsert criteria, findings, milestones, tasks, approvals
-  approve <subject> --by <human> [--note ...]   Record an explicit human approval
+Read-only assessment
+  readonly begin [--restart]                    Fingerprint the worktree and refuse Claude file-tool writes to it (6h window)
+  readonly end                                  Fail, listing every change, if the worktree moved since begin
+  readonly check --path <file> | --hook         Exit 2 if a write to <file> falls in an open window (used by the plugin hook)
 
-Execution
-  next [--json]                                 Dependency-ready tasks and work awaiting verification
-  task <id> <status> --by <who> [--reason ...]  Guarded transition (pending|in_progress|verification_required|completed|blocked|deferred)
-  evidence --task <id> --covers <ids> --verifier <who> --action <cmd> --result pass|fail [--location ...] [--kind ...]
-  show <id>                                     Print one criterion/finding/milestone/task/evidence as JSON
+Assessment content (the only write path for findings/milestones/tasks/criteria)
+  apply <patch.json|-> [--by <who>]             Upsert criteria, findings, milestones, tasks; cited path:line must exist
+  approve <subject> --by human:<name> [--note]  Attribute a human decision (roadmap approvals bind to the plan)
+
+Roadmap (a plan handed to your own workflow; progress comes from reassessment)
+  roadmap [--json]                              Open tasks in milestone and dependency order
+  changes [--json]                              What changed since the assessment, and which judgements it makes stale
+  show <id>                                     Print one criterion/finding/milestone/task/approval as JSON
 
 Conventions
   conventions [--app <root>] [--json]          App roots, detected stack, conventions files, applicable baseline rules
@@ -17029,7 +17550,7 @@ var need = (a, k) => {
   return v;
 };
 function readJsonInput(src) {
-  const text = src === "-" ? readFileSync11(0, "utf8") : readFileSync11(resolve4(src), "utf8");
+  const text = src === "-" ? readFileSync14(0, "utf8") : readFileSync14(resolve5(src), "utf8");
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -17045,9 +17566,9 @@ function withHints(result) {
   return { ...result, criteriaHints };
 }
 function strictnessSnapshot(store) {
-  if (!existsSync10(store.scanPath)) return null;
+  if (!existsSync13(store.scanPath)) return null;
   try {
-    const s = JSON.parse(readFileSync11(store.scanPath, "utf8"));
+    const s = JSON.parse(readFileSync14(store.scanPath, "utf8"));
     const apps = s.facts.strictness;
     const suppressions = s.facts.suppressions;
     const testing = s.facts.testing ?? [];
@@ -17084,6 +17605,49 @@ function printScore(s) {
     for (const b of s.nextLevel.blocking) console.log(`  - ${b.id} [${b.status}] ${b.title}`);
   }
 }
+var REMOVED = {
+  task: "The playbook plans; it does not run or track implementation. Implement tasks in your own workflow, then run /agentic:reassess, which resolves findings and judges exit criteria from the repository.",
+  evidence: "Verification evidence belongs to your own review and CI. Reassessment cites what it observes in the record's criteria, findings and exit criteria.",
+  next: "Use `agentic roadmap` for the open tasks in plan order."
+};
+function scanHints(store) {
+  if (!existsSync13(store.scanPath)) return null;
+  try {
+    return JSON.parse(readFileSync14(store.scanPath, "utf8")).criteriaHints ?? {};
+  } catch {
+    return null;
+  }
+}
+function trustStatus(store, record, full) {
+  const changes = changedAreas(store.repoRoot, record.assessedRevision, { apps: full });
+  const from = pendingMigration(record);
+  const { approval, current } = roadmapApproval(record);
+  const roadmap = !record.milestones.length ? null : !approval ? "ROADMAP: not approved yet. Approval is recorded with `agentic approve roadmap --by human:<name>` once the user approves it." : !current ? `ROADMAP: changed since approval ${approval.id} by ${approval.approvedBy}. Ask the user to re-approve it.` : null;
+  const crit = new Map(record.criteria.map((c) => [c.id, c.status]));
+  const lib = loadMaintenance();
+  const janitors = (record.maintenance?.roster ?? []).filter((r) => r.status === "present" || r.recommend === "now").flatMap((r) => {
+    const missing = (lib.items.get(r.id)?.prerequisites ?? []).filter((p) => crit.get(p) !== "passed");
+    return missing.length ? [`${r.id} is ${r.status === "present" ? "running" : "recommended now"} but ${missing.map((p) => `${p} is ${crit.get(p) ?? "missing"}`).join(", ")}: the contract it guards is not established, so its output cannot be trusted. Reassess, then fix or pause it.`] : [];
+  });
+  return {
+    changes,
+    probeRegressions: full ? probeRegressions(store).regressions : [],
+    roadmap,
+    roadmapApproval: approval ? { id: approval.id, current } : null,
+    janitors,
+    migration: from ? `the record uses schema v${from}. The next write migrates it to v2 (execution state dropped; the original is kept as ${V1_BACKUP}).` : null,
+    readonlyWindow: liveLock(store.repoRoot)?.expiresAt ?? null
+  };
+}
+function printChanges(c, regressions) {
+  if (!c.revisionKnown) console.log(`The assessed revision ${c.assessedRevision ?? "(none)"} is not in this repository's history: treat every judgement as stale.`);
+  console.log(`${c.commits} commit(s) since the assessment, ${c.committed.length} path(s) changed, ${c.uncommitted.length} uncommitted.`);
+  if (!c.areas.length) console.log("No changes that affect an assessed area.");
+  for (const a of c.areas) console.log(`  ${a.label}: ${a.dims.join(", ")}${a.snapshots.length ? `; snapshots: ${a.snapshots.join(", ")}` : ""}  (${a.paths.slice(0, 5).join(", ")}${a.paths.length > 5 ? `, +${a.paths.length - 5}` : ""})`);
+  const apps = Object.keys(c.apps);
+  if (apps.length) console.log(`  app roots with changed code: ${apps.join(", ")}`);
+  for (const r of regressions) console.log(`  regressed probe ${r.probe}: ${r.was} -> ${r.now} (${r.evidence[0] ?? ""})`);
+}
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -17091,11 +17655,11 @@ function main(argv) {
     console.log(HELP);
     return 0;
   }
-  const cwd = resolve4(str(args, "repo") ?? process.cwd());
+  const cwd = resolve5(str(args, "repo") ?? process.cwd());
   const by = str(args, "by") ?? "agent:claude";
   switch (cmd) {
     case "lint-playbook": {
-      const root = resolve4(str(args, "root") ?? playbookRoot());
+      const root = resolve5(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
       for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings, ...lintMaintenance(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
@@ -17115,20 +17679,20 @@ ${problems.length} problem(s).`);
     }
     case "where": {
       const s = locateStore(cwd);
-      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync10(s.recordPath) }, null, 2));
+      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync13(s.recordPath) }, null, 2));
       return 0;
     }
     case "init": {
       const store2 = locateStore(cwd);
-      if (existsSync10(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
+      if (existsSync13(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
       const scanResult = withHints(scan(store2.repoRoot));
       const modeFlag = str(args, "mode");
       if (modeFlag && modeFlag !== "greenfield" && modeFlag !== "existing") throw new UsageError("--mode must be greenfield or existing");
       const mode = modeFlag ?? scanResult.suggestedMode;
-      mkdirSync2(store2.dir, { recursive: true });
+      mkdirSync3(store2.dir, { recursive: true });
       const record2 = createRecord(store2, mode);
       saveRecord(store2, record2, { bump: false });
-      writeFileSync2(store2.scanPath, JSON.stringify(scanResult, null, 2) + "\n");
+      writeFileSync3(store2.scanPath, JSON.stringify(scanResult, null, 2) + "\n");
       console.log(`Created ${mode} assessment record at ${store2.recordPath}`);
       console.log(`Mode ${modeFlag ? "set explicitly" : `suggested: ${scanResult.modeReason}`}`);
       if (!store2.adopted) console.log("The record is staged outside the repository. Run `agentic adopt` after the roadmap is approved.");
@@ -17137,8 +17701,8 @@ ${problems.length} problem(s).`);
     case "scan": {
       const store2 = locateStore(cwd);
       const result = withHints(scan(store2.repoRoot, { github: !!args.flags.github }));
-      mkdirSync2(store2.dir, { recursive: true });
-      writeFileSync2(store2.scanPath, JSON.stringify(result, null, 2) + "\n");
+      mkdirSync3(store2.dir, { recursive: true });
+      writeFileSync3(store2.scanPath, JSON.stringify(result, null, 2) + "\n");
       if (args.flags.json) console.log(JSON.stringify(result, null, 2));
       else {
         console.log(`Scanned ${result.stats.files} files at ${result.revision?.slice(0, 7) ?? "(no commits)"} -> ${store2.scanPath}`);
@@ -17152,7 +17716,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+          return readFileSync14(join15(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17161,7 +17725,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2).filter((a) => !only || a.root === only);
       if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic conventions\` to list them.`);
-      const assessed = existsSync10(store2.recordPath) ? loadRecord(store2).conventions : [];
+      const assessed = existsSync13(store2.recordPath) ? loadRecord(store2).conventions : [];
       const out = apps.map((a) => {
         const rules = applicableRules(lib, new Set(a.signals));
         return {
@@ -17189,7 +17753,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+          return readFileSync14(join15(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17236,7 +17800,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+          return readFileSync14(join15(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17284,7 +17848,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+          return readFileSync14(join15(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17293,7 +17857,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2);
       if (only && !apps.some((a) => a.root === only)) throw new UsageError(`No app root "${only}". Run \`agentic docs\` to list them.`);
-      const d = assessDocs(lib, apps, files, read2, (rel) => existsSync10(join11(store2.repoRoot, rel)));
+      const d = assessDocs(lib, apps, files, read2, (rel) => existsSync13(join15(store2.repoRoot, rel)));
       const items = d.items.filter((i) => !only || i.scope === only).map((i) => {
         const full = lib.items.get(i.id);
         return { ...i, title: full.title, when: full.when, purpose: full.purpose, home: full.home, load: full.load, authority: full.authority, belongs_here: full.belongs_here, not_here: full.not_here, see: full.see ?? [], source: full.source };
@@ -17330,13 +17894,13 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+          return readFileSync14(join15(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
       };
       const lib = loadMaintenance();
-      const record2 = existsSync10(store2.recordPath) ? loadRecord(store2) : null;
+      const record2 = existsSync13(store2.recordPath) ? loadRecord(store2) : null;
       const m = assessMaintenance(lib, files, read2, record2?.criteria);
       const items = m.items.map((i) => {
         const j = lib.items.get(i.id);
@@ -17354,7 +17918,7 @@ ${problems.length} problem(s).`);
         const mark = i.status === "present" ? "\u2713" : i.prerequisitesMet ? "\u2192" : "\xB7";
         console.log(`  ${mark} T${i.tier} ${i.id} ${i.title} [${i.trigger.join(", ")}]${i.status === "present" ? `: ${i.paths.join(", ")}` : ""}`);
         if (i.status === "absent") {
-          const waiting = i.prerequisites.filter((p) => p.status !== "passed" && p.status !== "n_a");
+          const waiting = i.prerequisites.filter((p) => p.status !== "passed");
           if (record2) console.log(`      ${waiting.length ? `waiting on ${waiting.map((p) => `${p.id} (${p.status})`).join(", ")}` : "prerequisites pass"}`);
           if (i.tier > 1) console.log(`      when: ${i.when}`);
         }
@@ -17363,28 +17927,85 @@ ${problems.length} problem(s).`);
       console.log("\u2713 set up   \u2192 prerequisites pass, not set up   \xB7 waiting, or prerequisites unknown");
       return 0;
     }
+    case "readonly": {
+      const sub = args._[1];
+      if (sub === "check") {
+        let path = str(args, "path");
+        if (args.flags.hook) {
+          try {
+            const input = JSON.parse(readFileSync14(0, "utf8"));
+            path = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
+          } catch {
+            return 0;
+          }
+        }
+        if (!path) return args.flags.hook ? 0 : (() => {
+          throw new UsageError("readonly check needs --path <file> or --hook");
+        })();
+        const refusal = writeRefusal(resolve5(cwd, path));
+        if (!refusal) return 0;
+        console.error(refusal);
+        return 2;
+      }
+      const store2 = locateStore(cwd);
+      if (sub === "begin") {
+        const { lock, dirty, replaced } = beginWindow(store2.repoRoot, { restart: !!args.flags.restart });
+        console.log(`Read-only window open for ${store2.repoRoot} until ${lock.expiresAt}${replaced ? " (replaced an open window)" : ""}.`);
+        console.log("Claude file-tool writes inside the repository are refused until `agentic readonly end`.");
+        if (dirty) console.log(`Note: the worktree already has ${dirty} uncommitted path(s). The assessment judges them as they are; say so in the report.`);
+        return 0;
+      }
+      if (sub === "end") {
+        const { lock, changes } = endWindow(store2.repoRoot);
+        if (!lock) throw new UsageError("No read-only window is open for this repository. Start one with `agentic readonly begin`.");
+        if (!changes.length) {
+          console.log(`\u2713 The worktree is unchanged since ${lock.startedAt}. The assessment was read-only.`);
+          return 0;
+        }
+        console.error(`\u2717 The worktree changed during the read-only assessment (since ${lock.startedAt}):`);
+        for (const c of changes) console.error(`  - ${c}`);
+        console.error("Report these changes to the user. Do not revert them without asking: some may be the user's own work.");
+        return 1;
+      }
+      if (sub === "status") {
+        const l = liveLock(store2.repoRoot);
+        console.log(l ? `open since ${l.startedAt}, until ${l.expiresAt}` : "no read-only window open");
+        return 0;
+      }
+      throw new UsageError("usage: agentic readonly begin | end | status | check --path <file> | check --hook");
+    }
     case "adopt": {
       const store2 = locateStore(cwd);
       if (store2.adopted) {
         console.log(`Already adopted at ${store2.recordPath}`);
         return 0;
       }
-      if (!existsSync10(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
-      const dest = join11(store2.repoRoot, ".agentic");
-      mkdirSync2(dest, { recursive: true });
-      cpSync(store2.recordPath, join11(dest, "record.json"));
-      writeFileSync2(join11(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
-      writeFileSync2(
-        join11(dest, "README.md"),
-        "# Agentic readiness record\n\n`record.json` is the authoritative assessment, roadmap and execution state produced by the Agentic Playbook plugin.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change.\n"
+      if (!existsSync13(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
+      const dest = join15(store2.repoRoot, ".agentic");
+      mkdirSync3(dest, { recursive: true });
+      const staged = loadRecord(store2);
+      const { approval, current } = roadmapApproval(staged);
+      if (!approval) console.log("warning: no roadmap approval is recorded. Approve the plan first (agentic approve roadmap --by human:<name>).");
+      else if (!current) console.log(`warning: the roadmap changed since approval ${approval.id}. Re-approve it before relying on the plan.`);
+      cpSync(store2.recordPath, join15(dest, "record.json"));
+      if (existsSync13(join15(store2.dir, V1_BACKUP))) cpSync(join15(store2.dir, V1_BACKUP), join15(dest, V1_BACKUP));
+      writeFileSync3(join15(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\nreadonly.json\n");
+      writeFileSync3(
+        join15(dest, "README.md"),
+        "# Agentic readiness record\n\n`record.json` is the assessment and remediation plan produced by the Agentic Playbook plugin. It holds no execution state: implement the plan in your own workflow, and `/agentic:reassess` records the progress.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change. Review changes to it like code (a CODEOWNERS entry helps): nothing stops a direct edit except review.\n"
       );
-      rmSync(store2.dir, { recursive: true, force: true });
-      console.log(`Adopted record into ${join11(dest, "record.json")}. Commit .agentic/ to make it durable.`);
+      rmSync2(store2.dir, { recursive: true, force: true });
+      console.log(`Adopted record into ${join15(dest, "record.json")}. Commit .agentic/ to make it durable.`);
       return 0;
     }
   }
+  if (REMOVED[cmd]) throw new UsageError(`\`agentic ${cmd}\` was removed. ${REMOVED[cmd]}`);
   const store = locateStore(cwd);
   const record = loadRecord(store);
+  const migratedFrom = pendingMigration(record);
+  if (migratedFrom && !["validate", "show", "roadmap", "changes", "status"].includes(cmd)) {
+    console.log(`Migrating the record from schema v${migratedFrom}: execution state is dropped, and the original is kept as ${V1_BACKUP} next to the record.`);
+  }
   switch (cmd) {
     case "validate": {
       const { errors, warnings } = validateRecord(record);
@@ -17396,8 +18017,10 @@ ${problems.length} problem(s).`);
     case "apply": {
       const src = args._[1];
       if (!src) throw new UsageError("apply needs a patch file or - for stdin");
-      const log = applyPatch(record, readJsonInput(src), { by, repoRoot: store.repoRoot });
+      const hints = scanHints(store);
+      const log = applyPatch(record, readJsonInput(src), { by, repoRoot: store.repoRoot, hints });
       saveRecord(store, record);
+      if (!hints) console.log("warning: no scan.json, so criteria were not checked against the deterministic probes. Run `agentic scan`.");
       const { warnings } = validateRecord(record);
       console.log(`Applied (${log.length} change${log.length === 1 ? "" : "s"}) -> record rev ${record.recordRevision}`);
       for (const l of log) console.log(`  ${l}`);
@@ -17408,49 +18031,28 @@ ${problems.length} problem(s).`);
       const subject = args._[1];
       if (!subject) throw new UsageError("approve needs a subject (task, milestone id or a short description)");
       const approver = need(args, "by");
-      if (!approver.startsWith("human:")) throw new UsageError("Approvals must come from a human: use --by human:<name>");
+      if (!/^human:.+/.test(approver)) throw new UsageError("Refused: approvals attribute a human decision. Use --by human:<name>, with the name the user gave in this session.");
+      const roadmap = subject === "roadmap";
+      if (roadmap && !record.milestones.length) throw new UsageError("Refused: there is no roadmap to approve yet. Run /agentic:plan first.");
       const id = nextId("A", record.approvals.map((a) => a.id));
-      record.approvals.push({ id, subject, approvedBy: approver, at: now(), ...str(args, "note") ? { note: str(args, "note") } : {} });
+      record.approvals.push({
+        id,
+        subject,
+        approvedBy: approver,
+        at: now(),
+        source: "local",
+        scope: roadmap ? "roadmap" : "decision",
+        ...roadmap ? { planHash: planHash(record) } : {},
+        ...str(args, "note") ? { note: str(args, "note") } : {}
+      });
       saveRecord(store, record);
-      console.log(`Recorded approval ${id} for ${subject}`);
-      return 0;
-    }
-    case "task": {
-      const [, id, to] = args._;
-      if (!id || !to) throw new UsageError("usage: agentic task <id> <status> --by <who> [--reason ...]");
-      const t = transitionTask(record, id, to, { by, reason: str(args, "reason"), repoRoot: store.repoRoot });
-      saveRecord(store, record);
-      console.log(`${t.id}: ${t.history.at(-1).from} -> ${t.status} (record rev ${record.recordRevision})`);
-      const ms = record.milestones.find((m) => m.id === t.milestoneId);
-      if (ms) console.log(`${ms.id} is ${ms.status}`);
-      return 0;
-    }
-    case "evidence": {
-      const result = need(args, "result");
-      if (result !== "pass" && result !== "fail") throw new UsageError("--result must be pass or fail");
-      const ev = addEvidence(
-        record,
-        {
-          taskId: str(args, "task"),
-          milestoneId: str(args, "milestone"),
-          covers: (str(args, "covers") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
-          verifier: need(args, "verifier"),
-          action: need(args, "action"),
-          result,
-          kind: str(args, "kind") ?? "check",
-          ...str(args, "location") ? { location: str(args, "location") } : {},
-          ...str(args, "notes") ? { notes: str(args, "notes") } : {}
-        },
-        store.repoRoot
-      );
-      for (const k of Object.keys(ev)) if (ev[k] === void 0) delete ev[k];
-      saveRecord(store, record);
-      console.log(`Recorded ${ev.id} (${ev.result}) covering ${ev.covers.join(", ") || "nothing"}`);
+      console.log(`Recorded approval ${id} for ${subject}${roadmap ? ` (plan ${planHash(record).slice(0, 12)})` : ""}.`);
+      console.log("This is local attribution: the CLI cannot verify who ran it. Authorization for the work itself belongs to your team's review process.");
       return 0;
     }
     case "show": {
       const id = args._[1];
-      const all = [...record.criteria, ...record.findings, ...record.milestones, ...record.tasks, ...record.evidence, ...record.approvals, ...record.conventions];
+      const all = [...record.criteria, ...record.findings, ...record.milestones, ...record.tasks, ...record.approvals, ...record.conventions];
       const item = all.find((x) => x.id === id);
       if (!item) throw new UsageError(`No item ${id}`);
       const rc = loadRubric().criteria.find((c) => c.id === id);
@@ -17459,18 +18061,30 @@ ${problems.length} problem(s).`);
       console.log(JSON.stringify(rc ? { rubric: rc, state: item } : lr ? { rule: lr, state: item } : item, null, 2));
       return 0;
     }
-    case "next": {
-      const ready = readyTasks(record);
-      const awaiting = record.tasks.filter((t) => t.status === "verification_required");
-      const active = record.tasks.filter((t) => t.status === "in_progress");
+    case "roadmap": {
+      const order = roadmapOrder(record);
       if (args.flags.json) {
-        console.log(JSON.stringify({ ready, active, awaitingVerification: awaiting }, null, 2));
+        console.log(JSON.stringify({ open: order.map((e) => ({ ...e.task, ready: e.ready, waitingOn: e.waitingOn })), approval: roadmapApproval(record) }, null, 2));
         return 0;
       }
-      if (active.length) console.log(`In progress: ${active.map((t) => `${t.id} ${t.title}`).join("; ")}`);
-      if (awaiting.length) console.log(`Awaiting verification: ${awaiting.map((t) => `${t.id} ${t.title}`).join("; ")}`);
-      if (!ready.length) console.log(record.tasks.length ? "No dependency-ready pending tasks." : "No tasks yet. Run /agentic:plan.");
-      for (const t of ready.slice(0, 10)) console.log(`ready  ${t.id}  ${t.priority}  [${t.milestoneId}] ${t.title}`);
+      if (!record.tasks.length) {
+        console.log("No roadmap yet. Run /agentic:plan.");
+        return 0;
+      }
+      const addressed = record.tasks.filter((t) => taskAddressed(record, t)).length;
+      console.log(`${order.length} open task(s), ${addressed} addressed (findings resolved by reassessment), ${record.tasks.filter((t) => t.deferredTrigger).length} deferred.`);
+      for (const e of order) console.log(`${e.ready ? "ready  " : "waits  "} ${e.task.id}  ${e.task.priority}  [${e.task.milestoneId}] ${e.task.title}${e.waitingOn.length ? `  (after ${e.waitingOn.join(", ")})` : ""}${e.task.requiresApproval ? "  [needs a human decision]" : ""}`);
+      console.log("Implement these in your own workflow. /agentic:reassess records progress from the repository.");
+      return 0;
+    }
+    case "changes": {
+      const c = changedAreas(store.repoRoot, record.assessedRevision);
+      const probes = probeRegressions(store);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ ...c, probeRegressions: probes.regressions, scannedAt: probes.scannedAt }, null, 2));
+        return 0;
+      }
+      printChanges(c, probes.regressions);
       return 0;
     }
     case "score": {
@@ -17482,33 +18096,44 @@ ${problems.length} problem(s).`);
     case "status": {
       const s = computeScore(record);
       const st = staleness(store, record);
-      const count = (x) => record.tasks.filter((t) => t.status === x).length;
+      const trust = trustStatus(store, record, !args.flags.brief);
       if (args.flags.json) {
-        console.log(JSON.stringify({ score: s, staleness: st, record: store.recordPath, adopted: store.adopted, artifact: record.artifact }, null, 2));
+        console.log(JSON.stringify({ score: s, staleness: st, trust, record: store.recordPath, adopted: store.adopted, artifact: record.artifact }, null, 2));
         return 0;
       }
-      const lines = [
+      const addressed = record.tasks.filter((t) => taskAddressed(record, t)).length;
+      const lines3 = [
         `Agentic readiness for ${record.repo.name}: ${s.score}/100, ${s.level} ${s.levelName}, confidence ${s.confidence}% (record rev ${record.recordRevision}, ${store.adopted ? "adopted" : "staged"} at ${store.recordPath})`,
-        `Tasks: ${count("in_progress")} in progress, ${count("verification_required")} awaiting verification, ${count("blocked")} blocked, ${count("pending")} pending, ${count("completed")} completed`
+        `Roadmap: ${record.milestones.length} milestone(s), ${record.tasks.length} task(s), ${addressed} addressed, ${record.milestones.filter((m) => m.status === "completed").length} milestone(s) with every exit criterion met`
       ];
-      if (st.commitsBehind) lines.push(`STALE: HEAD is ${st.commitsBehind} commit(s) past the assessed revision ${record.assessedRevision?.slice(0, 7)}. Run /agentic:reassess when the changes are relevant.`);
-      if (!record.artifact) lines.push("Artifact: not published yet. Run /agentic:status to publish the tracker.");
-      else if (st.unpublished && st.unpublished > 0) lines.push(`STALE: the Artifact (${record.artifact.url}) shows rev ${record.artifact.publishedRecordRevision}; the record is at rev ${record.recordRevision}. Republish it (agentic render, then Artifact publish to the same URL, then agentic published).`);
-      else lines.push(`Artifact: ${record.artifact.url} (current)`);
+      if (trust.migration) lines3.push(`MIGRATION: ${trust.migration}`);
+      if (trust.readonlyWindow) lines3.push(`READ-ONLY: an assessment window is open until ${trust.readonlyWindow}. Finish it with \`agentic readonly end\`.`);
+      if (trust.roadmap) lines3.push(trust.roadmap);
+      if (st.commitsBehind) {
+        const stale = trust.changes.areas.filter((a) => a.paths.some((p) => trust.changes.committed.includes(p))).map((a) => `${a.label} (${a.dims.join("/")})`).join(", ");
+        lines3.push(`STALE: HEAD is ${st.commitsBehind} commit(s) past the assessed revision ${record.assessedRevision?.slice(0, 7)}${stale ? `; changed: ${stale}` : ""}. Run /agentic:reassess when the changes are relevant.`);
+      }
+      if (trust.changes.uncommitted.length) lines3.push(`Uncommitted: ${trust.changes.uncommitted.length} path(s) differ from HEAD. The assessment may or may not have seen them; \`agentic changes\` lists the areas.`);
+      if (record.assessedRevision && !trust.changes.revisionKnown) lines3.push(`STALE: the assessed revision ${record.assessedRevision.slice(0, 7)} is not in this repository's history. Run /agentic:reassess.`);
+      for (const r of trust.probeRegressions) lines3.push(`REGRESSED: probe ${r.probe} was ${r.was} at the last scan and is ${r.now} now: ${r.evidence[0] ?? ""}`);
+      for (const j of trust.janitors) lines3.push(`JANITOR: ${j}`);
+      if (!record.artifact) lines3.push("Artifact: not published yet. Run /agentic:status to publish the tracker.");
+      else if (st.unpublished && st.unpublished > 0) lines3.push(`STALE: the Artifact (${record.artifact.url}) shows rev ${record.artifact.publishedRecordRevision}; the record is at rev ${record.recordRevision}. Republish it (agentic render, then Artifact publish to the same URL, then agentic published).`);
+      else lines3.push(`Artifact: ${record.artifact.url} (current)`);
       if (!args.flags.brief) {
         printScore(s);
-        const ready = readyTasks(record);
-        if (ready.length) lines.push(`Next ready task: ${ready[0].id} ${ready[0].title}`);
+        const next = roadmapOrder(record).find((e) => e.ready);
+        if (next) lines3.push(`First open task: ${next.task.id} ${next.task.title}`);
       }
-      console.log(lines.join("\n"));
+      console.log(lines3.join("\n"));
       return 0;
     }
     case "render": {
       recordScore(store, record);
       const st = staleness(store, record);
-      const out = resolve4(str(args, "out") ?? join11(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
-      mkdirSync2(dirname9(out), { recursive: true });
-      writeFileSync2(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
+      const out = resolve5(str(args, "out") ?? join15(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
+      mkdirSync3(dirname10(out), { recursive: true });
+      writeFileSync3(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
       console.log(out);
       return 0;
     }

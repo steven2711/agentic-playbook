@@ -14,7 +14,7 @@ export function playbookRoot(): string {
 
 export function repoRoot(start: string): string {
   const top = git(["rev-parse", "--show-toplevel"], start);
-  return realpathSync(top ?? resolve(start));
+  return realpathSync.native(top ?? resolve(start));
 }
 
 export function repoKey(root: string): string {

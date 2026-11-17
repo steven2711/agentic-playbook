@@ -198,7 +198,7 @@ criteria:
     gate: L2
     source: standards/verification.md
     quote: local and CI runs use equivalent rules
-    evidence_required: CI invokes the same scripts/config as local commands; differences listed. The fast checks also run where the agent works (Claude Code Stop or PostToolUse hook, pre-commit, or the /agentic:next verification step) on changed files.
+    evidence_required: CI invokes the same scripts/config as local commands; differences listed. The fast checks also run where the agent works (Claude Code Stop or PostToolUse hook, pre-commit, or the agent's own verification step) on changed files.
 
   - id: VER-05
     dimension: VER

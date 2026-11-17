@@ -11,7 +11,7 @@ paths:
 
 This file holds judgment rules that the linters and type checker cannot enforce. Each rule has a reason and an example. If a rule becomes mechanically checkable, move it into a tool and list it under *Enforced by tooling* instead.
 
-Rules adopted from the playbook's [conventions baseline library](../reference/conventions/README.md) keep their library ID, for example `(FE-03)`. The verifier and reviewers can then trace each rule back to its public source.
+Rules adopted from the playbook's [conventions baseline library](../reference/conventions/README.md) keep their library ID, for example `(FE-03)`. Reviewers can then trace each rule back to its public source.
 
 ## Architecture and layering
 <!-- Which layers exist, what each may import, where business rules live. -->

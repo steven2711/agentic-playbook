@@ -1,7 +1,7 @@
 export type Priority = "P0" | "P1" | "P2";
 export type Mode = "greenfield" | "existing";
 export type CriterionStatus = "passed" | "partial" | "failed" | "n_a" | "unverified" | "deferred";
-export type WorkStatus = "pending" | "in_progress" | "verification_required" | "completed" | "blocked" | "deferred";
+export type MilestoneStatus = "pending" | "in_progress" | "completed" | "deferred";
 export type DimensionId = "CTX" | "VER" | "ARC" | "SEC" | "EVAL" | "WF";
 export type StageApplicability = "active" | "deferred" | "n_a";
 
@@ -59,6 +59,19 @@ export interface Finding {
   resolved?: boolean;
 }
 
+export type ExitStatus = "met" | "unmet" | "unverified";
+
+/** A measurable milestone exit criterion. Reassessment judges it from the repository; nothing else marks it met. */
+export interface ExitCriterion {
+  id: string;
+  text: string;
+  status?: ExitStatus;
+  evidence?: string[];
+  reason?: string;
+  assessedBy?: string;
+  assessedAt?: string;
+}
+
 export interface Milestone {
   id: string;
   title: string;
@@ -66,19 +79,16 @@ export interface Milestone {
   scope?: string;
   outcomes?: string[];
   dependsOn: string[];
-  exitCriteria: { id: string; text: string }[];
-  status: WorkStatus;
+  exitCriteria: ExitCriterion[];
+  /** Derived on every save from exit criteria and linked findings; never written. */
+  status: MilestoneStatus;
 }
 
-export interface HistoryEntry {
-  at: string;
-  from: string;
-  to: string;
-  by: string;
-  reason?: string;
-  revision?: string | null;
-}
-
+/**
+ * A planned unit of work, handed off to the team's own workflow. The record
+ * holds no execution state: progress shows up when reassessment resolves the
+ * task's findings and judges its milestone's exit criteria.
+ */
 export interface Task {
   id: string;
   milestoneId: string;
@@ -89,34 +99,27 @@ export interface Task {
   findingIds: string[];
   acceptanceCriteria: { id: string; text: string }[];
   verification: string[];
-  status: WorkStatus;
-  blockedReason?: string;
-  deferredTrigger?: string;
-  implementer?: string;
+  /** Needs a human decision before anyone implements it (CI, enforcement policy, baselines, CODEOWNERS, secrets, production). */
   requiresApproval?: boolean;
-  history: HistoryEntry[];
+  /** Set when the task is deliberately deferred: the activation trigger. */
+  deferredTrigger?: string;
 }
 
-export interface Evidence {
-  id: string;
-  taskId?: string;
-  milestoneId?: string;
-  covers: string[];
-  kind?: "test" | "check" | "ci" | "commit" | "pr" | "doc" | "setting" | "approval" | "eval" | "other";
-  verifier: string;
-  action: string;
-  revision: string | null;
-  result: "pass" | "fail";
-  location?: string;
-  notes?: string;
-  at: string;
-}
-
+/**
+ * A human decision as attributed locally. The CLI cannot authenticate who ran
+ * `agentic approve`: this is attribution, not authorization.
+ */
 export interface Approval {
   id: string;
   subject: string;
   approvedBy: string;
   at: string;
+  source: "local";
+  scope: "roadmap" | "decision";
+  /** For roadmap approvals: the plan it approved (see planHash). */
+  planHash?: string;
+  /** Hash bound at migration from a v1 record, not at approval time. */
+  migrated?: boolean;
   note?: string;
 }
 
@@ -218,8 +221,19 @@ export interface MaintenanceAssessment {
   assessedAt?: string;
 }
 
+export interface Migration {
+  from: number;
+  to: number;
+  at: string;
+  /** Where the pre-migration record was saved, relative to the record directory. */
+  backup?: string;
+  notes?: string[];
+}
+
+export const SCHEMA_VERSION = 2;
+
 export interface AssessmentRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
   assessmentId: string;
   mode: Mode;
   rubricVersion: number;
@@ -232,7 +246,6 @@ export interface AssessmentRecord {
   findings: Finding[];
   milestones: Milestone[];
   tasks: Task[];
-  evidence: Evidence[];
   approvals: Approval[];
   conventions: ConventionAssessment[];
   testing?: TestingAssessment[];
@@ -240,6 +253,7 @@ export interface AssessmentRecord {
   maintenance?: MaintenanceAssessment;
   scoreHistory: ScoreEntry[];
   artifact: { url: string; publishedRecordRevision: number; publishedAt: string } | null;
+  migrations?: Migration[];
 }
 
 export class UsageError extends Error {}

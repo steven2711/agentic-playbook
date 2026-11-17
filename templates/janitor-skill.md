@@ -13,6 +13,15 @@ description: <One sentence: what drift it finds, for which contract.> Runs <on p
 Guards: <the accepted contract, with links, for example docs/adr/, .claude/rules/api.md, the boundary config>.
 Owner: <a named person or team who reviews its output>.
 
+## 0. Preconditions (checked on every run)
+
+The contract this janitor guards must still exist and be enforced. Before doing anything else, check with the repository's own commands:
+
+- `<command that proves the guarded contract exists, for example the boundary check or the docs layout check>`
+- `<command that proves each prerequisite still holds, for example the required CI gate on the default branch>`
+
+If any of them fails, do not act. Report which precondition failed, with the command output, and stop. A janitor whose contract has weakened would enforce something nobody agreed to.
+
 ## 1. Detect (deterministic)
 
 Run these, and stop with "nothing to report" if they find nothing:
@@ -31,6 +40,10 @@ Do not invent intent. If the contract does not say, record the question for a hu
 
 May change without a human, and only this:
 - <autofix from the roster; never wider than the library's>
+
+<If the library marks this janitor `autofix_risk: high`, list each of its safeguards here as a rule the janitor checks before acting, for example "quarantine only a test that passed and failed on the same commit".>
+
+Never make a check easier to pass: no deleted or skipped tests, weakened assertions, new suppressions, relaxed configuration or lowered thresholds, unless that is exactly the autofix above.
 
 Everything else becomes a proposal: <a review comment | an issue | a pull request a human must approve>.
 Always needs a human: <needs_human>.

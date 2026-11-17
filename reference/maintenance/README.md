@@ -13,6 +13,16 @@ A janitor can only detect drift from something written down. Each item names:
 
 So janitors come last. The plan puts them in a final "Autonomous maintenance" milestone, and each one waits for the milestones that make its prerequisites pass.
 
+A prerequisite counts only when it is `passed`. `n_a` does not count: it means the contract the janitor would guard does not exist in this repository. `agentic apply` refuses a roster that recommends a janitor `now` before its prerequisites pass. A prerequisite that regresses later is reported by `agentic status` and `/agentic:reassess`, because a running janitor's output can no longer be trusted once its contract has weakened.
+
+## Risky autofixes
+
+Three janitors can weaken what they guard, so the library marks them `autofix_risk: high` and lists their safeguards:
+
+- **Flaky test janitor (JAN-QLT-01):** quarantine moves a test out of the gate. Each quarantine names an issue, an owner and an expiry. It never deletes a test or weakens an assertion, and the quarantine count is ratcheted.
+- **Dependency updates (JAN-DEP-01):** auto-merge trusts the gate. It applies to patch and minor updates only, and only when branch protection enforces the required checks (VER-06 is a prerequisite).
+- **Dead code janitor (JAN-QLT-02):** removal can delete reachable code or tests. The full gate must pass, coverage must not fall, and tests and the public API are never removed.
+
 ## Tiers
 
 | Tier | When to recommend it | Examples |
@@ -31,6 +41,8 @@ The `not_recommended` list applies everywhere. The auditor never recommends thos
 | `detector` | The deterministic checks it runs first, such as `agentic docs --json` or the boundary check. The agent reasons only about what they find. |
 | `agent_step` | What needs judgment. |
 | `autofix` | What it may change without a human. Everything else is a proposal. |
+| `autofix_risk` | `low`, or `high` when the autofix can remove tests or code, or merge changes, and so could weaken what the janitor guards. |
+| `safeguards` | Required when `autofix_risk` is `high`: the conditions the janitor's setup must enforce before its autofix acts. `/agentic:plan` turns each one into an acceptance criterion. |
 | `needs_human` | What always goes to a person. |
 | `noise_controls` | Caps, deduplication, thresholds and ratchets that keep it from flooding reviewers. |
 | `success` | How to tell it is worth its cost. |
@@ -60,12 +72,13 @@ items:
     success: ...
     detect:                    # JavaScript regexes, case-insensitive, repo-relative: is it already set up?
       - { files: '^\.github/workflows/.+\.ya?ml$', pattern: '...' }
+    autofix_risk: low          # or high, with safeguards: [ ... ]
     see: [WF-08]
     source: { title: ..., url: https://... }
 not_recommended:
   - { practice: ..., reason: ..., source: { title: ..., url: https://... } }
 ```
 
-`lint-playbook` checks each item's ID, tier, `when`, triggers, required fields, source, regexes, and that `guards`, `prerequisites` and `see` name real criteria or documentation items.
+`lint-playbook` checks each item's ID, tier, `when`, triggers, required fields, `autofix_risk` (and `safeguards` when it is high), source, regexes, and that `guards`, `prerequisites` and `see` name real criteria or documentation items.
 
 Sources are public and cited per item. No item claims knowledge of a company's internal practice.

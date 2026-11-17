@@ -1,6 +1,8 @@
 # Assessment Artifact contract
 
-The primary deliverable of this assessment must be a **persistent, interactive Claude Artifact** that serves as the living assessment report, milestone roadmap, and execution tracker.
+The primary deliverable of this assessment must be a **persistent, interactive Claude Artifact** that serves as the living assessment report and milestone roadmap.
+
+The playbook does analysis and planning. The team implements the roadmap in its own workflow, with its own cadence and review process. The artifact shows the plan and the progress that reassessment observes in the repository. It does not track who works on what.
 
 Do not produce only a static Markdown report or an unstructured list of recommendations.
 
@@ -45,7 +47,7 @@ Prioritize establishing deterministic enforcement and foundational context befor
 
 **3. Actionable implementation backlog**
 
-Break each milestone into independently executable tasks.
+Break each milestone into independently implementable tasks, written as a handoff to whoever implements them.
 
 Each task must include:
 
@@ -54,74 +56,43 @@ Each task must include:
 - Description and implementation objective.
 - Priority.
 - Dependencies.
-- Acceptance criteria.
+- Linked findings, so that reassessment can tell when the task is addressed.
+- Acceptance criteria that someone other than the implementer can check.
 - Verification requirements.
-- Current status.
-- Evidence of completion, when available.
+- Whether a human decision is needed before anyone implements it.
 
-Tasks must be granular enough for Claude Code to execute individually without unnecessary ambiguity.
+Tasks must be granular enough to implement individually, in one focused session, without unnecessary ambiguity.
 
 Avoid excessively fragmented tasks that create administrative overhead without improving verification or execution quality.
 
-**4. Interactive progress tracking**
+**4. Progress from reassessment**
 
 Provide an interactive view of:
 
 - Overall assessment status.
-- Milestone progress.
-- Task completion.
-- Active work.
-- Blocked tasks.
-- Outstanding verification.
-- Dependencies.
+- Milestone progress: exit criteria judged met, unmet or unverified, with evidence.
+- Tasks addressed (their findings resolved) and open, in dependency order.
+- Deferred tasks and their triggers.
 - Remaining high-priority findings.
+- Whether the roadmap still matches what was approved.
 
-Support task statuses such as:
+Progress is never self-declared. A task is addressed when reassessment finds its linked findings resolved in the repository. A milestone is complete when reassessment judges every exit criterion met, citing evidence. Nobody marks a task done.
 
-`pending → in_progress → verification_required → completed`
+**5. Continuity across sessions**
 
-Also support `blocked` and `deferred` states when appropriate.
+Subsequent sessions must update the existing assessment and plan rather than generating disconnected reports. The cycle is: review the assessment and roadmap, implement in the team's own workflow, then reassess.
 
-A task must not be considered complete simply because Claude Code reports that implementation has finished.
+Maintain durable, machine-readable assessment and plan records associated with the assessed repository. During read-only assessment, prepare the records outside the target worktree. Place them at the approved repository path once the roadmap is approved. They must survive the loss of any particular session or Artifact instance.
 
-Completion requires validation against its defined acceptance criteria.
+The repository-backed record is the authoritative assessment and plan, with the artifact providing an interactive view of it.
 
-**5. Persistent execution continuity**
+**6. Evidence and staleness**
 
-The artifact must function as a living workspace across Claude Code sessions.
+Every judgement carries evidence or a reason: criteria, findings, conventions, snapshots and exit criteria alike. A precise citation must point at a real file and line.
 
-Support a workflow where the user can:
+Make staleness visible and specific: which areas changed since the assessment, which deterministic probes regressed, and whether the plan changed since it was approved.
 
-1. Review the assessment.
-2. Select a milestone or task.
-3. Direct Claude Code to implement it.
-4. Review the resulting changes and verification evidence.
-5. Update the task's status.
-6. Continue with the next task or milestone.
-
-Subsequent sessions must update the existing assessment and tracking state rather than generating disconnected reports.
-
-Maintain durable, machine-readable assessment and task records associated with the assessed repository. During read-only assessment, prepare the records outside the target worktree or as an export for review. Place them at the approved repository path during implementation. Progress must survive the loss of any particular session or Artifact instance.
-
-The repository-backed records should serve as the authoritative execution state, with the artifact providing an interactive interface.
-
-**6. Verification and evidence tracking**
-
-Every completed task must have objective supporting evidence appropriate to its scope.
-
-Examples include:
-
-- Passing test results.
-- Validated architectural checks.
-- Successful CI execution.
-- Relevant commits or pull requests.
-- Updated documentation.
-- Verified repository settings.
-- Explicitly approved decisions.
-
-Distinguish implementation completion from verified acceptance.
-
-Do not automatically mark a milestone complete until its defined exit criteria have been satisfied.
+Do not mark a milestone complete until its defined exit criteria have been judged met.
 
 **7. Artifact persistence and synchronization**
 
@@ -137,18 +108,18 @@ Never claim persistence or synchronization is functional unless verified.
 
 ### Required Artifact Experience
 
-The desired experience is a single assessment workspace where the user can inspect findings, understand priorities, track milestones, and work through remediation with Claude Code.
+The desired experience is a single assessment workspace where the user can inspect findings, understand priorities, follow milestones, and see what remains.
 
-The ongoing execution cycle should be:
+The ongoing cycle should be:
 
-**Assess → Generate Artifact → Review Milestones → Execute Tasks → Verify Results → Update Artifact → Repeat**
+**Assess → Plan → Approve → Implement in the team's own workflow → Reassess → Update Artifact → Repeat**
 
 The artifact should evolve as issues are resolved and should make remaining work immediately apparent.
 
 ## Durable record and handoff
 
-Use a versioned JSON record with assessment identity, assessed revision, revision of the tracking record, and collections for findings, milestones, tasks, and evidence. Give each item a stable ID. Link actionable findings to task IDs, tasks to milestones and prerequisite task IDs, and milestone exit criteria to verification evidence. Record observed, inferred, recommended, unknown, or deferred status with its evidence or reason. Include blocked reasons and explicit approvals where applicable. Record verifier, command or action, revision, result, and evidence location for completion.
+Use a versioned JSON record with assessment identity, assessed revision, revision of the record, and collections for criteria, findings, milestones, tasks and approvals. Give each item a stable ID. Link actionable findings to task IDs, tasks to milestones and prerequisite task IDs. Record observed, inferred, recommended, unknown, or deferred status with its evidence or reason, and judge milestone exit criteria the same way. Record approvals as attributed human decisions, with the roadmap approval bound to the plan it approved.
 
-At session start, load the current record and select a task whose dependencies are satisfied. Upon verification, update the same record and refresh the existing view. Keep work awaiting verification visible. If the view permits editing, synchronize edits back to the authoritative record through a supported mechanism and detect conflicting revisions. Otherwise use a read-only interactive view and update the record through Claude Code. Provide the record location and refresh or import steps in the handoff.
+At session start, report what has gone stale since the assessment. Upon reassessment, update the same record and refresh the existing view. Use a read-only interactive view, and update the record through Claude Code. Provide the record location and refresh steps in the handoff.
 
-Verify by making a task transition, reopening from another session, and checking the same IDs, status, dependencies, and evidence. If native Artifact integration is unavailable, use an interactive report backed by the same export and document the refresh procedure and tested capabilities.
+Verify by reassessing after a change, reopening from another session, and checking the same IDs, dependencies, judgements and evidence. If native Artifact integration is unavailable, use an interactive report backed by the same record and document the refresh procedure and tested capabilities.

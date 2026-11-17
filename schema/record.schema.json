@@ -4,7 +4,7 @@
   "title": "Agentic readiness assessment record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "assessmentId", "mode", "rubricVersion", "repo", "assessedRevision", "recordRevision", "createdAt", "updatedAt", "criteria", "findings", "milestones", "tasks", "evidence", "approvals", "conventions", "scoreHistory", "artifact"],
+  "required": ["schemaVersion", "assessmentId", "mode", "rubricVersion", "repo", "assessedRevision", "recordRevision", "createdAt", "updatedAt", "criteria", "findings", "milestones", "tasks", "approvals", "conventions", "scoreHistory", "artifact"],
   "definitions": {
     "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]*-[A-Za-z0-9.-]+$" },
     "ids": { "type": "array", "items": { "$ref": "#/definitions/id" }, "uniqueItems": true },
@@ -58,7 +58,12 @@
       "required": ["id", "text"],
       "properties": {
         "id": { "$ref": "#/definitions/id" },
-        "text": { "$ref": "#/definitions/text" }
+        "text": { "$ref": "#/definitions/text" },
+        "status": { "enum": ["met", "unmet", "unverified"] },
+        "evidence": { "$ref": "#/definitions/texts" },
+        "reason": { "type": "string" },
+        "assessedBy": { "type": "string" },
+        "assessedAt": { "type": "string" }
       }
     },
     "milestone": {
@@ -73,7 +78,7 @@
         "outcomes": { "$ref": "#/definitions/texts" },
         "dependsOn": { "$ref": "#/definitions/ids" },
         "exitCriteria": { "type": "array", "items": { "$ref": "#/definitions/exitCriterion" }, "minItems": 1 },
-        "status": { "enum": ["pending", "in_progress", "verification_required", "completed", "blocked", "deferred"] }
+        "status": { "enum": ["pending", "in_progress", "completed", "deferred"] }
       }
     },
     "acceptance": {
@@ -85,23 +90,10 @@
         "text": { "$ref": "#/definitions/text" }
       }
     },
-    "historyEntry": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["at", "from", "to", "by"],
-      "properties": {
-        "at": { "$ref": "#/definitions/timestamp" },
-        "from": { "type": "string" },
-        "to": { "type": "string" },
-        "by": { "type": "string" },
-        "reason": { "type": "string" },
-        "revision": { "type": ["string", "null"] }
-      }
-    },
     "task": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "milestoneId", "title", "description", "priority", "dependsOn", "findingIds", "acceptanceCriteria", "verification", "status", "history"],
+      "required": ["id", "milestoneId", "title", "description", "priority", "dependsOn", "findingIds", "acceptanceCriteria", "verification"],
       "properties": {
         "id": { "$ref": "#/definitions/id" },
         "milestoneId": { "$ref": "#/definitions/id" },
@@ -112,42 +104,23 @@
         "findingIds": { "$ref": "#/definitions/ids" },
         "acceptanceCriteria": { "type": "array", "items": { "$ref": "#/definitions/acceptance" }, "minItems": 1 },
         "verification": { "type": "array", "items": { "$ref": "#/definitions/text" }, "minItems": 1 },
-        "status": { "enum": ["pending", "in_progress", "verification_required", "completed", "blocked", "deferred"] },
-        "blockedReason": { "type": "string" },
-        "deferredTrigger": { "type": "string" },
-        "implementer": { "type": "string" },
-        "requiresApproval": { "type": "boolean" },
-        "history": { "type": "array", "items": { "$ref": "#/definitions/historyEntry" } }
-      }
-    },
-    "evidence": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "verifier", "action", "revision", "result", "at", "covers"],
-      "properties": {
-        "id": { "$ref": "#/definitions/id" },
-        "taskId": { "$ref": "#/definitions/id" },
-        "milestoneId": { "$ref": "#/definitions/id" },
-        "covers": { "$ref": "#/definitions/ids" },
-        "kind": { "enum": ["test", "check", "ci", "commit", "pr", "doc", "setting", "approval", "eval", "other"] },
-        "verifier": { "$ref": "#/definitions/text" },
-        "action": { "$ref": "#/definitions/text" },
-        "revision": { "type": ["string", "null"] },
-        "result": { "enum": ["pass", "fail"] },
-        "location": { "type": "string" },
-        "notes": { "type": "string" },
-        "at": { "$ref": "#/definitions/timestamp" }
+        "deferredTrigger": { "type": "string", "minLength": 1 },
+        "requiresApproval": { "type": "boolean" }
       }
     },
     "approval": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "subject", "approvedBy", "at"],
+      "required": ["id", "subject", "approvedBy", "at", "source", "scope"],
       "properties": {
         "id": { "$ref": "#/definitions/id" },
         "subject": { "$ref": "#/definitions/text" },
-        "approvedBy": { "$ref": "#/definitions/text" },
+        "approvedBy": { "type": "string", "pattern": "^human:.+" },
         "at": { "$ref": "#/definitions/timestamp" },
+        "source": { "const": "local" },
+        "scope": { "enum": ["roadmap", "decision"] },
+        "planHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "migrated": { "type": "boolean" },
         "note": { "type": "string" }
       }
     },
@@ -334,7 +307,7 @@
     }
   },
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "assessmentId": { "$ref": "#/definitions/text" },
     "mode": { "enum": ["greenfield", "existing"] },
     "rubricVersion": { "type": "integer" },
@@ -356,7 +329,6 @@
     "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
     "milestones": { "type": "array", "items": { "$ref": "#/definitions/milestone" } },
     "tasks": { "type": "array", "items": { "$ref": "#/definitions/task" } },
-    "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidence" } },
     "approvals": { "type": "array", "items": { "$ref": "#/definitions/approval" } },
     "conventions": { "type": "array", "items": { "$ref": "#/definitions/convention" } },
     "testing": { "type": "array", "items": { "$ref": "#/definitions/testingAssessment" } },
@@ -371,6 +343,21 @@
         "url": { "type": "string" },
         "publishedRecordRevision": { "type": "integer" },
         "publishedAt": { "$ref": "#/definitions/timestamp" }
+      }
+    },
+    "migrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "at"],
+        "properties": {
+          "from": { "type": "integer" },
+          "to": { "type": "integer" },
+          "at": { "$ref": "#/definitions/timestamp" },
+          "backup": { "type": "string" },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
       }
     }
   }

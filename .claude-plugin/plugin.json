@@ -1,7 +1,7 @@
 {
   "name": "agentic",
-  "version": "0.1.0",
-  "description": "Assess any repository's readiness for autonomous agentic engineering, score it deterministically, and drive the remediation roadmap with independently verified tasks.",
+  "version": "0.2.0",
+  "description": "Assess any repository's readiness for autonomous agentic engineering, score it deterministically, and plan the remediation roadmap your team implements in its own workflow.",
   "keywords": ["readiness", "assessment", "agentic-engineering", "ci", "documentation"],
   "license": "MIT"
 }

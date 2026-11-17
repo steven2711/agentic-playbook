@@ -18,6 +18,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
    - If a record already exists, stop. Tell the user, and offer `/agentic:reassess` (keeps the IDs) or `agentic init --force` (starts over, after confirmation).
    - Otherwise run `agentic init` (add `--mode <mode>` if the user gave one).
    - Then run `agentic scan` (add `--github` if asked and `gh auth status` succeeds).
+   - Then run `agentic readonly begin`. From here until step 10, Claude's file-tool writes inside the repository are refused. Keep patches and notes in the session scratchpad.
 
 3. Read the mode that init reports.
    - Follow `${CLAUDE_PLUGIN_ROOT}/assessments/greenfield.md` or `${CLAUDE_PLUGIN_ROOT}/assessments/existing-project.md`.
@@ -32,12 +33,12 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
 5. Merge their outputs into one patch in the session scratchpad.
    - Include `"assessedRevision": "HEAD"`, all criteria, and all findings.
    - Include the context-auditor's `docs` snapshot (inventory, target layout, loading and navigation) as the patch's `docs` key.
-   - Include the workflow-auditor's `maintenance` roster as the patch's `maintenance` key. Then check each roster entry against the merged criteria: an entry recommended `now` whose library prerequisites did not pass becomes `after-prerequisites`, with those criteria in `blockedBy`. `agentic apply` warns about any you miss.
+   - Include the workflow-auditor's `maintenance` roster as the patch's `maintenance` key. Then check each roster entry against the merged criteria: an entry recommended `now` whose library prerequisites did not all pass becomes `after-prerequisites`, with those criteria in `blockedBy`. `n_a` does not count as passed. `agentic apply` refuses a roster that gets this wrong.
    - Do not invent anything the auditors did not evidence.
    - Resolve overlaps:
      - **Duplicate findings:** keep the stronger evidence.
      - **Contradictory findings:** record the contradiction as an `unknown` finding with a reason, and do not pick a side.
-   - Run `agentic apply <patch> --by agent:assess`. Fix and retry until it applies.
+   - Run `agentic apply <patch> --by agent:assess`. Fix and retry until it applies. The CLI refuses a citation (`path:line`) that does not exist, and a `passed` criterion whose probe failed unless `notes` says why the probe is wrong here. Fix the evidence by re-reading the file. Never drop a line number just to get past the check.
 
 6. Run `agentic score`.
 
@@ -47,7 +48,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
 
 9. Follow **Publish the tracker** from the operating rules.
 
-10. Run `git status --porcelain` in the target repository and confirm nothing changed. Report anything that did.
+10. Run `agentic readonly end`. It fails, listing each path, if the worktree changed during the assessment. Report every listed change, and do not revert anything without asking.
 
 11. Report to the user in a short summary:
    - the score, level and confidence, as printed by the CLI

@@ -11,7 +11,7 @@ The `workflow-auditor` also does this inside `/agentic:assess`. **It is read-onl
 
 ## Steps
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`.
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Then run `agentic readonly begin`, unless this is running inside `/agentic:assess` or `/agentic:reassess`, which hold their own read-only window.
 
 2. Run `agentic where`. If there is no record, run `agentic init` and `agentic scan` first, and tell the user that prerequisites will be unknown until `/agentic:assess` has judged the criteria. Then run `agentic maintenance` and show the user:
    - the janitors that already exist
@@ -27,10 +27,11 @@ The `workflow-auditor` also does this inside `/agentic:assess`. **It is read-onl
    - `maintenance`: the roster, with `"assessedRevision"` set to the current HEAD. The CLI replaces the previous roster whole.
    - `criteria`: every WF criterion it judged.
    - `findings`: as returned, with IDs kept stable.
-   - Check each `now` entry against the record's criteria. One whose prerequisites have not passed becomes `after-prerequisites`, with those criteria in `blockedBy`.
+   - Check each `now` entry against the record's criteria. One whose prerequisites have not all `passed` becomes `after-prerequisites`, with those criteria in `blockedBy`. `n_a` does not count as passed: the janitor needs the contract it guards to exist. `agentic apply` refuses a roster that recommends a janitor `now` too early.
    - Run `agentic apply <patch> --by agent:workflow-auditor`, then `agentic score`. Fix any maintenance warnings it prints.
+   - For a janitor whose library entry has `autofix_risk: high`, carry its `safeguards` into the roster entry's `autofix` text, so the plan inherits them.
 
-5. Follow **Publish the tracker**. The **Maintenance** tab groups janitors as running, ready to set up, waiting on prerequisites, and not yet.
+5. Run `agentic readonly end` (with the same exception) and report any change it lists. Then follow **Publish the tracker**. The **Maintenance** tab groups janitors as running, ready to set up, waiting on prerequisites, and not yet.
 
 6. Report:
    - the summary

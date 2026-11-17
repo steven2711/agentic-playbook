@@ -18,7 +18,7 @@ const SKIP_DIRS = new Set([
   ".git", "node_modules", "dist", "build", "out", ".next", ".nuxt", "coverage", "vendor", ".venv", "venv", "__pycache__",
   "target", ".turbo", ".cache", ".gradle", ".idea", ".vscode", "Pods", ".terraform", ".agentic",
 ]);
-const SOURCE_EXT = new Set([
+export const SOURCE_EXT = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".java", ".kt", ".rb", ".cs", ".php", ".swift",
   ".scala", ".ex", ".exs", ".c", ".cc", ".cpp", ".h", ".hpp", ".vue", ".svelte", ".dart", ".clj",
 ]);
@@ -80,7 +80,7 @@ const read = (root: string, rel: string) => {
   }
 };
 
-const isTest = (f: string) => /(^|\/)(__tests__|tests?|spec|e2e)\//.test(f) || /\.(test|spec)\.[a-z]+$/.test(f) || /(^|\/)test_[^/]+\.py$/.test(f) || /_test\.(go|py)$/.test(f);
+export const isTest = (f: string) => /(^|\/)(__tests__|tests?|spec|e2e)\//.test(f) || /\.(test|spec)\.[a-z]+$/.test(f) || /(^|\/)test_[^/]+\.py$/.test(f) || /_test\.(go|py)$/.test(f);
 
 const CANONICAL: Record<string, RegExp> = {
   format: /^(format|fmt|prettier)(:check)?$/,

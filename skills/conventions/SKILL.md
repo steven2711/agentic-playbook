@@ -12,7 +12,7 @@ This also runs as the last step of `/agentic:assess`. **It is read-only for the 
 
 ## Steps
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`.
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Then run `agentic readonly begin`, unless this is running inside `/agentic:assess` or `/agentic:reassess`, which hold their own read-only window.
 
 2. Run `agentic where`. If there is no record, run `agentic init` first. Then run `agentic conventions` and show the user the app roots and stacks it detected. If an app root or stack looks wrong, for example a tooling package detected as an app, say so and ask before continuing.
 
@@ -31,7 +31,7 @@ This also runs as the last step of `/agentic:assess`. **It is read-only for the 
 
    The CLI rejects any rule ID that is not in the library. If it refuses, fix the item. Do not drop the guard.
 
-5. Follow **Publish the tracker**. The **Conventions** tab shows each app with its rules, status, source links and promotion candidates.
+5. Run `agentic readonly end` (with the same exception) and report any change it lists. Then follow **Publish the tracker**. The **Conventions** tab shows each app with its rules, status, source links and promotion candidates.
 
 6. Report per app:
    - the detected stack

@@ -12,7 +12,7 @@ This also runs inside `/agentic:assess`. **It is read-only for the target reposi
 
 ## Steps
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`.
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Then run `agentic readonly begin`, unless this is running inside `/agentic:assess` or `/agentic:reassess`, which hold their own read-only window.
 
 2. Run `agentic where`. If there is no record, run `agentic init` and `agentic scan` first. Then run `agentic tests` and show the user each app's detected kind, test and source file counts, and missing Tier 1 layers. If a kind looks wrong, say so and ask before continuing.
 
@@ -29,7 +29,7 @@ This also runs inside `/agentic:assess`. **It is read-only for the target reposi
    - `findings`: as returned, with IDs kept stable.
    - Run `agentic apply <patch> --by agent:test-strategy-auditor`, then `agentic score`.
 
-5. Follow **Publish the tracker**. The **Testing** tab shows each app's layers, critical paths and coverage.
+5. Run `agentic readonly end` (with the same exception) and report any change it lists. Then follow **Publish the tracker**. The **Testing** tab shows each app's layers, critical paths and coverage.
 
 6. Report per app:
    - its kind and stated strategy (or that there is none)

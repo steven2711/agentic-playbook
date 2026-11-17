@@ -1,24 +1,26 @@
 ---
 name: reassess
-description: Re-run the readiness assessment at the current HEAD, keeping stable IDs, flagging regressions and resolved findings, and rescoring.
+description: Re-run the readiness assessment at the current HEAD, keeping stable IDs, flagging regressions and resolved findings, judging milestone exit criteria, and rescoring. This is how roadmap progress is recorded.
 argument-hint: "[dimension ids to limit, e.g. VER ARC] [--github]"
 disable-model-invocation: true
 ---
 # /agentic:reassess
 
-Refresh the assessment against the current code. The assessment is read-only for the target repository. Arguments: `$ARGUMENTS`.
+Refresh the assessment against the current code. The assessment is read-only for the target repository. It is also how the roadmap records progress: the team implements tasks in its own workflow, and reassessment resolves their findings and judges each milestone's exit criteria from what is now in the repository. Arguments: `$ARGUMENTS`.
 
 ## Steps
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Run `agentic status`, then `agentic scan` (add `--github` if requested).
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Run `agentic status` and `agentic changes --json` **before** scanning, so probe regressions are measured against the previous scan. Then run `agentic readonly begin` and `agentic scan` (add `--github` if requested).
 
-2. Collect the changes since the last assessment with `git log --oneline <assessedRevision>..HEAD` and `git diff --stat <assessedRevision>..HEAD`.
-   - If the user limited dimensions, audit only those.
-   - Otherwise audit every dimension the changes could affect. When unsure, audit all of them.
+2. Decide what to audit from `agentic changes --json`:
+   - `dimensions` lists the rubric dimensions each changed path can affect, and `snapshots` lists the conventions, strictness, testing, docs and maintenance snapshots it makes stale. `apps` lists the app roots whose code changed. `probeRegressions` lists probes that got worse since the last scan.
+   - Audit every dimension and snapshot listed, plus any dimension with a regressed probe. If the user limited dimensions, audit only those, and say which listed ones you skipped.
+   - If `revisionKnown` is false (the assessed revision is no longer in history), audit everything.
+   - Read `git log --oneline <assessedRevision>..HEAD` for context on what the team did.
 
 3. Start the relevant auditors in parallel. Give each one its current criteria and findings from the record, and tell it to:
    - reuse finding IDs for the same issue
-   - mark fixed findings `resolved: true`
+   - mark fixed findings `resolved: true`, citing the evidence that it is fixed. A finding is resolved by what the repository shows, never because someone says the work is done.
    - add new findings with new IDs
    - explain every criterion whose status changes
 
@@ -41,11 +43,15 @@ Refresh the assessment against the current code. The assessment is read-only for
    - a running janitor whose prerequisites no longer pass: the contract it guards has weakened, so its reports can no longer be trusted
    Report a janitor that was waiting and whose prerequisites now pass as ready to plan.
 
-10. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+10. Judge the exit criteria of every milestone that is not `completed`. For each exit criterion, decide from the repository whether it is now `met` (cite the evidence), `unmet` (cite what is missing), or `unverified` (give the reason, for example that it needs a CI run you cannot read). Send them as `"milestones": [{"id": "M-001", "exitCriteria": [{"id": "M-001.X1", "status": "met", "evidence": ["..."]}]}]`. Exit criteria merge by ID, so leave out the text. A milestone completes only when every exit criterion is `met`.
 
-11. Compare with the previous score history entry. List:
+11. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`. Then run `agentic readonly end` and report any change it lists.
+
+12. Compare with the previous score history entry. List:
    - criteria that regressed (for example passed to failed), with evidence
-   - resolved findings
+   - resolved findings, and the tasks they addressed (`agentic roadmap` lists what is still open)
+   - milestones whose exit criteria changed, and any milestone now completed
    - new findings that need tasks. Offer `/agentic:plan` to schedule them.
+   - if `agentic status` says the roadmap changed since its approval, say so
 
-12. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.
+13. Follow **Publish the tracker**.

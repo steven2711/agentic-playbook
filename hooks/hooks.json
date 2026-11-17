@@ -7,6 +7,14 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-status.sh\"", "timeout": 15 }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/readonly-guard.sh\"", "timeout": 15 }
+        ]
+      }
     ]
   }
 }

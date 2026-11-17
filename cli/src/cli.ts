@@ -5,7 +5,9 @@ import { applicableRules, detectApps, lintLibrary, loadLibrary } from "./convent
 import { commitsSince, headRevision } from "./git.js";
 import { lintPlaybook } from "./lint.js";
 import { locateStore, playbookRoot, type StoreLocation } from "./paths.js";
-import { createRecord, loadRecord, nextId, now, saveRecord } from "./record.js";
+import { changedAreas, probeRegressions } from "./drift.js";
+import { beginWindow, endWindow, liveLock, writeRefusal } from "./readonly.js";
+import { createRecord, loadRecord, nextId, now, pendingMigration, planHash, roadmapApproval, saveRecord, taskAddressed, V1_BACKUP } from "./record.js";
 import { renderHtml } from "./render.js";
 import { loadRubric } from "./rubric.js";
 import { scan, walk, type ScanResult } from "./scan.js";
@@ -14,9 +16,9 @@ import { computeScore } from "./score.js";
 import { assessTesting, lintTesting, loadTesting, profilesFor } from "./testing.js";
 import { assessDocs, lintDocs, loadDocs } from "./docs.js";
 import { assessMaintenance, lintMaintenance, loadMaintenance } from "./maintenance.js";
-import { UsageError, type AssessmentRecord, type Mode, type WorkStatus } from "./types.js";
+import { UsageError, type AssessmentRecord, type Mode } from "./types.js";
 import { validateRecord } from "./validate.js";
-import { addEvidence, applyPatch, readyTasks, transitionTask, type Patch } from "./workflow.js";
+import { applyPatch, roadmapOrder, type Patch, type ScanHints } from "./workflow.js";
 
 const HELP = `agentic — deterministic core of the Agentic Playbook
 
@@ -28,15 +30,19 @@ Setup
   adopt                                         Move the staged record into <repo>/.agentic/
   where                                         Print the record location
 
-Assessment content (the only write path for findings/milestones/tasks/criteria)
-  apply <patch.json|-> [--by <who>]             Upsert criteria, findings, milestones, tasks, approvals
-  approve <subject> --by <human> [--note ...]   Record an explicit human approval
+Read-only assessment
+  readonly begin [--restart]                    Fingerprint the worktree and refuse Claude file-tool writes to it (6h window)
+  readonly end                                  Fail, listing every change, if the worktree moved since begin
+  readonly check --path <file> | --hook         Exit 2 if a write to <file> falls in an open window (used by the plugin hook)
 
-Execution
-  next [--json]                                 Dependency-ready tasks and work awaiting verification
-  task <id> <status> --by <who> [--reason ...]  Guarded transition (pending|in_progress|verification_required|completed|blocked|deferred)
-  evidence --task <id> --covers <ids> --verifier <who> --action <cmd> --result pass|fail [--location ...] [--kind ...]
-  show <id>                                     Print one criterion/finding/milestone/task/evidence as JSON
+Assessment content (the only write path for findings/milestones/tasks/criteria)
+  apply <patch.json|-> [--by <who>]             Upsert criteria, findings, milestones, tasks; cited path:line must exist
+  approve <subject> --by human:<name> [--note]  Attribute a human decision (roadmap approvals bind to the plan)
+
+Roadmap (a plan handed to your own workflow; progress comes from reassessment)
+  roadmap [--json]                              Open tasks in milestone and dependency order
+  changes [--json]                              What changed since the assessment, and which judgements it makes stale
+  show <id>                                     Print one criterion/finding/milestone/task/approval as JSON
 
 Conventions
   conventions [--app <root>] [--json]          App roots, detected stack, conventions files, applicable baseline rules
@@ -150,6 +156,64 @@ function printScore(s: ReturnType<typeof computeScore>) {
     console.log(`To reach ${s.nextLevel.level} ${s.nextLevel.name}:`);
     for (const b of s.nextLevel.blocking) console.log(`  - ${b.id} [${b.status}] ${b.title}`);
   }
+}
+
+const REMOVED: Record<string, string> = {
+  task: "The playbook plans; it does not run or track implementation. Implement tasks in your own workflow, then run /agentic:reassess, which resolves findings and judges exit criteria from the repository.",
+  evidence: "Verification evidence belongs to your own review and CI. Reassessment cites what it observes in the record's criteria, findings and exit criteria.",
+  next: "Use `agentic roadmap` for the open tasks in plan order.",
+};
+
+function scanHints(store: StoreLocation): ScanHints | null {
+  if (!existsSync(store.scanPath)) return null;
+  try {
+    return ((JSON.parse(readFileSync(store.scanPath, "utf8")) as { criteriaHints?: ScanHints }).criteriaHints ?? {}) as ScanHints;
+  } catch {
+    return null;
+  }
+}
+
+/** Signals that a judgement in the record can no longer be relied on as-is. */
+function trustStatus(store: StoreLocation, record: AssessmentRecord, full: boolean) {
+  const changes = changedAreas(store.repoRoot, record.assessedRevision, { apps: full });
+  const from = pendingMigration(record);
+  const { approval, current } = roadmapApproval(record);
+  const roadmap = !record.milestones.length
+    ? null
+    : !approval
+      ? "ROADMAP: not approved yet. Approval is recorded with `agentic approve roadmap --by human:<name>` once the user approves it."
+      : !current
+        ? `ROADMAP: changed since approval ${approval.id} by ${approval.approvedBy}. Ask the user to re-approve it.`
+        : null;
+  const crit = new Map(record.criteria.map((c) => [c.id, c.status]));
+  const lib = loadMaintenance();
+  const janitors = (record.maintenance?.roster ?? [])
+    .filter((r) => r.status === "present" || r.recommend === "now")
+    .flatMap((r) => {
+      const missing = (lib.items.get(r.id)?.prerequisites ?? []).filter((p) => crit.get(p) !== "passed");
+      return missing.length
+        ? [`${r.id} is ${r.status === "present" ? "running" : "recommended now"} but ${missing.map((p) => `${p} is ${crit.get(p) ?? "missing"}`).join(", ")}: the contract it guards is not established, so its output cannot be trusted. Reassess, then fix or pause it.`]
+        : [];
+    });
+  return {
+    changes,
+    probeRegressions: full ? probeRegressions(store).regressions : [],
+    roadmap,
+    roadmapApproval: approval ? { id: approval.id, current } : null,
+    janitors,
+    migration: from ? `the record uses schema v${from}. The next write migrates it to v2 (execution state dropped; the original is kept as ${V1_BACKUP}).` : null,
+    readonlyWindow: liveLock(store.repoRoot)?.expiresAt ?? null,
+  };
+}
+
+function printChanges(c: ReturnType<typeof changedAreas>, regressions: ReturnType<typeof probeRegressions>["regressions"]) {
+  if (!c.revisionKnown) console.log(`The assessed revision ${c.assessedRevision ?? "(none)"} is not in this repository's history: treat every judgement as stale.`);
+  console.log(`${c.commits} commit(s) since the assessment, ${c.committed.length} path(s) changed, ${c.uncommitted.length} uncommitted.`);
+  if (!c.areas.length) console.log("No changes that affect an assessed area.");
+  for (const a of c.areas) console.log(`  ${a.label}: ${a.dims.join(", ")}${a.snapshots.length ? `; snapshots: ${a.snapshots.join(", ")}` : ""}  (${a.paths.slice(0, 5).join(", ")}${a.paths.length > 5 ? `, +${a.paths.length - 5}` : ""})`);
+  const apps = Object.keys(c.apps);
+  if (apps.length) console.log(`  app roots with changed code: ${apps.join(", ")}`);
+  for (const r of regressions) console.log(`  regressed probe ${r.probe}: ${r.was} -> ${r.now} (${r.evidence[0] ?? ""})`);
 }
 
 export function main(argv: string[]): number {
@@ -426,7 +490,7 @@ export function main(argv: string[]): number {
         const mark = i.status === "present" ? "✓" : i.prerequisitesMet ? "→" : "·";
         console.log(`  ${mark} T${i.tier} ${i.id} ${i.title} [${i.trigger.join(", ")}]${i.status === "present" ? `: ${i.paths.join(", ")}` : ""}`);
         if (i.status === "absent") {
-          const waiting = i.prerequisites.filter((p) => p.status !== "passed" && p.status !== "n_a");
+          const waiting = i.prerequisites.filter((p) => p.status !== "passed");
           if (record) console.log(`      ${waiting.length ? `waiting on ${waiting.map((p) => `${p.id} (${p.status})`).join(", ")}` : "prerequisites pass"}`);
           if (i.tier > 1) console.log(`      when: ${i.when}`);
         }
@@ -434,6 +498,51 @@ export function main(argv: string[]): number {
       if (hidden) console.log(`  (${hidden} Tier 3 janitors not shown: only worth it after a cited recurring problem; see --json)`);
       console.log("✓ set up   → prerequisites pass, not set up   · waiting, or prerequisites unknown");
       return 0;
+    }
+    case "readonly": {
+      const sub = args._[1];
+      if (sub === "check") {
+        let path = str(args, "path");
+        if (args.flags.hook) {
+          try {
+            const input = JSON.parse(readFileSync(0, "utf8")) as { tool_input?: { file_path?: string; notebook_path?: string } };
+            path = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
+          } catch {
+            return 0; // Not hook JSON: nothing to judge.
+          }
+        }
+        if (!path) return args.flags.hook ? 0 : (() => { throw new UsageError("readonly check needs --path <file> or --hook"); })();
+        const refusal = writeRefusal(resolve(cwd, path));
+        if (!refusal) return 0;
+        console.error(refusal);
+        return 2;
+      }
+      const store = locateStore(cwd);
+      if (sub === "begin") {
+        const { lock, dirty, replaced } = beginWindow(store.repoRoot, { restart: !!args.flags.restart });
+        console.log(`Read-only window open for ${store.repoRoot} until ${lock.expiresAt}${replaced ? " (replaced an open window)" : ""}.`);
+        console.log("Claude file-tool writes inside the repository are refused until `agentic readonly end`.");
+        if (dirty) console.log(`Note: the worktree already has ${dirty} uncommitted path(s). The assessment judges them as they are; say so in the report.`);
+        return 0;
+      }
+      if (sub === "end") {
+        const { lock, changes } = endWindow(store.repoRoot);
+        if (!lock) throw new UsageError("No read-only window is open for this repository. Start one with `agentic readonly begin`.");
+        if (!changes.length) {
+          console.log(`✓ The worktree is unchanged since ${lock.startedAt}. The assessment was read-only.`);
+          return 0;
+        }
+        console.error(`✗ The worktree changed during the read-only assessment (since ${lock.startedAt}):`);
+        for (const c of changes) console.error(`  - ${c}`);
+        console.error("Report these changes to the user. Do not revert them without asking: some may be the user's own work.");
+        return 1;
+      }
+      if (sub === "status") {
+        const l = liveLock(store.repoRoot);
+        console.log(l ? `open since ${l.startedAt}, until ${l.expiresAt}` : "no read-only window open");
+        return 0;
+      }
+      throw new UsageError("usage: agentic readonly begin | end | status | check --path <file> | check --hook");
     }
     case "adopt": {
       const store = locateStore(cwd);
@@ -444,11 +553,16 @@ export function main(argv: string[]): number {
       if (!existsSync(store.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
       const dest = join(store.repoRoot, ".agentic");
       mkdirSync(dest, { recursive: true });
+      const staged = loadRecord(store);
+      const { approval, current } = roadmapApproval(staged);
+      if (!approval) console.log("warning: no roadmap approval is recorded. Approve the plan first (agentic approve roadmap --by human:<name>).");
+      else if (!current) console.log(`warning: the roadmap changed since approval ${approval.id}. Re-approve it before relying on the plan.`);
       cpSync(store.recordPath, join(dest, "record.json"));
-      writeFileSync(join(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
+      if (existsSync(join(store.dir, V1_BACKUP))) cpSync(join(store.dir, V1_BACKUP), join(dest, V1_BACKUP));
+      writeFileSync(join(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\nreadonly.json\n");
       writeFileSync(
         join(dest, "README.md"),
-        "# Agentic readiness record\n\n`record.json` is the authoritative assessment, roadmap and execution state produced by the Agentic Playbook plugin.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change.\n",
+        "# Agentic readiness record\n\n`record.json` is the assessment and remediation plan produced by the Agentic Playbook plugin. It holds no execution state: implement the plan in your own workflow, and `/agentic:reassess` records the progress.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change. Review changes to it like code (a CODEOWNERS entry helps): nothing stops a direct edit except review.\n",
       );
       rmSync(store.dir, { recursive: true, force: true });
       console.log(`Adopted record into ${join(dest, "record.json")}. Commit .agentic/ to make it durable.`);
@@ -456,8 +570,14 @@ export function main(argv: string[]): number {
     }
   }
 
+  if (REMOVED[cmd]) throw new UsageError(`\`agentic ${cmd}\` was removed. ${REMOVED[cmd]}`);
+
   const store = locateStore(cwd);
   const record = loadRecord(store);
+  const migratedFrom = pendingMigration(record);
+  if (migratedFrom && !["validate", "show", "roadmap", "changes", "status"].includes(cmd)) {
+    console.log(`Migrating the record from schema v${migratedFrom}: execution state is dropped, and the original is kept as ${V1_BACKUP} next to the record.`);
+  }
 
   switch (cmd) {
     case "validate": {
@@ -470,8 +590,10 @@ export function main(argv: string[]): number {
     case "apply": {
       const src = args._[1];
       if (!src) throw new UsageError("apply needs a patch file or - for stdin");
-      const log = applyPatch(record, readJsonInput(src) as Patch, { by, repoRoot: store.repoRoot });
+      const hints = scanHints(store);
+      const log = applyPatch(record, readJsonInput(src) as Patch, { by, repoRoot: store.repoRoot, hints });
       saveRecord(store, record);
+      if (!hints) console.log("warning: no scan.json, so criteria were not checked against the deterministic probes. Run `agentic scan`.");
       const { warnings } = validateRecord(record);
       console.log(`Applied (${log.length} change${log.length === 1 ? "" : "s"}) -> record rev ${record.recordRevision}`);
       for (const l of log) console.log(`  ${l}`);
@@ -482,49 +604,28 @@ export function main(argv: string[]): number {
       const subject = args._[1];
       if (!subject) throw new UsageError("approve needs a subject (task, milestone id or a short description)");
       const approver = need(args, "by");
-      if (!approver.startsWith("human:")) throw new UsageError("Approvals must come from a human: use --by human:<name>");
+      if (!/^human:.+/.test(approver)) throw new UsageError("Refused: approvals attribute a human decision. Use --by human:<name>, with the name the user gave in this session.");
+      const roadmap = subject === "roadmap";
+      if (roadmap && !record.milestones.length) throw new UsageError("Refused: there is no roadmap to approve yet. Run /agentic:plan first.");
       const id = nextId("A", record.approvals.map((a) => a.id));
-      record.approvals.push({ id, subject, approvedBy: approver, at: now(), ...(str(args, "note") ? { note: str(args, "note")! } : {}) });
+      record.approvals.push({
+        id,
+        subject,
+        approvedBy: approver,
+        at: now(),
+        source: "local",
+        scope: roadmap ? "roadmap" : "decision",
+        ...(roadmap ? { planHash: planHash(record) } : {}),
+        ...(str(args, "note") ? { note: str(args, "note")! } : {}),
+      });
       saveRecord(store, record);
-      console.log(`Recorded approval ${id} for ${subject}`);
-      return 0;
-    }
-    case "task": {
-      const [, id, to] = args._;
-      if (!id || !to) throw new UsageError("usage: agentic task <id> <status> --by <who> [--reason ...]");
-      const t = transitionTask(record, id, to as WorkStatus, { by, reason: str(args, "reason"), repoRoot: store.repoRoot });
-      saveRecord(store, record);
-      console.log(`${t.id}: ${t.history.at(-1)!.from} -> ${t.status} (record rev ${record.recordRevision})`);
-      const ms = record.milestones.find((m) => m.id === t.milestoneId);
-      if (ms) console.log(`${ms.id} is ${ms.status}`);
-      return 0;
-    }
-    case "evidence": {
-      const result = need(args, "result");
-      if (result !== "pass" && result !== "fail") throw new UsageError("--result must be pass or fail");
-      const ev = addEvidence(
-        record,
-        {
-          taskId: str(args, "task"),
-          milestoneId: str(args, "milestone"),
-          covers: (str(args, "covers") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
-          verifier: need(args, "verifier"),
-          action: need(args, "action"),
-          result,
-          kind: (str(args, "kind") as never) ?? "check",
-          ...(str(args, "location") ? { location: str(args, "location")! } : {}),
-          ...(str(args, "notes") ? { notes: str(args, "notes")! } : {}),
-        },
-        store.repoRoot,
-      );
-      for (const k of Object.keys(ev) as (keyof typeof ev)[]) if (ev[k] === undefined) delete ev[k];
-      saveRecord(store, record);
-      console.log(`Recorded ${ev.id} (${ev.result}) covering ${ev.covers.join(", ") || "nothing"}`);
+      console.log(`Recorded approval ${id} for ${subject}${roadmap ? ` (plan ${planHash(record).slice(0, 12)})` : ""}.`);
+      console.log("This is local attribution: the CLI cannot verify who ran it. Authorization for the work itself belongs to your team's review process.");
       return 0;
     }
     case "show": {
       const id = args._[1];
-      const all = [...record.criteria, ...record.findings, ...record.milestones, ...record.tasks, ...record.evidence, ...record.approvals, ...record.conventions] as { id: string }[];
+      const all = [...record.criteria, ...record.findings, ...record.milestones, ...record.tasks, ...record.approvals, ...record.conventions] as { id: string }[];
       const item = all.find((x) => x.id === id);
       if (!item) throw new UsageError(`No item ${id}`);
       const rc = loadRubric().criteria.find((c) => c.id === id);
@@ -533,18 +634,30 @@ export function main(argv: string[]): number {
       console.log(JSON.stringify(rc ? { rubric: rc, state: item } : lr ? { rule: lr, state: item } : item, null, 2));
       return 0;
     }
-    case "next": {
-      const ready = readyTasks(record);
-      const awaiting = record.tasks.filter((t) => t.status === "verification_required");
-      const active = record.tasks.filter((t) => t.status === "in_progress");
+    case "roadmap": {
+      const order = roadmapOrder(record);
       if (args.flags.json) {
-        console.log(JSON.stringify({ ready, active, awaitingVerification: awaiting }, null, 2));
+        console.log(JSON.stringify({ open: order.map((e) => ({ ...e.task, ready: e.ready, waitingOn: e.waitingOn })), approval: roadmapApproval(record) }, null, 2));
         return 0;
       }
-      if (active.length) console.log(`In progress: ${active.map((t) => `${t.id} ${t.title}`).join("; ")}`);
-      if (awaiting.length) console.log(`Awaiting verification: ${awaiting.map((t) => `${t.id} ${t.title}`).join("; ")}`);
-      if (!ready.length) console.log(record.tasks.length ? "No dependency-ready pending tasks." : "No tasks yet. Run /agentic:plan.");
-      for (const t of ready.slice(0, 10)) console.log(`ready  ${t.id}  ${t.priority}  [${t.milestoneId}] ${t.title}`);
+      if (!record.tasks.length) {
+        console.log("No roadmap yet. Run /agentic:plan.");
+        return 0;
+      }
+      const addressed = record.tasks.filter((t) => taskAddressed(record, t)).length;
+      console.log(`${order.length} open task(s), ${addressed} addressed (findings resolved by reassessment), ${record.tasks.filter((t) => t.deferredTrigger).length} deferred.`);
+      for (const e of order) console.log(`${e.ready ? "ready  " : "waits  "} ${e.task.id}  ${e.task.priority}  [${e.task.milestoneId}] ${e.task.title}${e.waitingOn.length ? `  (after ${e.waitingOn.join(", ")})` : ""}${e.task.requiresApproval ? "  [needs a human decision]" : ""}`);
+      console.log("Implement these in your own workflow. /agentic:reassess records progress from the repository.");
+      return 0;
+    }
+    case "changes": {
+      const c = changedAreas(store.repoRoot, record.assessedRevision);
+      const probes = probeRegressions(store);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ ...c, probeRegressions: probes.regressions, scannedAt: probes.scannedAt }, null, 2));
+        return 0;
+      }
+      printChanges(c, probes.regressions);
       return 0;
     }
     case "score": {
@@ -556,23 +669,34 @@ export function main(argv: string[]): number {
     case "status": {
       const s = computeScore(record);
       const st = staleness(store, record);
-      const count = (x: WorkStatus) => record.tasks.filter((t) => t.status === x).length;
+      const trust = trustStatus(store, record, !args.flags.brief);
       if (args.flags.json) {
-        console.log(JSON.stringify({ score: s, staleness: st, record: store.recordPath, adopted: store.adopted, artifact: record.artifact }, null, 2));
+        console.log(JSON.stringify({ score: s, staleness: st, trust, record: store.recordPath, adopted: store.adopted, artifact: record.artifact }, null, 2));
         return 0;
       }
+      const addressed = record.tasks.filter((t) => taskAddressed(record, t)).length;
       const lines = [
         `Agentic readiness for ${record.repo.name}: ${s.score}/100, ${s.level} ${s.levelName}, confidence ${s.confidence}% (record rev ${record.recordRevision}, ${store.adopted ? "adopted" : "staged"} at ${store.recordPath})`,
-        `Tasks: ${count("in_progress")} in progress, ${count("verification_required")} awaiting verification, ${count("blocked")} blocked, ${count("pending")} pending, ${count("completed")} completed`,
+        `Roadmap: ${record.milestones.length} milestone(s), ${record.tasks.length} task(s), ${addressed} addressed, ${record.milestones.filter((m) => m.status === "completed").length} milestone(s) with every exit criterion met`,
       ];
-      if (st.commitsBehind) lines.push(`STALE: HEAD is ${st.commitsBehind} commit(s) past the assessed revision ${record.assessedRevision?.slice(0, 7)}. Run /agentic:reassess when the changes are relevant.`);
+      if (trust.migration) lines.push(`MIGRATION: ${trust.migration}`);
+      if (trust.readonlyWindow) lines.push(`READ-ONLY: an assessment window is open until ${trust.readonlyWindow}. Finish it with \`agentic readonly end\`.`);
+      if (trust.roadmap) lines.push(trust.roadmap);
+      if (st.commitsBehind) {
+        const stale = trust.changes.areas.filter((a) => a.paths.some((p) => trust.changes.committed.includes(p))).map((a) => `${a.label} (${a.dims.join("/")})`).join(", ");
+        lines.push(`STALE: HEAD is ${st.commitsBehind} commit(s) past the assessed revision ${record.assessedRevision?.slice(0, 7)}${stale ? `; changed: ${stale}` : ""}. Run /agentic:reassess when the changes are relevant.`);
+      }
+      if (trust.changes.uncommitted.length) lines.push(`Uncommitted: ${trust.changes.uncommitted.length} path(s) differ from HEAD. The assessment may or may not have seen them; \`agentic changes\` lists the areas.`);
+      if (record.assessedRevision && !trust.changes.revisionKnown) lines.push(`STALE: the assessed revision ${record.assessedRevision.slice(0, 7)} is not in this repository's history. Run /agentic:reassess.`);
+      for (const r of trust.probeRegressions) lines.push(`REGRESSED: probe ${r.probe} was ${r.was} at the last scan and is ${r.now} now: ${r.evidence[0] ?? ""}`);
+      for (const j of trust.janitors) lines.push(`JANITOR: ${j}`);
       if (!record.artifact) lines.push("Artifact: not published yet. Run /agentic:status to publish the tracker.");
       else if (st.unpublished && st.unpublished > 0) lines.push(`STALE: the Artifact (${record.artifact.url}) shows rev ${record.artifact.publishedRecordRevision}; the record is at rev ${record.recordRevision}. Republish it (agentic render, then Artifact publish to the same URL, then agentic published).`);
       else lines.push(`Artifact: ${record.artifact.url} (current)`);
       if (!args.flags.brief) {
         printScore(s);
-        const ready = readyTasks(record);
-        if (ready.length) lines.push(`Next ready task: ${ready[0]!.id} ${ready[0]!.title}`);
+        const next = roadmapOrder(record).find((e) => e.ready);
+        if (next) lines.push(`First open task: ${next.task.id} ${next.task.title}`);
       }
       console.log(lines.join("\n"));
       return 0;

@@ -5,6 +5,7 @@ import type { AppStrictness, SuppressionReport } from "./strictness.js";
 import { loadTesting, type AppTesting } from "./testing.js";
 import { loadDocs, type DocsScan } from "./docs.js";
 import { loadMaintenance, type MaintenanceScan } from "./maintenance.js";
+import { roadmapApproval, taskAddressed } from "./record.js";
 import type { AssessmentRecord } from "./types.js";
 
 /**
@@ -24,8 +25,13 @@ export interface StrictnessSnapshot {
 
 export function renderHtml(record: AssessmentRecord, opts: { headRevision: string | null; commitsBehind: number | null; strictness?: StrictnessSnapshot | null }): string {
   const rubric = loadRubric();
+  const { approval, current } = roadmapApproval(record);
   const payload = {
     record,
+    plan: {
+      approval: approval ? { id: approval.id, approvedBy: approval.approvedBy, at: approval.at, current, migrated: !!approval.migrated } : null,
+      addressed: record.tasks.filter((t) => taskAddressed(record, t)).map((t) => t.id),
+    },
     score: computeScore(record),
     rubric: { levels: rubric.levels, dimensions: rubric.dimensions, criteria: rubric.criteria, priorities: rubric.priorities },
     library: Object.fromEntries(
@@ -62,7 +68,7 @@ const TEMPLATE = String.raw`<title>__TITLE__</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: an instrument panel. Score and readiness ladder up top, then tabbed detail views (criteria, findings, conventions, roadmap, evidence). */
+/* Layout: an instrument panel. Score and readiness ladder up top, then tabbed detail views (criteria, findings, conventions, testing, docs, maintenance, roadmap). */
 :root {
   --bg: #f5f6f8; --surface: #ffffff; --sunk: #eceef3; --line: #d9dde6;
   --fg: #161a23; --muted: #5b6273; --accent: #2f4bd6; --accent-soft: #e3e8fd;
@@ -118,7 +124,7 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; background: var(--idle-soft); color: var(--idle); }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .s-passed, .s-completed, .s-pass { background: var(--ok-soft); color: var(--ok); }
-.s-partial, .s-in_progress, .s-verification_required { background: var(--warn-soft); color: var(--warn); }
+.s-partial, .s-in_progress { background: var(--warn-soft); color: var(--warn); }
 .s-failed, .s-blocked, .s-fail { background: var(--bad-soft); color: var(--bad); }
 .s-P0 { background: var(--bad-soft); color: var(--bad); }
 .s-P1 { background: var(--warn-soft); color: var(--warn); }
@@ -176,7 +182,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
 <script>
 (function () {
   var D = JSON.parse(document.getElementById("data").textContent);
-  var R = D.record, S = D.score, RB = D.rubric;
+  var R = D.record, S = D.score, RB = D.rubric, P = D.plan;
   var crit = {}; RB.criteria.forEach(function (c) { crit[c.id] = c; });
   var state = {}; R.criteria.forEach(function (c) { state[c.id] = c; });
   var dimName = {}; RB.dimensions.forEach(function (d) { dimName[d.id] = d.name; });
@@ -190,6 +196,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
   function header() {
     var stale = [];
     if (D.commitsBehind) stale.push("HEAD is " + D.commitsBehind + " commit" + (D.commitsBehind === 1 ? "" : "s") + " ahead of the assessed revision. Run /agentic:reassess to refresh the score.");
+    if (P.approval && !P.approval.current) stale.push("The roadmap changed after approval " + P.approval.id + " by " + P.approval.approvedBy + ". It needs re-approval.");
     return '<header class="top"><div><div class="label">Agentic readiness</div><h1>' + esc(R.repo.name) + '</h1></div>' +
       '<div class="meta"><span>Mode <b>' + esc(R.mode) + '</b></span><span>Assessed at <code>' + short(R.assessedRevision) + '</code></span>' +
       '<span>Record rev <b class="num">' + R.recordRevision + '</b></span><span>Rendered ' + esc(when(D.renderedAt)) + '</span></div></header>' +
@@ -221,7 +228,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       return '<div class="dim"><span>' + esc(d.name) + ' <span class="muted" style="font-size:.8rem">' + d.passed + "/" + d.applicable + ' passed</span></span><b class="num" style="text-align:right">' + (d.score == null ? "n/a" : d.score) + '</b><div class="bar"><i style="width:' + (d.score || 0) + '%"></i></div></div>';
     }).join("");
     var tasks = R.tasks;
-    var count = function (s) { return tasks.filter(function (t) { return t.status === s; }).length; };
+    var deferred = tasks.filter(function (t) { return t.deferredTrigger; }).length;
     var openP0 = R.findings.filter(function (f) { return f.priority === "P0" && !f.resolved && f.kind !== "deferred"; }).length;
     var blockers = S.nextLevel ? S.nextLevel.blocking.map(function (b) {
       return '<li><code>' + esc(b.id) + "</code> " + esc(b.title) + " " + pill(b.status) + "</li>";
@@ -232,7 +239,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       (S.nextLevel ? '<div><h3>To reach ' + esc(S.nextLevel.level + " " + S.nextLevel.name) + '</h3><ul class="ev" style="margin-top:6px">' + blockers + "</ul></div>" : '<p class="muted">Every gated criterion is passed.</p>') +
       '</div></section><section class="grid2"><div class="panel" style="display:grid;gap:14px"><h2>By dimension</h2><div class="dims">' + dims + '</div></div>' +
       '<div class="panel" style="display:grid;gap:14px"><h2>Work</h2><div class="stats">' +
-      [["Tasks", tasks.length], ["In progress", count("in_progress")], ["Awaiting verification", count("verification_required")], ["Blocked", count("blocked")], ["Completed", count("completed")], ["Open P0 findings", openP0]]
+      [["Tasks", tasks.length], ["Open", tasks.length - P.addressed.length - deferred], ["Addressed", P.addressed.length], ["Deferred", deferred], ["Milestones met", R.milestones.filter(function (m) { return m.status === "completed"; }).length], ["Open P0 findings", openP0]]
         .map(function (s) { return '<div class="stat"><span class="label">' + s[0] + '</span><b class="num">' + s[1] + "</b></div>"; }).join("") +
       "</div>" + milestoneSummary() + "</div></section>";
   }
@@ -241,7 +248,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     if (!R.milestones.length) return '<p class="muted" style="margin:0">No milestones yet. Run /agentic:plan to build the roadmap.</p>';
     return '<div class="list">' + R.milestones.map(function (m) {
       var ts = R.tasks.filter(function (t) { return t.milestoneId === m.id; });
-      var done = ts.filter(function (t) { return t.status === "completed"; }).length;
+      var done = ts.filter(function (t) { return addressed(t); }).length;
       var pct = ts.length ? Math.round((done / ts.length) * 100) : 0;
       return '<div class="dim"><span><code>' + esc(m.id) + "</code> " + esc(m.title) + " " + pill(m.status) + '</span><b class="num" style="text-align:right">' + done + "/" + ts.length + '</b><div class="bar"><i style="width:' + pct + '%"></i></div></div>';
     }).join("") + "</div>";
@@ -477,47 +484,44 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       (gaps.length ? '<div class="muted" style="font-size:.84rem">Open workflow findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
   }
 
+  function addressed(t) { return P.addressed.indexOf(t.id) >= 0; }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
-    var cols = [["pending", "Pending"], ["in_progress", "In progress"], ["verification_required", "Awaiting verification"], ["completed", "Completed"]];
-    var other = ts.filter(function (t) { return t.status === "blocked" || t.status === "deferred"; });
+    var approval = P.approval
+      ? '<div class="' + (P.approval.current ? "legend" : "banner") + '">Roadmap approval ' + esc(P.approval.id) + " by " + esc(P.approval.approvedBy) + " on " + esc(String(P.approval.at).slice(0, 10)) +
+        (P.approval.current ? " covers this plan." : ": the plan has changed since, so it needs re-approval.") + " Approvals are attributed locally and are not authenticated.</div>"
+      : '<div class="banner">This roadmap has not been approved.</div>';
+    var legend = '<div class="legend">The plan is handed to your own workflow. Tasks are not tracked here while they are worked on: a task shows as addressed once /agentic:reassess finds its findings resolved, and a milestone is met once reassessment judges every exit criterion met, with evidence.</div>';
     var card = function (t) {
-      var unmet = t.dependsOn.filter(function (d) { var x = R.tasks.find(function (y) { return y.id === d; }); return !x || x.status !== "completed"; });
-      return '<div class="card"><div class="row"><code>' + esc(t.id) + "</code>" + pill(t.priority) + (t.status === "blocked" || t.status === "deferred" ? pill(t.status) : "") + "</div><b>" + esc(t.title) + "</b>" +
-        (unmet.length ? '<span class="muted" style="font-size:.8rem">Waiting on ' + unmet.map(esc).join(", ") + "</span>" : "") +
-        (t.blockedReason ? '<span style="font-size:.8rem;color:var(--bad)">' + esc(t.blockedReason) + "</span>" : "") +
+      var unmet = t.dependsOn.filter(function (d) { var x = R.tasks.find(function (y) { return y.id === d; }); return !x || !addressed(x); });
+      return '<div class="card"><div class="row"><code>' + esc(t.id) + "</code>" + pill(t.priority) + (t.requiresApproval ? pill("unverified", "needs a decision") : "") + (t.deferredTrigger ? pill("deferred") : "") + "</div><b>" + esc(t.title) + "</b>" +
+        (unmet.length && !addressed(t) ? '<span class="muted" style="font-size:.8rem">After ' + unmet.map(esc).join(", ") + "</span>" : "") +
+        (t.deferredTrigger ? '<span class="muted" style="font-size:.8rem">When: ' + esc(t.deferredTrigger) + "</span>" : "") +
+        (t.findingIds.length ? '<span class="muted" style="font-size:.8rem">Fixes ' + t.findingIds.map(esc).join(", ") + "</span>" : "") +
         '<details><summary>Acceptance and verification</summary><ul class="ev">' + t.acceptanceCriteria.map(function (a) {
-          var ok = R.evidence.some(function (e) { return e.taskId === t.id && e.result === "pass" && e.covers.indexOf(a.id) >= 0 && e.verifier !== t.implementer; });
-          return "<li>" + (ok ? "✓ " : "") + "<code>" + esc(a.id) + "</code> " + esc(a.text) + "</li>";
+          return "<li><code>" + esc(a.id) + "</code> " + esc(a.text) + "</li>";
         }).join("") + '</ul><ul class="ev">' + t.verification.map(function (v) { return '<li class="muted">' + esc(v) + "</li>"; }).join("") + "</ul></details></div>";
     };
     var ms = '<div class="list">' + R.milestones.filter(function (m) { return filters.milestone === "all" || m.id === filters.milestone; }).map(function (m) {
+      var met = m.exitCriteria.filter(function (x) { return x.status === "met"; }).length;
       return '<div class="item"><div class="row"><code>' + esc(m.id) + '</code><h3 class="grow">' + esc(m.title) + "</h3>" + pill(m.status) + "</div><p>" + esc(m.objective) + "</p>" +
         (m.dependsOn.length ? '<span class="muted" style="font-size:.84rem">Depends on ' + m.dependsOn.map(esc).join(", ") + "</span>" : "") +
-        '<details><summary>Exit criteria</summary><ul class="ev">' + m.exitCriteria.map(function (x) {
-          var ok = R.evidence.some(function (e) { return e.result === "pass" && e.covers.indexOf(x.id) >= 0; });
-          return "<li>" + (ok ? "✓ " : "") + "<code>" + esc(x.id) + "</code> " + esc(x.text) + "</li>";
+        "<details><summary>Exit criteria (" + met + "/" + m.exitCriteria.length + ' met)</summary><ul class="ev">' + m.exitCriteria.map(function (x) {
+          var detail = (x.evidence && x.evidence.length ? '<ul class="ev">' + x.evidence.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + (x.reason ? '<div class="muted">' + esc(x.reason) + "</div>" : "");
+          return "<li>" + pill(x.status === "met" ? "passed" : x.status === "unmet" ? "failed" : "unverified", x.status || "not judged") + " <code>" + esc(x.id) + "</code> " + esc(x.text) + detail + "</li>";
         }).join("") + "</ul></details></div>";
     }).join("") + "</div>";
-    return '<div class="filters">' + sel("milestone", R.milestones.map(function (m) { return [m.id, m.id + " " + m.title]; })) + "</div>" + ms +
+    var cols = [["Open", function (t) { return !addressed(t) && !t.deferredTrigger; }], ["Addressed", addressed], ["Deferred", function (t) { return !addressed(t) && t.deferredTrigger; }]];
+    return approval + legend + '<div class="filters">' + sel("milestone", R.milestones.map(function (m) { return [m.id, m.id + " " + m.title]; })) + "</div>" + ms +
       '<div class="board">' + cols.map(function (c) {
-        var items = ts.filter(function (t) { return t.status === c[0]; });
-        return '<div class="col"><div class="row"><span class="label grow">' + c[1] + '</span><b class="num">' + items.length + "</b></div>" + items.map(card).join("") + "</div>";
-      }).join("") + "</div>" +
-      (other.length ? '<div class="panel" style="display:grid;gap:10px"><h2>Blocked and deferred</h2><div class="board">' + other.map(card).join("") + "</div></div>" : "");
+        var items = ts.filter(c[1]);
+        return '<div class="col"><div class="row"><span class="label grow">' + c[0] + '</span><b class="num">' + items.length + "</b></div>" + items.map(card).join("") + "</div>";
+      }).join("") + "</div>";
   }
 
-  function evidenceView() {
-    if (!R.evidence.length) return '<div class="empty">No verification evidence recorded yet. Evidence appears here after /agentic:verify.</div>';
-    var rows = R.evidence.slice().reverse().map(function (e) {
-      return "<tr><td><code>" + esc(e.id) + "</code></td><td><code>" + esc(e.taskId || e.milestoneId || "") + "</code></td><td>" + pill(e.result) + "</td><td>" + esc(e.verifier) + "</td><td>" + esc(e.action) +
-        (e.location ? '<div class="muted" style="font-size:.8rem">' + esc(e.location) + "</div>" : "") + "</td><td><code>" + short(e.revision) + "</code></td><td>" + esc(String(e.at).slice(0, 10)) + "</td></tr>";
-    }).join("");
-    return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
-  }
-
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], maintenance: ["Maintenance", maintenanceView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], maintenance: ["Maintenance", maintenanceView], roadmap: ["Roadmap", roadmapView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";

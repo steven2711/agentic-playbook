@@ -12,7 +12,7 @@ The `context-auditor` also does this inside `/agentic:assess`. **It is read-only
 
 ## Steps
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`.
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/operating-rules.md`. Then run `agentic readonly begin`, unless this is running inside `/agentic:assess` or `/agentic:reassess`, which hold their own read-only window.
 
 2. Run `agentic where`. If there is no record, run `agentic init` and `agentic scan` first. Then run `agentic docs` and show the user:
    - the always-loaded line count
@@ -31,7 +31,7 @@ The `context-auditor` also does this inside `/agentic:assess`. **It is read-only
    - `findings`: as returned, with IDs kept stable.
    - Run `agentic apply <patch> --by agent:context-auditor`, then `agentic score`.
 
-5. Follow **Publish the tracker**. The **Docs** tab shows the target layout, agent context, navigation and the inventory.
+5. Run `agentic readonly end` (with the same exception) and report any change it lists. Then follow **Publish the tracker**. The **Docs** tab shows the target layout, agent context, navigation and the inventory.
 
 6. Report:
    - the summary of the documentation architecture

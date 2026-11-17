@@ -71,7 +71,7 @@ describe("scoring", () => {
     const repo = makeRepo(GREENFIELD);
     run(repo, "init");
     const rubric = loadRubric();
-    const l1 = rubric.criteria.filter((c) => c.gate === "L1").map((c) => ({ id: c.id, status: "passed", evidence: ["probe + review"] }));
+    const l1 = rubric.criteria.filter((c) => c.gate === "L1").map((c) => ({ id: c.id, status: "passed", evidence: ["probe + review"], notes: "fixture: judged passed by review; the probe is not authoritative here" }));
     expect(patch(repo, { criteria: l1 }).code).toBe(0);
     let s = computeScore(readRecord(repo));
     expect(s.level).toBe("L1");
@@ -101,12 +101,13 @@ describe("scoring", () => {
 });
 
 describe("apply guards", () => {
-  it("rejects computed fields, evidence and status changes", () => {
+  it("rejects computed fields, approvals, evidence and task execution state", () => {
     const repo = makeRepo(GREENFIELD);
     planned(repo);
     expect(patch(repo, { scoreHistory: [] }).code).toBe(2);
     expect(patch(repo, { evidence: [] }).code).toBe(2);
-    expect(patch(repo, { tasks: [{ id: "T-001", status: "completed" }] }).code).toBe(2);
+    expect(patch(repo, { approvals: [] }).code).toBe(2);
+    expect(patch(repo, { tasks: [{ id: "T-001", status: "completed" }] }).err).toContain("no execution state");
     expect(patch(repo, { criteria: [{ id: "NOPE-1", status: "passed", evidence: ["x"] }] }).code).toBe(2);
     expect(patch(repo, { criteria: [{ id: "CTX-01", status: "passed", evidence: [] }] }).code).toBe(2);
   });
@@ -127,72 +128,55 @@ describe("apply guards", () => {
   });
 });
 
-describe("task lifecycle", () => {
-  it("enforces dependencies, independent verification and derived milestone status", () => {
+describe("roadmap progress", () => {
+  it("derives progress from reassessment: resolved findings address tasks, met exit criteria complete milestones", () => {
     const repo = makeRepo(GREENFIELD);
     planned(repo);
-    const task = (...a: string[]) => run(repo, "task", ...a);
+    expect(readRecord(repo).milestones[0]!.status).toBe("pending");
+    const roadmap = () => JSON.parse(run(repo, "roadmap", "--json").out).open.map((t: { id: string; ready: boolean }) => [t.id, t.ready]);
+    expect(roadmap()).toEqual([["T-001", true], ["T-002", false]]);
 
-    expect(task("T-002", "in_progress", "--by", "agent:impl").err).toContain("unmet dependencies");
-    expect(task("T-001", "completed", "--by", "agent:impl").err).toContain("Illegal transition");
-    expect(task("T-001", "in_progress", "--by", "agent:impl").code).toBe(0);
-    expect(task("T-001", "verification_required", "--by", "agent:impl").code).toBe(0);
-
-    // no evidence
-    expect(task("T-001", "completed", "--by", "agent:verifier").err).toContain("T-001.AC1");
-    // evidence from the implementer does not count
-    run(repo, "evidence", "--task", "T-001", "--covers", "T-001.AC1", "--verifier", "agent:impl", "--action", "npm test", "--result", "pass");
-    expect(task("T-001", "completed", "--by", "agent:verifier").err).toContain("T-001.AC1");
-    // implementer cannot complete
-    expect(task("T-001", "completed", "--by", "agent:impl").err).toContain("independent verifier");
-    // failing independent evidence does not count
-    run(repo, "evidence", "--task", "T-001", "--covers", "T-001.AC1", "--verifier", "agent:verifier", "--action", "npm test", "--result", "fail");
-    expect(task("T-001", "completed", "--by", "agent:verifier").code).toBe(2);
-    run(repo, "evidence", "--task", "T-001", "--covers", "T-001.AC1", "--verifier", "agent:verifier", "--action", "npm test", "--result", "pass");
-    expect(task("T-001", "completed", "--by", "agent:verifier").code).toBe(0);
-
+    expect(patch(repo, { findings: [{ id: "F-001", resolved: true }] }, "agent:reassess").code).toBe(0);
     expect(readRecord(repo).milestones[0]!.status).toBe("in_progress");
-    task("T-002", "in_progress", "--by", "agent:impl");
-    task("T-002", "verification_required", "--by", "agent:impl");
-    run(repo, "evidence", "--task", "T-002", "--covers", "T-002.AC1", "--verifier", "agent:verifier", "--action", "fixture", "--result", "pass");
-    task("T-002", "completed", "--by", "agent:verifier");
-    // all tasks done but exit criterion has no evidence
-    expect(readRecord(repo).milestones[0]!.status).toBe("verification_required");
-    run(repo, "evidence", "--milestone", "M-001", "--covers", "M-001.X1", "--verifier", "agent:verifier", "--action", "negative fixture", "--result", "pass");
-    expect(readRecord(repo).milestones[0]!.status).toBe("completed");
+    expect(roadmap()).toEqual([["T-002", true]]);
+
+    // A met exit criterion needs evidence; judging it does not restate the text.
+    expect(patch(repo, { milestones: [{ id: "M-001", exitCriteria: [{ id: "M-001.X1", status: "met" }] }] }).err).toContain("without evidence");
+    expect(patch(repo, { milestones: [{ id: "M-001", exitCriteria: [{ id: "M-001.X1", status: "met", evidence: ["package.json:1 defines the test script"] }] }] }, "agent:reassess").code).toBe(0);
+    const m = readRecord(repo).milestones[0]!;
+    expect(m.status).toBe("completed");
+    expect(m.exitCriteria[0]).toMatchObject({ id: "M-001.X1", text: "CI fails on a failing check", status: "met", assessedBy: "agent:reassess" });
   });
 
-  it("requires reasons for blocking and human approval when flagged", () => {
+  it("orders open tasks by milestone and dependencies, and refuses removing addressed tasks", () => {
     const repo = makeRepo(GREENFIELD);
     planned(repo);
-    expect(run(repo, "task", "T-001", "blocked", "--by", "x").code).toBe(2);
-    expect(run(repo, "task", "T-001", "blocked", "--by", "x", "--reason", "no gh access").code).toBe(0);
-    expect(readRecord(repo).tasks[0]!.blockedReason).toBe("no gh access");
-    patch(repo, { tasks: [{ id: "T-001", requiresApproval: true }] });
-    expect(run(repo, "task", "T-001", "in_progress", "--by", "agent:impl").err).toContain("approval");
-    expect(run(repo, "approve", "T-001", "--by", "agent:claude").code).toBe(2);
-    run(repo, "approve", "T-001", "--by", "human:owner");
-    expect(run(repo, "task", "T-001", "in_progress", "--by", "agent:impl").code).toBe(0);
+    expect(run(repo, "roadmap").out).toContain("T-002");
+    patch(repo, { findings: [{ id: "F-001", resolved: true }] });
+    expect(patch(repo, { remove: { tasks: ["T-001"] } }).err).toContain("addressed");
   });
 
-  it("orders ready tasks by dependencies", () => {
+  it("points removed execution commands at the replacement", () => {
     const repo = makeRepo(GREENFIELD);
     planned(repo);
-    const next = JSON.parse(run(repo, "next", "--json").out);
-    expect(next.ready.map((t: { id: string }) => t.id)).toEqual(["T-001"]);
+    for (const cmd of ["task", "evidence", "next"]) {
+      const r = run(repo, cmd, "T-001", "completed");
+      expect(r.code).toBe(2);
+      expect(r.err).toMatch(/was removed.*(reassess|roadmap)/i);
+    }
   });
 });
 
 describe("continuity and publishing", () => {
-  it("survives a reload with the same ids, statuses and evidence, and survives adoption", () => {
+  it("survives a reload with the same ids and plan, and survives adoption", () => {
     const repo = makeRepo(GREENFIELD);
     planned(repo);
-    run(repo, "task", "T-001", "in_progress", "--by", "agent:impl");
+    run(repo, "approve", "roadmap", "--by", "human:owner");
     const a = readRecord(repo);
-    run(repo, "adopt");
+    expect(run(repo, "adopt").out).not.toContain("warning");
     expect(existsSync(join(repo, ".agentic", "record.json"))).toBe(true);
     const b = readRecord(repo);
-    expect(b.tasks.map((t) => [t.id, t.status, t.dependsOn])).toEqual(a.tasks.map((t) => [t.id, t.status, t.dependsOn]));
+    expect(b.tasks.map((t) => [t.id, t.dependsOn])).toEqual(a.tasks.map((t) => [t.id, t.dependsOn]));
     expect(b.recordRevision).toBe(a.recordRevision);
     expect(run(repo, "validate").code).toBe(0);
   });
@@ -202,7 +186,7 @@ describe("continuity and publishing", () => {
     planned(repo);
     run(repo, "published", "--url", "https://claude.ai/artifact/x");
     expect(run(repo, "status", "--brief").out).toContain("(current)");
-    run(repo, "task", "T-001", "in_progress", "--by", "agent:impl");
+    patch(repo, { findings: [{ id: "F-001", resolved: true }] });
     expect(run(repo, "status", "--brief").out).toContain("Republish");
     execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x"], { cwd: repo });
     expect(run(repo, "status", "--brief").out).toContain("1 commit(s) past");
@@ -271,7 +255,7 @@ describe("engineering conventions", () => {
     run(repo, "init");
     expect(patch(repo, { conventions: [{ scope: "apps/web", rule: "XX-99", status: "absent", evidence: [] }] }).err).toContain("not in the conventions library");
     expect(patch(repo, { conventions: [{ scope: "apps/web", rule: "FE-03", status: "contradicted", evidence: [] }] }).err).toContain("without evidence");
-    expect(patch(repo, { conventions: [{ scope: "apps/web", rule: "FE-03", status: "contradicted", evidence: ["apps/web/app/page.tsx:3"] }] }).code).toBe(0);
+    expect(patch(repo, { conventions: [{ scope: "apps/web", rule: "FE-03", status: "contradicted", evidence: ["apps/web/app/page.tsx:1"] }] }).code).toBe(0);
     expect(patch(repo, { conventions: [{ scope: "apps/web", rule: "FE-03", status: "documented", evidence: [".claude/rules/web.md:6"] }, { scope: "apps/api", rule: "API-05", status: "absent", evidence: [], extraSources: ["javascript:alert(1)"] }] }).code).toBe(2);
     patch(repo, { conventions: [{ scope: "apps/web", rule: "FE-03", status: "documented", evidence: [".claude/rules/web.md:6"] }, { scope: "apps/api", rule: "API-05", status: "absent", evidence: [] }] });
     const cv = readRecord(repo).conventions;
@@ -682,10 +666,11 @@ describe("maintenance agents (janitors)", () => {
     expect(bad([roster.roster[1], roster.roster[1]])).toContain("more than once");
     expect(bad([{ ...roster.roster[1], blockedBy: ["XYZ-01"] }])).toContain("not a criterion");
     expect(bad([{ ...roster.roster[1], findingIds: ["F-WF-404"] }])).toContain("unknown finding F-WF-404");
-    // Recommending a janitor before its prerequisites pass warns, but never locks the record.
+    // Writing a roster that recommends a janitor before its prerequisites pass is refused, naming each one.
     const early = patch(repo, { maintenance: { roster: [{ id: "JAN-ARC-01", status: "absent", recommend: "now", reason: "drift", evidence: [] }] } });
-    expect(early.code).toBe(0);
-    expect(early.out).toContain("prerequisites have not passed: ARC-01, ARC-04");
+    expect(early.code).toBe(2);
+    expect(early.err).toContain("JAN-ARC-01 needs ARC-01 (unverified), ARC-04 (unverified)");
+    expect(early.err).toContain("after-prerequisites");
 
     expect(patch(repo, { maintenance: roster }).code).toBe(0);
     const html = join(mkdtempSync(join(tmpdir(), "agentic-r-")), "v.html");

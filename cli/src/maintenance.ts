@@ -36,6 +36,10 @@ export interface Janitor {
   detector: string[];
   agent_step?: string;
   autofix: string;
+  /** high: the autofix can remove tests, code or merge changes, so it can weaken what it guards. */
+  autofix_risk: "low" | "high";
+  /** Conditions the janitor's own setup must enforce before its autofix may act. Required for high risk. */
+  safeguards?: string[];
   needs_human: string;
   noise_controls: string;
   success: string;
@@ -139,6 +143,11 @@ export function lintMaintenance(root: string, today = new Date()): { problems: s
       for (const k of ["title", "purpose", "autofix", "needs_human", "noise_controls", "success"] as const)
         if (!i[k] || typeof i[k] !== "string") problems.push(`maintenance: ${at} is missing "${k}"`);
       if (![1, 2, 3].includes(i.tier)) problems.push(`maintenance: ${at} tier must be 1, 2 or 3`);
+      if (i.autofix_risk !== "low" && i.autofix_risk !== "high") problems.push(`maintenance: ${at} autofix_risk must be low or high`);
+      if (i.safeguards !== undefined && (!Array.isArray(i.safeguards) || i.safeguards.some((g) => typeof g !== "string" || !g.trim())))
+        problems.push(`maintenance: ${at} safeguards must be a list of non-empty strings`);
+      if (i.autofix_risk === "high" && !i.safeguards?.length)
+        problems.push(`maintenance: ${at} has a high-risk autofix and must list the safeguards that keep it from weakening what it guards`);
       if (i.tier > 1 && !i.when) problems.push(`maintenance: ${at} is Tier ${i.tier} and must say when it is worth it ("when")`);
       if (!Array.isArray(i.trigger) || !i.trigger.length) problems.push(`maintenance: ${at} needs at least one trigger`);
       for (const t of i.trigger ?? []) if (!(JAN_TRIGGERS as readonly string[]).includes(t)) problems.push(`maintenance: ${at} trigger must be one of ${JAN_TRIGGERS.join(", ")} (got "${t}")`);
@@ -232,7 +241,8 @@ export function assessMaintenance(lib: MaintenanceLibrary, files: string[], read
         status: hits.size ? "present" : "absent",
         paths: [...hits].sort().slice(0, 3),
         prerequisites,
-        prerequisitesMet: criteria ? prerequisites.every((p) => p.status === "passed" || p.status === "n_a") : null,
+        // Only passed counts: n_a means the contract the janitor guards does not exist here.
+        prerequisitesMet: criteria ? prerequisites.every((p) => p.status === "passed") : null,
       });
     }
   }

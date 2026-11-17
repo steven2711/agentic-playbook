@@ -7,6 +7,7 @@ import { loadRubric } from "./rubric.js";
 import { loadTesting } from "./testing.js";
 import { loadDocs } from "./docs.js";
 import { loadMaintenance } from "./maintenance.js";
+import { computeScore } from "./score.js";
 import type { AssessmentRecord } from "./types.js";
 
 export interface ValidationResult {
@@ -72,21 +73,19 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
   const taskIds = new Set(record.tasks.map((t) => t.id));
   const milestoneIds = new Set(record.milestones.map((m) => m.id));
   const findingIds = new Set(record.findings.map((f) => f.id));
-  const evidenceIds = new Set(record.evidence.map((e) => e.id));
 
   for (const [kind, ids] of [
     ["criterion", record.criteria.map((c) => c.id)],
     ["finding", record.findings.map((f) => f.id)],
     ["milestone", record.milestones.map((m) => m.id)],
     ["task", record.tasks.map((t) => t.id)],
-    ["evidence", record.evidence.map((e) => e.id)],
     ["approval", record.approvals.map((a) => a.id)],
     ["convention", record.conventions.map((c) => c.id)],
   ] as const) {
     for (const d of dupes(ids)) errors.push(`duplicate ${kind} id ${d}`);
   }
 
-  const allIds = [...taskIds, ...milestoneIds, ...findingIds, ...evidenceIds];
+  const allIds = [...taskIds, ...milestoneIds, ...findingIds];
   for (const d of dupes(allIds)) errors.push(`id ${d} is used by more than one collection`);
 
   for (const c of record.criteria) {
@@ -112,19 +111,52 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
     if (!milestoneIds.has(t.milestoneId)) errors.push(`task ${t.id} belongs to unknown milestone ${t.milestoneId}`);
     for (const d of t.dependsOn) if (!taskIds.has(d)) errors.push(`task ${t.id} depends on unknown task ${d}`);
     for (const f of t.findingIds) if (!findingIds.has(f)) errors.push(`task ${t.id} links unknown finding ${f}`);
-    if (t.status === "blocked" && !t.blockedReason) errors.push(`task ${t.id} is blocked without blockedReason`);
-    if (t.status === "deferred" && !t.deferredTrigger) warnings.push(`task ${t.id} is deferred without deferredTrigger`);
     for (const d of dupes(t.acceptanceCriteria.map((a) => a.id))) errors.push(`task ${t.id} has duplicate acceptance id ${d}`);
+    if (!t.findingIds.length && !t.deferredTrigger)
+      warnings.push(`task ${t.id} links no findings, so reassessment can never mark it addressed; link the findings it fixes, or rely on its milestone's exit criteria`);
     for (const a of t.acceptanceCriteria) if (!a.id.startsWith(`${t.id}.`)) errors.push(`acceptance id ${a.id} must be prefixed with ${t.id}.`);
   }
   for (const m of record.milestones) {
     for (const d of m.dependsOn) if (!milestoneIds.has(d)) errors.push(`milestone ${m.id} depends on unknown milestone ${d}`);
     if (!record.tasks.some((t) => t.milestoneId === m.id)) warnings.push(`milestone ${m.id} has no tasks`);
-    for (const x of m.exitCriteria) if (!x.id.startsWith(`${m.id}.`)) errors.push(`exit criterion id ${x.id} must be prefixed with ${m.id}.`);
+    for (const d of dupes(m.exitCriteria.map((x) => x.id))) errors.push(`milestone ${m.id} has duplicate exit criterion id ${d}`);
+    for (const x of m.exitCriteria) {
+      if (!x.id.startsWith(`${m.id}.`)) errors.push(`exit criterion id ${x.id} must be prefixed with ${m.id}.`);
+      if (x.status === "met" && !x.evidence?.length) errors.push(`exit criterion ${x.id} is met without evidence (cite what reassessment observed)`);
+      if (x.status === "unverified" && !x.reason) errors.push(`exit criterion ${x.id} is unverified without a reason`);
+    }
   }
-  for (const e of record.evidence) {
-    if (e.taskId && !taskIds.has(e.taskId)) errors.push(`evidence ${e.id} references unknown task ${e.taskId}`);
-    if (e.milestoneId && !milestoneIds.has(e.milestoneId)) errors.push(`evidence ${e.id} references unknown milestone ${e.milestoneId}`);
+
+  // Plan coherence: a task may depend only on tasks in its own milestone or in milestones its milestone depends on.
+  const msDeps = new Map(record.milestones.map((m) => [m.id, m.dependsOn]));
+  const closure = (id: string) => {
+    const seen = new Set<string>();
+    const stack = [...(msDeps.get(id) ?? [])];
+    while (stack.length) {
+      const x = stack.pop()!;
+      if (seen.has(x)) continue;
+      seen.add(x);
+      stack.push(...(msDeps.get(x) ?? []));
+    }
+    return seen;
+  };
+  for (const t of record.tasks) {
+    const upstream = closure(t.milestoneId);
+    for (const d of t.dependsOn) {
+      const dep = record.tasks.find((x) => x.id === d);
+      if (dep && dep.milestoneId !== t.milestoneId && !upstream.has(dep.milestoneId))
+        errors.push(`task ${t.id} (${t.milestoneId}) depends on ${d} in ${dep.milestoneId}, which ${t.milestoneId} does not depend on. Add ${dep.milestoneId} to ${t.milestoneId}.dependsOn, or move one of the tasks`);
+    }
+  }
+  if (record.milestones.length) {
+    const blocking = computeScore(record).nextLevel?.blocking ?? [];
+    const planned = new Set(record.findings.filter((f) => f.taskIds.length).flatMap((f) => f.criterionIds));
+    const unplanned = blocking.filter((b) => !planned.has(b.id) && b.status !== "unverified");
+    if (unplanned.length) warnings.push(`criteria blocking the next level have no planned task: ${unplanned.map((b) => `${b.id} (${b.status})`).join(", ")}`);
+  }
+
+  for (const a of record.approvals) {
+    if (a.scope === "roadmap" && !a.planHash) errors.push(`roadmap approval ${a.id} does not record the plan it approved (planHash)`);
   }
 
   const library = loadLibrary();
@@ -191,9 +223,10 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
       if (r.status === "n_a" && !r.reason) errors.push(`${at} is n_a without a reason`);
       for (const b of r.blockedBy ?? []) if (!crit.has(b)) errors.push(`${at} is blocked by ${b}, which is not a criterion in this record`);
       if (j && r.recommend === "now") {
-        const failing = j.prerequisites.filter((p) => crit.has(p) && crit.get(p) !== "passed" && crit.get(p) !== "n_a");
-        // A warning, not an error: a prerequisite that regresses later must not lock every write to the record.
-        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.join(", ")}. Use after-prerequisites with blockedBy`);
+        const failing = j.prerequisites.filter((p) => crit.get(p) !== "passed");
+        // A warning here, not an error: a prerequisite that regresses later must not lock every write to the record.
+        // apply refuses the roster itself when it is written with unmet prerequisites.
+        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.map((p) => `${p} (${crit.get(p) ?? "missing"})`).join(", ")}. Reassess, or use after-prerequisites with blockedBy`);
       }
       if (r.recommend === "after-prerequisites" && !r.blockedBy?.length) warnings.push(`${at} waits on prerequisites but does not name them in blockedBy`);
       for (const f of r.findingIds ?? []) if (!findingIds.has(f)) errors.push(`${at} links unknown finding ${f}`);

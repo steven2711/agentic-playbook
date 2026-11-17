@@ -2,8 +2,10 @@
 
 The Agentic Playbook gives a repository an **agentic readiness score** and a roadmap toward autonomous agentic engineering. It works on greenfield and established repositories alike. It ships as a Claude Code plugin backed by a small CLI.
 
-- **Claude** does the judgment work: discovery, evidence and findings, implementation, and independent verification.
-- **The CLI** does the deterministic work: probes, schema validation, scoring, guarded task states, and rendering.
+- **Claude** does the judgment work: discovery, evidence and findings, and the remediation plan.
+- **The CLI** does the deterministic work: probes, schema and citation validation, scoring, staleness, and rendering.
+
+**It analyses and plans. It does not implement.** Every team has its own cadence, review process and flow, so the roadmap is a handoff: tasks with acceptance criteria someone else can check, in dependency order. You implement them however you work, then `/agentic:reassess` records the progress it can observe in the repository.
 
 ## Install
 
@@ -22,7 +24,7 @@ The plugin runs the committed `cli/dist/agentic.mjs` bundle, so you need Node.js
 
 ## The loop
 
-**Assess → Plan → Adopt → Next → Verify → Status / Reassess**
+**Assess → Plan → Approve → Adopt → (implement in your own workflow) → Reassess / Status**
 
 | Command | What it does | Writes to the target repo? |
 | --- | --- | --- |
@@ -31,16 +33,17 @@ The plugin runs the committed `cli/dist/agentic.mjs` bundle, so you need Node.js
 | `/agentic:testing [app]` | Also runs inside assess. A `test-strategy-auditor` subagent assesses each app's testing against the sourced testing profiles: its stated strategy, the test layers it has against those its kind needs, a map of critical paths and the tests that cover them, coverage on changed code, and a sample of test quality. Gaps become findings. | No |
 | `/agentic:docs [app]` | Also runs inside assess, as part of the `context-auditor`. Inventories the documentation and agent guidance, measures what loads into every session, follows links from CLAUDE.md, and proposes a target layout against the sourced documentation library: which documents should exist, where, and with what authority. Gaps become findings. | No |
 | `/agentic:maintenance` | Also runs inside assess, as part of the `workflow-auditor`. Proposes the janitors that keep the repository from drifting once it is fixed (a pull-request documentation check, context, architecture and flaky-test janitors, dependency updates, scheduled gardening), each guarding an accepted contract and waiting for its prerequisites. | No |
-| `/agentic:plan` | Turns findings into dependency-ordered milestones and tasks with acceptance criteria someone else can verify. Stops for your approval. | No |
+| `/agentic:plan` | Turns findings into dependency-ordered milestones and tasks with acceptance criteria someone else can check. Stops for your approval, which is bound to that exact plan. | No |
 | `/agentic:adopt` | Moves the approved record into `.agentic/record.json`. | Yes, after you confirm |
-| `/agentic:next [task]` | Implements the next dependency-ready task. Self-repair is capped at 3 attempts, then the task hands off to verification. | Yes |
-| `/agentic:verify <task>` | An independent verifier subagent checks every acceptance criterion and records evidence. The task completes only if all of them pass. Then the repo is rescored. | Evidence only |
-| `/agentic:reassess` | Re-audits at the current HEAD. IDs stay stable, regressions and resolved findings are flagged, and the repo is rescored. | No |
-| `/agentic:status` | Shows the score, level and work in flight, and republishes the tracker if it is stale. | No |
+| `/agentic:reassess` | Re-audits what changed since the assessment (chosen from `agentic changes`). IDs stay stable. It flags regressions, resolves fixed findings (which marks their tasks addressed), judges milestone exit criteria, and rescores. | No |
+| `/agentic:status` | Shows the score, level, roadmap progress and what has gone stale, and republishes the tracker if it is behind. | No |
 
 The tracker is a **Claude Artifact**. Every command that changes the record re-renders it and republishes it to the same URL.
 
-A SessionStart hook runs in any repo that has a record. It warns when HEAD has moved past the assessed revision, or when the Artifact is behind the record. The Artifact cannot read your repository itself, so it is only as fresh as its last publish. The hook is how you notice when it isn't.
+Two hooks ship with the plugin:
+
+- **SessionStart**, in any repo that has a record. It warns when the repository moved past the assessment (naming the areas that changed), when the roadmap changed since it was approved, when a janitor's prerequisites regressed, or when the Artifact is behind the record. The Artifact cannot read your repository itself, so it is only as fresh as its last publish. The hook is how you notice when it isn't.
+- **PreToolUse**, on `Edit`, `Write` and `NotebookEdit`. While an assessment holds an `agentic readonly` window on a repository, it refuses Claude's file writes inside it. Elsewhere, and with no window open, it exits immediately.
 
 ## The score
 
@@ -101,7 +104,7 @@ The rules come from practice published by Google, Amazon, Microsoft and Meta, an
 
 Every rule links its public source, and none claims knowledge of a company's internal practice. The CLI rejects any recommendation that does not reference a library rule. Each library file carries a `reviewed` date, and `lint-playbook` warns when one is more than 12 months old.
 
-**Nothing is imposed.** Recommendations stay `proposed` until you accept them. `/agentic:plan` then creates a "Draft conventions for <app>" task (requires approval) and "Promote <rule> to <tool>" tasks. `/agentic:next` reads the conventions before it edits, and the independent verifier reviews the diff against them.
+**Nothing is imposed.** Recommendations stay `proposed` until you accept them. `/agentic:plan` then creates a "Draft conventions for <app>" task (needs a human decision) and "Promote <rule> to <tool>" tasks, and gives every code-changing task in that app an acceptance criterion that the diff conforms to the conventions.
 
 ## Strictness and ratcheting
 
@@ -121,10 +124,7 @@ The ratchet is kept simple:
 
 `agentic strictness` shows, per app, which checks are on and how many `eslint-disable`, `@ts-ignore`, `noqa`, `nolint` and skipped tests exist.
 
-During execution:
-
-- **Implementer:** `/agentic:next` may not make a check pass by weakening it.
-- **Verifier:** the independent verifier inspects each diff for new suppressions, skipped tests and relaxed configuration.
+`/agentic:reassess` compares suppression counts with the last assessment and reports growth per app and kind as a regression.
 
 ## Testing per app
 
@@ -147,8 +147,8 @@ Sources include *Software Engineering at Google*, the Google Testing Blog, Marti
 
 The judged result is stored per app in the record's `testing` snapshot and shown in the tracker's **Testing** tab. `/agentic:plan` turns gaps into tasks:
 
-- "Write test strategy for <app>" (requires approval)
-- "Cover <path> with a <layer> test". The verifier proves it fails when that behaviour breaks.
+- "Write test strategy for <app>" (needs a human decision)
+- "Cover <path> with a <layer> test". Its acceptance criteria require proof that the test fails when that behaviour breaks.
 - "Add the <layer> layer for <app>"
 
 ## Documentation architecture
@@ -185,31 +185,36 @@ The rubric's top level, L4 (autonomous maintenance), means the repository detect
 
 **A janitor guards a contract, so it comes last.** It can only detect drift from something written down: the documentation layout, the accepted conventions, the boundary rules. Each janitor names what it guards and the criteria that must pass before it is set up. An architecture janitor waits for enforced boundary rules (ARC-01, ARC-04); a scheduled gardener waits for the pull-request check.
 
-- **Tier 1, at L4:** a documentation check on every pull request, and agent failures (blocked tasks, failed verification, reverts) becoming a document, test or rule.
+- **Tier 1, at L4:** a documentation check on every pull request, and agent failures (blocked work, failed CI, reverts) becoming a document, test or rule.
 - **Tier 2, when the repository needs it:** a context janitor, an architecture janitor, a flaky-test janitor, dependency updates (Renovate or Dependabot, no agent needed), and scheduled documentation gardening.
 - **Tier 3, only after a recurring problem:** a knowledge-gap miner and a dead code janitor.
 
+A prerequisite counts only when it has `passed`; `n_a` does not, because the contract does not exist. Three janitors have autofixes that could weaken what they guard: flaky-test quarantine, dependency auto-merge and dead-code removal. The library marks these `autofix_risk: high` and lists their safeguards, and the plan turns each safeguard into an acceptance criterion.
+
 Each janitor runs deterministic detectors first (`agentic docs`, the boundary check, CI history) and reasons only about what they find. Each states what it may fix alone, what always needs a human, its noise limits and its success measure. **Not recommended:** refactoring for style, auto-merge without a deterministic gate, scheduling before a pull-request check, privileged credentials on untrusted pull requests, a custom orchestration framework, and rewriting documents because they are old. Sources include the Claude Code docs (GitHub Actions, headless mode, scheduled tasks), *Software Engineering at Google*, the Google SRE book, Google's testing blog, Renovate and GitHub Security Lab.
 
-`agentic maintenance` lists the janitors already set up, their prerequisites' status in the record, and where a janitor could run here (GitHub Actions, another CI, Claude Code skills or hooks). The roster is stored in the record's `maintenance` snapshot and shown in the tracker's **Maintenance** tab, grouped as running, ready to set up, waiting on prerequisites, and not yet. `/agentic:plan` puts one "Set up <janitor>" task per janitor (requires approval) in a final "Autonomous maintenance" milestone that depends on the work closing its prerequisites, seeded from [templates/janitor-skill.md](templates/janitor-skill.md). `/agentic:reassess` flags a janitor that disappeared, or one still running whose prerequisites no longer pass. It adds no rubric criteria.
+`agentic maintenance` lists the janitors already set up, their prerequisites' status in the record, and where a janitor could run here (GitHub Actions, another CI, Claude Code skills or hooks). The roster is stored in the record's `maintenance` snapshot and shown in the tracker's **Maintenance** tab, grouped as running, ready to set up, waiting on prerequisites, and not yet. `/agentic:plan` puts one "Set up <janitor>" task per janitor (needs a human decision) in a final "Autonomous maintenance" milestone that depends on the work closing its prerequisites, seeded from [templates/janitor-skill.md](templates/janitor-skill.md). `/agentic:reassess` flags a janitor that disappeared, or one still running whose prerequisites no longer pass. It adds no rubric criteria.
 
-## Guarantees the CLI enforces
+## What the CLI enforces
 
-- **Assessment is read-only.** The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
-- **Every write is validated.** All writes go through `agentic apply`, `agentic task` or `agentic evidence`. An invalid record is never written. That includes dangling links, dependency cycles, a passed criterion without evidence, and a deferral without a trigger.
-- **Task state changes are guarded:**
-  - Dependencies must be complete before a task starts.
-  - Approval-flagged tasks need a recorded `human:` approval.
-  - A task can complete only with passing evidence from a verifier other than its implementer, covering every acceptance criterion.
-- **Milestone status is derived, never set.** A milestone completes only when all its tasks are complete and every exit criterion has passing evidence.
+The full picture, including what it cannot prevent, is in [reference/trust-model.md](reference/trust-model.md).
+
+- **Assessment is read-only, enforced.** `agentic readonly begin` fingerprints the worktree. The hook refuses Claude's file-tool writes while the window is open, and `agentic readonly end` fails, listing each change, if any tracked or non-ignored file, HEAD or the branch moved, including through shell writes. Gitignored paths are not covered. The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
+- **Every write is validated.** All content goes through `agentic apply`, and an invalid record is never written. That covers dangling links, dependency cycles, a passed criterion without evidence, a deferral without a trigger, and a task depending on a milestone its milestone does not depend on.
+- **Evidence is checked.** A cited `path:line` must exist in the worktree. A criterion marked passed while its deterministic probe failed must say why.
+- **Approvals are attributed, not injected.** Only `agentic approve --by human:<name>` writes one, never a patch. A roadmap approval is bound to the plan it approved, and a later change to the plan is flagged until it is re-approved. The CLI cannot authenticate who ran it, so treat it as a record of a decision, not as authorization.
+- **Progress is observed, not declared.** Tasks carry no status. A task is addressed when reassessment resolves its findings. A milestone is complete when reassessment judges every exit criterion met, with evidence. Older records migrate automatically: execution state is dropped, the original is backed up, and earlier verification evidence is quoted for reassessment rather than trusted.
+- **Staleness is specific.** `agentic changes` and `agentic status` say which dimensions and snapshots the changes since the assessment affect, and which probes regressed.
+- **Janitors wait for their contract.** A roster that recommends a janitor `now` before its prerequisites have passed is refused.
 
 ## CLI
 
 The plugin puts `agentic` on PATH for Claude's Bash tool, through `bin/`. You can also run it yourself with `node cli/dist/agentic.mjs help`.
 
 ```
-agentic init | scan [--github] | apply <patch> | task <id> <status> | evidence ... | next
-agentic score | status [--brief] | render | published --url | validate | adopt | where | show <id>
+agentic init | scan [--github] | apply <patch> | approve <subject> --by human:<name>
+agentic readonly begin | end | check --path <file>
+agentic roadmap | changes | score | status [--brief] | render | published --url | validate | adopt | where | show <id>
 agentic conventions [--app <root>] [--json]
 agentic strictness [--app <root>] [--json]
 agentic tests [--app <root>] [--json]
@@ -227,9 +232,9 @@ The patch format is documented in [reference/patch-format.md](reference/patch-fo
 | `assessments/`, `standards/`, `templates/` | The playbook prose. This is authoritative, and the commands link to it rather than copying it. |
 | `rubric/rubric.yaml`, `schema/record.schema.json` | Scoring criteria and the record contract. |
 | `skills/` | The `/agentic:*` commands. |
-| `agents/` | The auditor and verifier subagents. |
-| `hooks/` | The SessionStart staleness check. |
-| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), the testing profiles (`reference/testing/`), the documentation library (`reference/docs/`), and the maintenance library (`reference/maintenance/`). |
+| `agents/` | The auditor subagents. |
+| `hooks/` | The SessionStart staleness check and the PreToolUse read-only guard. |
+| `reference/` | Operating rules, the [trust model](reference/trust-model.md), the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), the testing profiles (`reference/testing/`), the documentation library (`reference/docs/`), and the maintenance library (`reference/maintenance/`). |
 | `cli/` | The TypeScript source, tests, and the committed `dist/agentic.mjs` bundle. |
 | `archive/` | The original prompts. The [migration map](archive/migration.md) records where each one went. |
 
@@ -252,6 +257,7 @@ npm run check
 - a strictness check has no https source, an invalid tier, a Tier 2 or 3 check without a `when`, or a detect pattern that is not a valid regex
 - a testing layer has the same problems, or refers to a TST rule that is not in the conventions library
 - a documentation item has the same problems, an invalid `scope`, `load` or `authority`, or refers to a criterion that is not in the rubric
+- a janitor has the same problems, has no `autofix_risk`, or has a high-risk autofix without `safeguards`
 
 CI also fails if `cli/dist` is out of date with the source. Rebuild and commit it after changing anything in `cli/src`.
 

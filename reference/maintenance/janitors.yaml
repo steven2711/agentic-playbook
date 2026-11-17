@@ -14,6 +14,7 @@ items:
       - the repository's link or docs check, if CTX-09 added one
     agent_step: For the changed paths, find the documents that describe them, compare their claims with the diff, and propose exact corrections in the same pull request.
     autofix: Relative links whose target moved in the same pull request, and regenerated content that a generator owns.
+    autofix_risk: low
     needs_human: Any change to a contract, requirement or decision record, and any correction it cannot cite code for.
     noise_controls: One review comment per pull request. Only documents linked to changed paths. Silent when it finds nothing.
     success: Fewer mismatches in the auditor's claim sampling (CTX-08) at each reassessment, and the share of its suggestions that authors accept.
@@ -31,11 +32,12 @@ items:
     prerequisites: [WF-01, WF-02]
     purpose: Stop agents repeating the same mistake. Each blocked task, failed verification or reverted agent change should end as a document, a test or a rule.
     detector:
-      - agentic next --json (blocked tasks and their reasons)
-      - failed evidence in the record
+      - the team's tracker or pull requests (blocked work and its reasons)
+      - failed CI runs and reverted or rejected agent pull requests
       - revert commits of agent changes in git history
     agent_step: Classify the cause. Missing context becomes a document fix, a missing check becomes a test or lint rule, and an unclear policy goes to a human.
     autofix: Nothing. It proposes the fix as a task or pull request.
+    autofix_risk: low
     needs_human: Every proposal. A human decides whether the cause is real and where the fix belongs.
     noise_controls: One proposal per distinct cause. A repeated cause is added to the existing proposal instead of opening a new one.
     success: The same cause recurs less often, and the time from failure to durable fix falls.
@@ -57,6 +59,7 @@ items:
       - agentic docs --json (always-loaded lines, repeated instruction lines, broken links)
     agent_step: Judge conflicting instructions, skills that refer to commands or paths that no longer exist, and always-loaded guidance that only matters to part of the repository.
     autofix: Links to files that moved.
+    autofix_risk: low
     needs_human: Removing or rewording any instruction, and moving guidance between files.
     noise_controls: Fail only when always-loaded lines or repeated lines grow against the base branch. The scheduled run opens at most one pull request.
     success: Always-loaded lines and repeated lines stay flat or fall, and no conflicting instructions are found at reassessment.
@@ -78,6 +81,7 @@ items:
       - the repository's boundary check and baseline ratchet, on every pull request
     agent_step: On a schedule, compare recent changes with the architecture overview and the ADRs. Flag new dependencies between areas and decisions that have no record. Propose an ADR draft where one is missing.
     autofix: Nothing in code. It may draft an ADR for a human to accept.
+    autofix_risk: low
     needs_human: Any change to boundary rules or baselines, and any refactoring.
     noise_controls: Report only new violation identities. Never flag style alone. At most a few issues per run, highest-impact first.
     success: The baseline count falls, no new violation is merged, and the architecture overview matches the code at reassessment.
@@ -99,6 +103,13 @@ items:
       - CI run history (reruns, and failures that pass on the same revision)
     agent_step: Diagnose the likely source of non-determinism (time, order, shared state, network, async waits) and propose a fix.
     autofix: Quarantine a test proven flaky on one revision, with an issue linked and an owner named.
+    autofix_risk: high
+    safeguards:
+      - Quarantine only a test proven flaky on one revision (it both passed and failed on the same commit), never one that fails consistently.
+      - Every quarantine names a linked issue, an owner and an expiry date, in the quarantine entry itself.
+      - Quarantine never deletes a test, edits its assertions, or lowers a coverage threshold; it only moves the test out of the blocking gate.
+      - The quarantine count is ratcheted, so a run that would exceed the cap proposes instead of quarantining.
+      - An expired quarantine fails the gate until a human renews or fixes it.
     needs_human: Deleting a test, weakening an assertion, or leaving a test in quarantine past its deadline.
     noise_controls: One issue per test. Act only above a failure-rate threshold. Quarantined tests have an expiry date.
     success: The flake rate and the time to fix a flaky test both fall.
@@ -114,12 +125,17 @@ items:
     when: The repository has dependencies pinned in a lockfile.
     trigger: [schedule]
     guards: [SEC-04, VER-02]
-    prerequisites: [VER-03, VER-05]
+    prerequisites: [VER-03, VER-05, VER-06]
     purpose: Keep dependencies current in small, reviewable steps instead of rare, risky jumps.
     detector:
       - Renovate or Dependabot
     agent_step: None is needed. An agent may summarise breaking changes on a major update.
-    autofix: Patch and minor updates merge automatically when the single CI gate passes.
+    autofix: Patch and minor updates merge automatically when the single required CI gate passes.
+    autofix_risk: high
+    safeguards:
+      - Auto-merge only patch and minor updates, and only when the required status checks are enforced by branch protection (VER-06), so the gate cannot be skipped.
+      - Never auto-merge a change to CI workflows, lockfile-only changes that alter the toolchain, or any update that also edits source or tests.
+      - Auto-merge is configured in the dependency tool itself (Renovate or Dependabot plus the platform), not decided by an agent at run time.
     needs_human: Major updates and any update that needs code changes.
     noise_controls: Group related updates, run on a schedule, and cap open pull requests.
     success: Dependency age and the time to patch known vulnerabilities both fall.
@@ -144,6 +160,7 @@ items:
       - documents whose referenced code changed since the document was last edited (git history)
     agent_step: Sample claims in those documents against the current code. Open narrow correction pull requests, and record anything ambiguous for a human.
     autofix: Links, generated content, and command names that resolve to exactly one script.
+    autofix_risk: low
     needs_human: Contracts, requirements, decisions, and anything it cannot cite code for.
     noise_controls: At most a few pull requests per run, one document per pull request. Never rewrite a document because it is old. Remember rejected proposals so it does not propose them again.
     success: Drift found per sample falls, and most of its pull requests are merged without edits.
@@ -165,6 +182,7 @@ items:
       - review comments and task block reasons from the period
     agent_step: Cluster repeated questions and corrections, and propose the missing document, rule or test for each cluster.
     autofix: Nothing.
+    autofix_risk: low
     needs_human: Every proposal.
     noise_controls: Report only clusters seen several times. One summary per run.
     success: Fewer review comments of the same kind.
@@ -185,6 +203,12 @@ items:
       - an unused-code tool for the stack, such as Knip, vulture or deadcode
     agent_step: Confirm the code is unreachable, including through reflection, configuration and public API, and propose removal.
     autofix: Unused files and exports the tool reports with no other references, in a pull request that passes the full gate.
+    autofix_risk: high
+    safeguards:
+      - Remove only what the unused-code tool reports and nothing else references, including configuration, reflection and the public API.
+      - The removal pull request passes the full gate, and coverage on the remaining code does not fall.
+      - Never remove tests, fixtures or test helpers as dead code.
+      - One small pull request per run, reviewed by a human before merge.
     needs_human: Anything in a public API, and anything only reached through configuration.
     noise_controls: One small pull request per run. Ignore list for intentional exports.
     success: Unused-code count falls and no removal is reverted.

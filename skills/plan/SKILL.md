@@ -1,12 +1,14 @@
 ---
 name: plan
-description: Turn the readiness findings into a dependency-ordered milestone roadmap and executable task backlog, then stop for approval.
+description: Turn the readiness findings into a dependency-ordered milestone roadmap and a task backlog the team can implement in its own workflow, then stop for approval.
 argument-hint: "[focus, e.g. 'P0 only' or 'next level']"
 disable-model-invocation: true
 ---
 # /agentic:plan
 
 Build or refresh the remediation roadmap from the assessment record. Focus from the user: `$ARGUMENTS`.
+
+The roadmap is a handoff. The team implements it in its own workflow, with its own cadence and review. The playbook tracks no task status: `/agentic:reassess` records progress by resolving findings and judging exit criteria. So write every task so that someone who never saw this session can implement it, and someone else can check it.
 
 ## Steps
 
@@ -25,8 +27,10 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
 
 4. Write the tasks:
    - Each one is small enough for one Claude Code session.
-   - Each one has acceptance criteria (`T-NNN.ACn`) that someone other than the implementer can verify, plus verification steps, dependencies and linked findings.
-   - Set `requiresApproval: true` on any task that touches CI, enforcement policy, baselines, CODEOWNERS, branch protection, secrets or production.
+   - Each one has acceptance criteria (`T-NNN.ACn`) that someone other than the implementer can verify, plus verification steps, dependencies and linked findings. Link every task to the findings it fixes: a task counts as addressed only when reassessment resolves those findings.
+   - A task may depend only on tasks in its own milestone or in milestones its milestone depends on. The CLI refuses anything else.
+   - Set `requiresApproval: true` on any task that touches CI, enforcement policy, baselines, CODEOWNERS, branch protection, secrets or production. It tells the team that a human decision is needed before anyone implements it.
+   - Defer a task by setting `deferredTrigger` to its activation trigger.
    - Do not fragment work into administrative busywork.
 
 5. Plan the conventions work. Read `agentic conventions --json`.
@@ -47,7 +51,7 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
 
 7. Plan the testing work. Read `agentic tests --json` and the record's `testing` entries.
    - **Apps without a stated strategy (`VER-11`):** add a task "Write test strategy for <app>", with `requiresApproval: true`. It adds a `## Testing` section to the app's scoped conventions file: the layers this app uses, what belongs in each (from the profile's `belongs_here`), and the critical paths. The human reviews the text.
-   - **Uncovered or wrong-layer critical paths (`VER-12`):** add one task per high-consequence path, titled "Cover <path> with a <layer> test". Acceptance criteria: the test exercises the path's key behaviour through its public interface, and it fails when that behaviour is broken, proven by a captured temporary revert or mutation that the verifier runs.
+   - **Uncovered or wrong-layer critical paths (`VER-12`):** add one task per high-consequence path, titled "Cover <path> with a <layer> test". Acceptance criteria: the test exercises the path's key behaviour through its public interface, and it fails when that behaviour is broken, proven by a captured temporary revert or mutation that a reviewer can rerun.
    - **Missing Tier 1 layers:** add a task "Add the <layer> layer for <app>": the runner or harness, one real test, and the CI step. Put it before the tasks that need that layer.
    - **Tier 2 layers:** add only when their `when` condition holds now. Never schedule Tier 3 without a cited recurring defect, or anything in `not_recommended`.
 
@@ -76,6 +80,8 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
      - its trigger in the place the roster names (a CI workflow, a Claude Code scheduled task or a hook)
      - its noise limits and a named owner
    - **Acceptance criteria:**
+     - its preconditions section re-checks, with the repository's own commands, that the guarded contract exists and the prerequisite checks pass, and it reports instead of acting when they do not
+     - for a janitor whose library entry is `autofix_risk: high`, one criterion per library `safeguard`
      - a dry run on the current repository produces a report with evidence and changes nothing
      - the noise limits are configured (caps, deduplication, thresholds)
      - it can change only what the library's `autofix` allows; everything else becomes a proposal
@@ -86,14 +92,15 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
 
 10. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
 
-11. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
+11. If milestones already exist, keep the IDs of work that is unchanged. Never remove an addressed task (its findings are resolved): it is the record of that work, and the CLI refuses it.
 
-12. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
+12. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, or about criteria blocking the next level with no planned task. Then run `agentic validate`.
 
 13. Follow **Publish the tracker**.
 
-14. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
+14. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the open tasks in order (`agentic roadmap`); and the decisions that need a human.
 
    **Stop and ask the user to approve the roadmap.** When they approve:
-   - Record it with `agentic approve roadmap --by human:<name the user gives>`.
+   - Record it with `agentic approve roadmap --by human:<name the user gives>`. The approval covers this exact plan. Changing a milestone or task later shows the roadmap as changed since approval, until the user approves it again.
    - Ask whether to adopt the record into the repository (`/agentic:adopt`).
+   - Tell the user how to proceed: implement the tasks in their own workflow, in the order `agentic roadmap` lists, then run `/agentic:reassess` to record progress.
