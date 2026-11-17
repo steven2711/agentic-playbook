@@ -36,11 +36,16 @@ Refresh the assessment against the current code. The assessment is read-only for
    - new broken links (`agentic docs`)
    - a navigation goal that was reachable and no longer is
 
-9. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+9. If the record has a `maintenance` roster, or the changes touched CI workflows, `.claude/` or dependency-update config, make sure the `workflow-auditor` returned a new roster. Run `agentic maintenance` and compare with the previous roster. Report these as regressions:
+   - a janitor that was `present` and is now `absent`
+   - a running janitor whose prerequisites no longer pass: the contract it guards has weakened, so its reports can no longer be trusted
+   Report a janitor that was waiting and whose prerequisites now pass as ready to plan.
 
-10. Compare with the previous score history entry. List:
+10. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+
+11. Compare with the previous score history entry. List:
    - criteria that regressed (for example passed to failed), with evidence
    - resolved findings
    - new findings that need tasks. Offer `/agentic:plan` to schedule them.
 
-11. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.
+12. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.

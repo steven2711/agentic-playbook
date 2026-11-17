@@ -30,6 +30,7 @@ The plugin runs the committed `cli/dist/agentic.mjs` bundle, so you need Node.js
 | `/agentic:conventions [app]` | Also runs at the end of assess. A `conventions-advisor` subagent compares each app (web, API, worker, and so on) with the sourced conventions baseline and marks each rule documented, followed, contradicted, absent or "promote to lint". It then asks which recommendations to adopt. | No |
 | `/agentic:testing [app]` | Also runs inside assess. A `test-strategy-auditor` subagent assesses each app's testing against the sourced testing profiles: its stated strategy, the test layers it has against those its kind needs, a map of critical paths and the tests that cover them, coverage on changed code, and a sample of test quality. Gaps become findings. | No |
 | `/agentic:docs [app]` | Also runs inside assess, as part of the `context-auditor`. Inventories the documentation and agent guidance, measures what loads into every session, follows links from CLAUDE.md, and proposes a target layout against the sourced documentation library: which documents should exist, where, and with what authority. Gaps become findings. | No |
+| `/agentic:maintenance` | Also runs inside assess, as part of the `workflow-auditor`. Proposes the janitors that keep the repository from drifting once it is fixed (a pull-request documentation check, context, architecture and flaky-test janitors, dependency updates, scheduled gardening), each guarding an accepted contract and waiting for its prerequisites. | No |
 | `/agentic:plan` | Turns findings into dependency-ordered milestones and tasks with acceptance criteria someone else can verify. Stops for your approval. | No |
 | `/agentic:adopt` | Moves the approved record into `.agentic/record.json`. | Yes, after you confirm |
 | `/agentic:next [task]` | Implements the next dependency-ready task. Self-repair is capped at 3 attempts, then the task hands off to verification. | Yes |
@@ -178,6 +179,20 @@ Sources include the Claude Code docs, Google's documentation guide and *Software
 
 The result is stored in the record's `docs` snapshot and shown in the tracker's **Docs** tab. It adds no rubric criteria; CTX-01 to CTX-12 score it. `/agentic:plan` starts with "Adopt documentation layout" (requires approval), then groups the moves and creations into tasks whose acceptance criteria check links, presence, navigation and the always-loaded line count.
 
+## Maintenance agents (janitors)
+
+The rubric's top level, L4 (autonomous maintenance), means the repository detects and corrects its own drift. The `workflow-auditor` judges WF-06 to WF-09 and also proposes a **roster**: which janitors to run, when each should start, and what each may change on its own. It compares the repository with [reference/maintenance/](reference/maintenance/README.md).
+
+**A janitor guards a contract, so it comes last.** It can only detect drift from something written down: the documentation layout, the accepted conventions, the boundary rules. Each janitor names what it guards and the criteria that must pass before it is set up. An architecture janitor waits for enforced boundary rules (ARC-01, ARC-04); a scheduled gardener waits for the pull-request check.
+
+- **Tier 1, at L4:** a documentation check on every pull request, and agent failures (blocked tasks, failed verification, reverts) becoming a document, test or rule.
+- **Tier 2, when the repository needs it:** a context janitor, an architecture janitor, a flaky-test janitor, dependency updates (Renovate or Dependabot, no agent needed), and scheduled documentation gardening.
+- **Tier 3, only after a recurring problem:** a knowledge-gap miner and a dead code janitor.
+
+Each janitor runs deterministic detectors first (`agentic docs`, the boundary check, CI history) and reasons only about what they find. Each states what it may fix alone, what always needs a human, its noise limits and its success measure. **Not recommended:** refactoring for style, auto-merge without a deterministic gate, scheduling before a pull-request check, privileged credentials on untrusted pull requests, a custom orchestration framework, and rewriting documents because they are old. Sources include the Claude Code docs (GitHub Actions, headless mode, scheduled tasks), *Software Engineering at Google*, the Google SRE book, Google's testing blog, Renovate and GitHub Security Lab.
+
+`agentic maintenance` lists the janitors already set up, their prerequisites' status in the record, and where a janitor could run here (GitHub Actions, another CI, Claude Code skills or hooks). The roster is stored in the record's `maintenance` snapshot and shown in the tracker's **Maintenance** tab, grouped as running, ready to set up, waiting on prerequisites, and not yet. `/agentic:plan` puts one "Set up <janitor>" task per janitor (requires approval) in a final "Autonomous maintenance" milestone that depends on the work closing its prerequisites, seeded from [templates/janitor-skill.md](templates/janitor-skill.md). `/agentic:reassess` flags a janitor that disappeared, or one still running whose prerequisites no longer pass. It adds no rubric criteria.
+
 ## Guarantees the CLI enforces
 
 - **Assessment is read-only.** The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
@@ -199,6 +214,7 @@ agentic conventions [--app <root>] [--json]
 agentic strictness [--app <root>] [--json]
 agentic tests [--app <root>] [--json]
 agentic docs [--app <root>] [--json]
+agentic maintenance [--json]
 agentic lint-playbook
 ```
 
@@ -213,7 +229,7 @@ The patch format is documented in [reference/patch-format.md](reference/patch-fo
 | `skills/` | The `/agentic:*` commands. |
 | `agents/` | The auditor and verifier subagents. |
 | `hooks/` | The SessionStart staleness check. |
-| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), the testing profiles (`reference/testing/`), and the documentation library (`reference/docs/`). |
+| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), the testing profiles (`reference/testing/`), the documentation library (`reference/docs/`), and the maintenance library (`reference/maintenance/`). |
 | `cli/` | The TypeScript source, tests, and the committed `dist/agentic.mjs` bundle. |
 | `archive/` | The original prompts. The [migration map](archive/migration.md) records where each one went. |
 

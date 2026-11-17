@@ -69,15 +69,30 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
    - **CI and ownership:** tasks that add a CI docs check or CODEOWNERS entries set `requiresApproval: true`.
    - **Tier 2 items:** add them only when the auditor cited their condition. Never schedule Tier 3 without a cited recurring problem, or anything in `not_recommended`.
 
-9. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
+9. Plan the maintenance work. Read `agentic maintenance --json` and the record's `maintenance` roster.
+   - **Last milestone:** put janitor tasks in a final milestone, "Autonomous maintenance". It depends on the milestones that make the janitors' prerequisites pass. A janitor guards a contract that earlier work produces (the documentation layout, the conventions, the boundary rules), so it never comes first.
+   - **One task per janitor** recommended `now` or `after-prerequisites`, titled "Set up <janitor>", with `requiresApproval: true`. It depends on the tasks that close the criteria in `blockedBy`. It produces:
+     - a skill or subagent definition, seeded from `${CLAUDE_PLUGIN_ROOT}/templates/janitor-skill.md`
+     - its trigger in the place the roster names (a CI workflow, a Claude Code scheduled task or a hook)
+     - its noise limits and a named owner
+   - **Acceptance criteria:**
+     - a dry run on the current repository produces a report with evidence and changes nothing
+     - the noise limits are configured (caps, deduplication, thresholds)
+     - it can change only what the library's `autofix` allows; everything else becomes a proposal
+     - it runs without privileged credentials on code from untrusted pull requests
+     - its success measure is recorded somewhere a reassessment can read
+   - **Order:** pull-request janitors before scheduled ones. Tier 1 first.
+   - **Tier 2 janitors:** add only when the auditor cited their condition. Never schedule Tier 3 without a cited recurring problem, or anything in `not_recommended`. Roster entries marked `not-yet` go into the roadmap summary with their condition, not into tasks.
 
-10. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
+10. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
 
-11. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
+11. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
 
-12. Follow **Publish the tracker**.
+12. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
 
-13. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
+13. Follow **Publish the tracker**.
+
+14. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
 
    **Stop and ask the user to approve the roadmap.** When they approve:
    - Record it with `agentic approve roadmap --by human:<name the user gives>`.

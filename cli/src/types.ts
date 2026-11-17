@@ -194,6 +194,30 @@ export interface DocsAssessment {
   assessedAt?: string;
 }
 
+/** The repository's maintenance agents as judged by the workflow-auditor: which janitors to run, when, and with what limits. A snapshot, replaced whole on each run. */
+export interface MaintenanceAssessment {
+  roster: {
+    id: string;
+    status: "present" | "absent" | "n_a";
+    recommend: "now" | "after-prerequisites" | "not-yet" | "none";
+    blockedBy?: string[];
+    trigger?: string;
+    environment?: string;
+    detector?: string[];
+    autofix?: string;
+    needsHuman?: string;
+    noiseControls?: string;
+    success?: string;
+    reason?: string;
+    evidence: string[];
+    findingIds?: string[];
+  }[];
+  summary?: string;
+  assessedRevision?: string | null;
+  assessedBy?: string;
+  assessedAt?: string;
+}
+
 export interface AssessmentRecord {
   schemaVersion: 1;
   assessmentId: string;
@@ -213,6 +237,7 @@ export interface AssessmentRecord {
   conventions: ConventionAssessment[];
   testing?: TestingAssessment[];
   docs?: DocsAssessment;
+  maintenance?: MaintenanceAssessment;
   scoreHistory: ScoreEntry[];
   artifact: { url: string; publishedRecordRevision: number; publishedAt: string } | null;
 }

@@ -7,6 +7,7 @@ import { lintLibrary } from "../src/conventions.js";
 import { lintStrictness } from "../src/strictness.js";
 import { lintTesting } from "../src/testing.js";
 import { lintDocs } from "../src/docs.js";
+import { lintMaintenance } from "../src/maintenance.js";
 import { lintPlaybook } from "../src/lint.js";
 import { playbookRoot } from "../src/paths.js";
 import { loadRubric } from "../src/rubric.js";
@@ -584,5 +585,117 @@ describe("documentation architecture", () => {
 
     expect(patch(repo, { remove: { docs: true } }).code).toBe(0);
     expect(readRecord(repo).docs).toBeUndefined();
+  });
+});
+
+describe("maintenance agents (janitors)", () => {
+  const copyPlaybook = () => {
+    const copy = mkdtempSync(join(tmpdir(), "agentic-pb-"));
+    for (const d of ["rubric", "standards", "schema", "reference", "templates"]) cpSync(join(playbookRoot(), d), join(copy, d), { recursive: true });
+    return copy;
+  };
+  const withJanitors = () =>
+    makeRepo({
+      ...GREENFIELD,
+      "package-lock.json": "{}",
+      ".github/dependabot.yml": "version: 2\nupdates: []\n",
+      ".github/workflows/docs.yml": "on: pull_request\njobs:\n  docs:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n        with:\n          prompt: check README and CLAUDE.md against the diff\n",
+    });
+
+  it("the maintenance library lints clean, and rejects bad ids, triggers, guards, prerequisites, regexes and stale reviews", () => {
+    expect(lintMaintenance(playbookRoot())).toEqual({ problems: [], warnings: [] });
+    const copy = copyPlaybook();
+    const f = join(copy, "reference", "maintenance", "janitors.yaml");
+    writeFileSync(
+      f,
+      readFileSync(f, "utf8")
+        .replace("id: JAN-QLT-02", "id: JAN-QLT-2")
+        .replace("    when: Boundary rules exist and pass, at zero or behind a ratcheted baseline (ARC-01 and ARC-04 pass).\n", "")
+        .replace("trigger: [pr, schedule]\n    guards: [ARC-01", "trigger: [nightly]\n    guards: [ARC-01")
+        .replace("guards: [ARC-01, ARC-04, DOC-ARC-01, DOC-ARC-02]", "guards: [ARC-01, DOC-XYZ-09]")
+        .replace("prerequisites: [ARC-01, ARC-04]", "prerequisites: [ARC-01, DOC-ARC-01]")
+        .replace("'^\\.claude/(agents|skills)/.*(arch|boundar).*'", "'(arch'"),
+    );
+    const { problems } = lintMaintenance(copy);
+    const has = (id: string, text: string) => problems.some((p) => p.includes(id) && p.includes(text));
+    expect(has("JAN-QLT-2", "JAN-AAA-NN")).toBe(true);
+    expect(has("JAN-ARC-01", '"when"')).toBe(true);
+    expect(has("JAN-ARC-01", "trigger must be")).toBe(true);
+    expect(has("JAN-ARC-01", "DOC-XYZ-09")).toBe(true);
+    expect(has("JAN-ARC-01", "prerequisite DOC-ARC-01 is not a rubric criterion")).toBe(true);
+    expect(has("JAN-ARC-01", "not a valid JavaScript regex")).toBe(true);
+    expect(lintMaintenance(playbookRoot(), new Date("2028-06-01")).warnings[0]).toContain("last reviewed");
+  });
+
+  it("detects existing janitors and runners, and reads prerequisites from the record", () => {
+    const repo = withJanitors();
+    const out = JSON.parse(run(repo, "maintenance", "--json").out);
+    const item = (id: string) => out.items.find((i: { id: string }) => i.id === id);
+    expect(out.hasRecord).toBe(false);
+    expect(out.runners).toEqual(["GitHub Actions"]);
+    expect(item("JAN-DEP-01")).toMatchObject({ status: "present", paths: [".github/dependabot.yml"], prerequisitesMet: null });
+    expect(item("JAN-DOC-01")).toMatchObject({ status: "present", paths: [".github/workflows/docs.yml"] });
+    expect(item("JAN-ARC-01")).toMatchObject({ status: "absent", tier: 2 });
+    expect(item("JAN-ARC-01").prerequisites).toEqual([{ id: "ARC-01", status: "unknown" }, { id: "ARC-04", status: "unknown" }]);
+    expect(out.notRecommended.some((n: { practice: string }) => /stylistic/i.test(n.practice))).toBe(true);
+    expect(run(repo, "maintenance").out).toContain("prerequisites are unknown");
+
+    run(repo, "init");
+    const before = JSON.parse(run(repo, "score", "--json").out).score;
+    const scan = JSON.parse(run(repo, "scan", "--json").out);
+    expect(scan.probes.maintenance.status).toBe("partial");
+    expect(scan.probes.maintenance.evidence[0]).toContain("JAN-DEP-01");
+    expect(scan.criteriaHints["WF-08"].probe).toBe("maintenance");
+    expect(JSON.parse(run(repo, "score", "--json").out).score).toBe(before);
+
+    expect(patch(repo, { criteria: [{ id: "CTX-01", status: "passed", evidence: ["CLAUDE.md:1"] }, { id: "VER-03", status: "passed", evidence: [".github/workflows/ci.yml"] }] }).code).toBe(0);
+    const after = JSON.parse(run(repo, "maintenance", "--json").out);
+    expect(after.hasRecord).toBe(true);
+    expect(after.items.find((i: { id: string }) => i.id === "JAN-DOC-01").prerequisitesMet).toBe(true);
+    expect(after.items.find((i: { id: string }) => i.id === "JAN-ARC-01").prerequisitesMet).toBe(false);
+    expect(run(repo, "maintenance").out).toMatch(/JAN-ARC-01[\s\S]*waiting on ARC-01/);
+  });
+
+  it("stores one roster, replaced whole, validated against the library and the record's criteria, and rendered", () => {
+    const repo = withJanitors();
+    run(repo, "init");
+    run(repo, "scan");
+    expect(patch(repo, { findings: [{ id: "F-WF-001", title: "No architecture janitor", kind: "recommendation", dimension: "WF", priority: "P2", currentState: "none", desiredState: "janitor", evidence: [], remediation: "JAN-ARC-01", criterionIds: ["WF-08"] }] }).code).toBe(0);
+    const roster = {
+      roster: [
+        { id: "JAN-DOC-01", status: "present", recommend: "none", trigger: "pull request", environment: "GitHub Actions", evidence: [".github/workflows/docs.yml"] },
+        { id: "JAN-ARC-01", status: "absent", recommend: "after-prerequisites", blockedBy: ["ARC-01", "ARC-04"], reason: "two apps with boundary drift", evidence: [], findingIds: ["F-WF-001"] },
+        { id: "JAN-DEP-01", status: "present", recommend: "none", evidence: [".github/dependabot.yml"] },
+      ],
+      summary: "Dependabot and the doc check run; the architecture janitor waits on boundary rules.",
+    };
+    expect(patch(repo, { maintenance: roster }, "agent:workflow-auditor").code).toBe(0);
+    expect(patch(repo, { maintenance: { ...roster, summary: "second run" } }).code).toBe(0);
+    const r = readRecord(repo);
+    expect(r.maintenance!.summary).toBe("second run");
+    expect(r.maintenance!.assessedBy).toBe("agent:claude");
+    expect(r.maintenance!.roster).toHaveLength(3);
+
+    const bad = (entries: unknown[]) => patch(repo, { maintenance: { roster: entries } }).err;
+    expect(bad([{ id: "JAN-ZZZ-01", status: "absent", recommend: "now", evidence: [] }])).toContain("not in the maintenance library");
+    expect(bad([{ id: "JAN-DEP-01", status: "present", recommend: "none", evidence: [] }])).toContain("without evidence");
+    expect(bad([roster.roster[1], roster.roster[1]])).toContain("more than once");
+    expect(bad([{ ...roster.roster[1], blockedBy: ["XYZ-01"] }])).toContain("not a criterion");
+    expect(bad([{ ...roster.roster[1], findingIds: ["F-WF-404"] }])).toContain("unknown finding F-WF-404");
+    // Recommending a janitor before its prerequisites pass warns, but never locks the record.
+    const early = patch(repo, { maintenance: { roster: [{ id: "JAN-ARC-01", status: "absent", recommend: "now", reason: "drift", evidence: [] }] } });
+    expect(early.code).toBe(0);
+    expect(early.out).toContain("prerequisites have not passed: ARC-01, ARC-04");
+
+    expect(patch(repo, { maintenance: roster }).code).toBe(0);
+    const html = join(mkdtempSync(join(tmpdir(), "agentic-r-")), "v.html");
+    run(repo, "render", "--out", html);
+    const page = readFileSync(html, "utf8");
+    expect(page).toContain("maintenanceView");
+    expect(page).toContain('"maintenanceScan":{');
+    expect(page).toContain("JAN-ARC-01");
+
+    expect(patch(repo, { remove: { maintenance: true } }).code).toBe(0);
+    expect(readRecord(repo).maintenance).toBeUndefined();
   });
 });

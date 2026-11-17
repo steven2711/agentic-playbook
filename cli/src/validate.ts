@@ -6,6 +6,7 @@ import { loadLibrary } from "./conventions.js";
 import { loadRubric } from "./rubric.js";
 import { loadTesting } from "./testing.js";
 import { loadDocs } from "./docs.js";
+import { loadMaintenance } from "./maintenance.js";
 import type { AssessmentRecord } from "./types.js";
 
 export interface ValidationResult {
@@ -172,6 +173,32 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
       for (const f of t.findingIds ?? []) if (!findingIds.has(f)) errors.push(`${at} links unknown finding ${f}`);
       if (item && item.tier > 1 && (t.action === "create" || t.action === "generate") && !t.reason)
         warnings.push(`${at} recommends a Tier ${item.tier} item without a reason; cite its condition${item.tier === 3 ? " and the recurring problem" : ""}`);
+    }
+  }
+
+  if (record.maintenance) {
+    const janLib = loadMaintenance();
+    const findingIds = new Set(record.findings.map((f) => f.id));
+    const crit = new Map(record.criteria.map((c) => [c.id, c.status]));
+    const seen = new Set<string>();
+    for (const r of record.maintenance.roster) {
+      const at = `maintenance ${r.id}`;
+      const j = janLib.items.get(r.id);
+      if (!j) errors.push(`${at} is not in the maintenance library`);
+      if (seen.has(r.id)) errors.push(`${at} appears more than once`);
+      seen.add(r.id);
+      if (r.status === "present" && r.evidence.length === 0) errors.push(`${at} is present without evidence (cite its workflow, skill or config)`);
+      if (r.status === "n_a" && !r.reason) errors.push(`${at} is n_a without a reason`);
+      for (const b of r.blockedBy ?? []) if (!crit.has(b)) errors.push(`${at} is blocked by ${b}, which is not a criterion in this record`);
+      if (j && r.recommend === "now") {
+        const failing = j.prerequisites.filter((p) => crit.has(p) && crit.get(p) !== "passed" && crit.get(p) !== "n_a");
+        // A warning, not an error: a prerequisite that regresses later must not lock every write to the record.
+        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.join(", ")}. Use after-prerequisites with blockedBy`);
+      }
+      if (r.recommend === "after-prerequisites" && !r.blockedBy?.length) warnings.push(`${at} waits on prerequisites but does not name them in blockedBy`);
+      for (const f of r.findingIds ?? []) if (!findingIds.has(f)) errors.push(`${at} links unknown finding ${f}`);
+      if (j && j.tier > 1 && (r.recommend === "now" || r.recommend === "after-prerequisites") && !r.reason)
+        warnings.push(`${at} recommends a Tier ${j.tier} janitor without a reason; cite its condition${j.tier === 3 ? " and the recurring problem" : ""}`);
     }
   }
 

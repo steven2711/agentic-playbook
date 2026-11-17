@@ -239,6 +239,41 @@
         "assessedAt": { "type": "string" }
       }
     },
+    "maintenanceAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roster"],
+      "properties": {
+        "roster": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "status", "recommend", "evidence"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^JAN-[A-Z]{3}-[0-9]{2}$" },
+              "status": { "enum": ["present", "absent", "n_a"] },
+              "recommend": { "enum": ["now", "after-prerequisites", "not-yet", "none"] },
+              "blockedBy": { "type": "array", "items": { "type": "string" } },
+              "trigger": { "type": "string" },
+              "environment": { "type": "string" },
+              "detector": { "type": "array", "items": { "type": "string" } },
+              "autofix": { "type": "string" },
+              "needsHuman": { "type": "string" },
+              "noiseControls": { "type": "string" },
+              "success": { "type": "string" },
+              "reason": { "type": "string" },
+              "evidence": { "$ref": "#/definitions/texts" },
+              "findingIds": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "summary": { "type": "string" },
+        "assessedRevision": { "type": ["string", "null"] },
+        "assessedBy": { "type": "string" },
+        "assessedAt": { "type": "string" }
+      }
+    },
     "testingAssessment": {
       "type": "object",
       "additionalProperties": false,
@@ -326,6 +361,7 @@
     "conventions": { "type": "array", "items": { "$ref": "#/definitions/convention" } },
     "testing": { "type": "array", "items": { "$ref": "#/definitions/testingAssessment" } },
     "docs": { "$ref": "#/definitions/docsAssessment" },
+    "maintenance": { "$ref": "#/definitions/maintenanceAssessment" },
     "scoreHistory": { "type": "array", "items": { "$ref": "#/definitions/scoreEntry" } },
     "artifact": {
       "type": ["object", "null"],

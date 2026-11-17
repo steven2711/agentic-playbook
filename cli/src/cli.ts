@@ -13,6 +13,7 @@ import { applicableChecks, assessStrictness, countSuppressions, lintStrictness, 
 import { computeScore } from "./score.js";
 import { assessTesting, lintTesting, loadTesting, profilesFor } from "./testing.js";
 import { assessDocs, lintDocs, loadDocs } from "./docs.js";
+import { assessMaintenance, lintMaintenance, loadMaintenance } from "./maintenance.js";
 import { UsageError, type AssessmentRecord, type Mode, type WorkStatus } from "./types.js";
 import { validateRecord } from "./validate.js";
 import { addEvidence, applyPatch, readyTasks, transitionTask, type Patch } from "./workflow.js";
@@ -49,6 +50,9 @@ Testing
 Documentation
   docs [--app <root>] [--json]                 Documents present per repo and app, always-loaded context, broken links, repeated lines
 
+Maintenance
+  maintenance [--json]                         Janitors already set up, their prerequisites in the record, and where they could run
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -58,7 +62,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing and docs libraries
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing, docs and maintenance libraries
 `;
 
 type Args = { _: string[]; flags: Record<string, string | boolean> };
@@ -112,7 +116,8 @@ function strictnessSnapshot(store: StoreLocation) {
     const suppressions = s.facts.suppressions as never;
     const testing = (s.facts.testing ?? []) as never;
     const docs = (s.facts.docs ?? null) as never;
-    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs } : null;
+    const maintenance = (s.facts.maintenance ?? null) as never;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs, maintenance } : null;
   } catch {
     return null;
   }
@@ -161,13 +166,13 @@ export function main(argv: string[]): number {
     case "lint-playbook": {
       const root = resolve(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings]) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings, ...lintMaintenance(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `✗ ${p}`).join("\n"));
         console.error(`\n${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items).`);
+      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items, ${loadMaintenance(root).items.size} janitors).`);
       return 0;
     }
     case "rubric": {
@@ -390,6 +395,44 @@ export function main(argv: string[]): number {
         console.log(`lines repeated across agent guidance files (${d.duplicates.length}):`);
         for (const x of d.duplicates.slice(0, 10)) console.log(`  ${x.files.join(" + ")}: ${x.line}`);
       }
+      return 0;
+    }
+    case "maintenance": {
+      const store = locateStore(cwd);
+      const { files } = walk(store.repoRoot);
+      const read = (rel: string) => {
+        try {
+          return readFileSync(join(store.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadMaintenance();
+      const record = existsSync(store.recordPath) ? loadRecord(store) : null;
+      const m = assessMaintenance(lib, files, read, record?.criteria);
+      const items = m.items.map((i) => {
+        const j = lib.items.get(i.id)!;
+        return { ...i, when: j.when, guards: j.guards, purpose: j.purpose, detector: j.detector, agent_step: j.agent_step, autofix: j.autofix, needs_human: j.needs_human, noise_controls: j.noise_controls, success: j.success, see: j.see ?? [], source: j.source };
+      });
+      const notRecommended = lib.areas.flatMap((a) => a.not_recommended);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ hasRecord: !!record, runners: m.runners, items, notRecommended }, null, 2));
+        return 0;
+      }
+      console.log(`places a janitor could run: ${m.runners.join(", ") || "none found"}`);
+      if (!record) console.log("no record yet: prerequisites are unknown (run /agentic:assess)");
+      const hidden = items.filter((i) => i.tier === 3 && i.status === "absent").length;
+      for (const i of items.filter((x) => x.tier < 3 || x.status === "present").sort((x, y) => x.tier - y.tier || x.id.localeCompare(y.id))) {
+        const mark = i.status === "present" ? "✓" : i.prerequisitesMet ? "→" : "·";
+        console.log(`  ${mark} T${i.tier} ${i.id} ${i.title} [${i.trigger.join(", ")}]${i.status === "present" ? `: ${i.paths.join(", ")}` : ""}`);
+        if (i.status === "absent") {
+          const waiting = i.prerequisites.filter((p) => p.status !== "passed" && p.status !== "n_a");
+          if (record) console.log(`      ${waiting.length ? `waiting on ${waiting.map((p) => `${p.id} (${p.status})`).join(", ")}` : "prerequisites pass"}`);
+          if (i.tier > 1) console.log(`      when: ${i.when}`);
+        }
+      }
+      if (hidden) console.log(`  (${hidden} Tier 3 janitors not shown: only worth it after a cited recurring problem; see --json)`);
+      console.log("✓ set up   → prerequisites pass, not set up   · waiting, or prerequisites unknown");
       return 0;
     }
     case "adopt": {

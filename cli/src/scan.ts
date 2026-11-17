@@ -6,6 +6,7 @@ import { detectApps } from "./conventions.js";
 import { assessStrictness, countSuppressions, loadStrictness } from "./strictness.js";
 import { assessTesting, loadTesting } from "./testing.js";
 import { assessDocs, docsProbe, loadDocs } from "./docs.js";
+import { assessMaintenance, loadMaintenance, maintenanceProbe } from "./maintenance.js";
 import type { CriterionStatus, Mode } from "./types.js";
 
 /**
@@ -28,7 +29,7 @@ export const PROBES = [
   "claude_md", "agent_guidance_sources", "scoped_rules", "canonical_commands", "claude_md_commands", "reproducible_setup",
   "ci_runs_checks", "doc_checks", "ci_permissions", "boundary_tooling", "baselines", "codeowners", "architecture_docs",
   "secret_scanning", "dependency_scanning", "agent_settings", "policy_hooks", "coverage", "eval_cases", "branch_protection",
-  "conventions", "strictness", "suppressions", "tests", "docs",
+  "conventions", "strictness", "suppressions", "tests", "docs", "maintenance",
 ] as const;
 
 export interface ProbeResult {
@@ -344,6 +345,11 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
   };
   probes.docs = docsProbe(docs);
   facts.brokenLinks = docs.brokenLinks;
+
+  // ---------- maintenance (janitors). Prerequisites need the record, so the scan leaves them unknown.
+  const maintenance = assessMaintenance(loadMaintenance(), files, (rel) => read(root, rel));
+  facts.maintenance = maintenance;
+  probes.maintenance = maintenanceProbe(maintenance);
 
   // ---------- security
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has);

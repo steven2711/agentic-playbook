@@ -32,6 +32,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
 5. Merge their outputs into one patch in the session scratchpad.
    - Include `"assessedRevision": "HEAD"`, all criteria, and all findings.
    - Include the context-auditor's `docs` snapshot (inventory, target layout, loading and navigation) as the patch's `docs` key.
+   - Include the workflow-auditor's `maintenance` roster as the patch's `maintenance` key. Then check each roster entry against the merged criteria: an entry recommended `now` whose library prerequisites did not pass becomes `after-prerequisites`, with those criteria in `blockedBy`. `agentic apply` warns about any you miss.
    - Do not invent anything the auditors did not evidence.
    - Resolve overlaps:
      - **Duplicate findings:** keep the stronger evidence.
@@ -55,6 +56,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
    - the documentation target layout: always-loaded lines, the Tier 1 documents to create, and the main relocate, consolidate and archive actions
    - per app: its stack, whether it has scoped conventions, and the top 3 to 5 conventions recommendations, each with rule ID and source title. Ask which ones to adopt.
    - per app: its testing kind, missing Tier 1 layers, and the critical-path count with the uncovered high-consequence paths
+   - maintenance: in one line, which janitors already run, which could be set up now, and what the rest wait on. Janitors are L4 work, so they are never the first priority.
    - open questions that need a human decision
    - the Artifact link
 

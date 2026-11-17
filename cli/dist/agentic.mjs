@@ -7194,7 +7194,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse6(src, reviver, options) {
+    function parse7(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -7235,7 +7235,7 @@ var require_public_api = __commonJS({
         return value.toString(options);
       return new Document.Document(value, _replacer, options).toString(options);
     }
-    exports.parse = parse6;
+    exports.parse = parse7;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument;
     exports.stringify = stringify;
@@ -11132,7 +11132,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse6(serialize(uri, options), options);
+        parse7(serialize(uri, options), options);
       }
       return uri;
     }
@@ -11175,8 +11175,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative3, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse6(serialize(base, options), options);
-        relative3 = parse6(serialize(relative3, options), options);
+        base = parse7(serialize(base, options), options);
+        relative3 = parse7(serialize(relative3, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative3.scheme) {
@@ -11494,7 +11494,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse6(uri, opts) {
+    function parse7(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -11531,7 +11531,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse6
+      parse: parse7
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -14191,9 +14191,9 @@ var require_ajv = __commonJS({
 });
 
 // src/cli.ts
-import { cpSync, existsSync as existsSync9, mkdirSync as mkdirSync2, readFileSync as readFileSync10, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { cpSync, existsSync as existsSync10, mkdirSync as mkdirSync2, readFileSync as readFileSync11, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname9, join as join10, resolve as resolve4 } from "node:path";
+import { dirname as dirname9, join as join11, resolve as resolve4 } from "node:path";
 
 // src/conventions.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -14521,8 +14521,8 @@ function detectApps(files, read2) {
 }
 
 // src/lint.ts
-import { existsSync as existsSync7, readdirSync as readdirSync6, readFileSync as readFileSync7 } from "node:fs";
-import { dirname as dirname7, join as join8, relative as relative2, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync8, readdirSync as readdirSync7, readFileSync as readFileSync8 } from "node:fs";
+import { dirname as dirname7, join as join9, relative as relative2, resolve as resolve3 } from "node:path";
 
 // src/rubric.ts
 var import_yaml2 = __toESM(require_dist(), 1);
@@ -15209,10 +15209,177 @@ function docsProbe(d) {
   };
 }
 
+// src/maintenance.ts
+var import_yaml6 = __toESM(require_dist(), 1);
+import { existsSync as existsSync6, readdirSync as readdirSync5, readFileSync as readFileSync6 } from "node:fs";
+import { basename as basename6, join as join7 } from "node:path";
+var JAN_TRIGGERS = ["pr", "schedule", "event"];
+var cache5 = /* @__PURE__ */ new Map();
+function loadMaintenance(root = playbookRoot()) {
+  const hit = cache5.get(root);
+  if (hit) return hit;
+  const dir = join7(root, "reference", "maintenance");
+  const areas = [];
+  const items = /* @__PURE__ */ new Map();
+  if (existsSync6(dir)) {
+    for (const f of readdirSync5(dir).filter((x) => x.endsWith(".yaml")).sort()) {
+      let raw = {};
+      let parseError;
+      try {
+        raw = (0, import_yaml6.parse)(readFileSync6(join7(dir, f), "utf8")) ?? {};
+      } catch (e) {
+        parseError = e.message.split("\n")[0];
+      }
+      const a = {
+        area: String(raw.area ?? ""),
+        title: String(raw.title ?? ""),
+        reviewed: String(raw.reviewed ?? ""),
+        items: [],
+        not_recommended: raw.not_recommended ?? [],
+        file: `reference/maintenance/${f}`,
+        ...parseError ? { parseError } : {}
+      };
+      for (const i of raw.items ?? []) {
+        const item = { ...i, trigger: i.trigger ?? [], guards: i.guards ?? [], prerequisites: i.prerequisites ?? [], detector: i.detector ?? [], detect: i.detect ?? [], area: a.area };
+        a.items.push(item);
+        if (!items.has(item.id)) items.set(item.id, item);
+      }
+      areas.push(a);
+    }
+  }
+  const lib = { areas, items };
+  cache5.set(root, lib);
+  return lib;
+}
+var isHttps4 = (s) => !!s && !!s.title && typeof s.url === "string" && /^https:\/\//.test(s.url);
+function regexProblem3(value) {
+  try {
+    new RegExp(String(value), "i");
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+function lintMaintenance(root, today = /* @__PURE__ */ new Date()) {
+  const problems = [];
+  const warnings = [];
+  cache5.delete(root);
+  const lib = loadMaintenance(root);
+  if (!lib.areas.length) return { problems: ["maintenance: reference/maintenance has no library files"], warnings };
+  const criteria = new Set(loadRubric(root).criteria.map((c) => c.id));
+  const docItems = new Set(loadDocs(root).items.keys());
+  const seen = /* @__PURE__ */ new Set();
+  for (const a of lib.areas) {
+    const where = a.file;
+    if (a.parseError) {
+      problems.push(`maintenance: ${where} is not valid YAML: ${a.parseError}`);
+      continue;
+    }
+    if (a.area !== basename6(a.file, ".yaml")) problems.push(`maintenance: ${where} area "${a.area}" does not match its file name`);
+    if (!a.title) problems.push(`maintenance: ${where} has no title`);
+    const months = monthsSince(a.reviewed, today);
+    if (months === null) problems.push(`maintenance: ${where} reviewed must be YYYY-MM (got "${a.reviewed}")`);
+    else if (months > 12) warnings.push(`maintenance: ${where} was last reviewed ${a.reviewed} (${months} months ago); re-check its items and sources`);
+    if (!a.items.length) problems.push(`maintenance: ${where} has no items`);
+    for (const i of a.items) {
+      const at = `${where} ${i.id ?? "(item without id)"}`;
+      if (!/^JAN-[A-Z]{3}-\d{2}$/.test(String(i.id ?? ""))) problems.push(`maintenance: ${at} id must look like JAN-AAA-NN`);
+      if (seen.has(i.id)) problems.push(`maintenance: duplicate item id ${i.id}`);
+      seen.add(i.id);
+      for (const k of ["title", "purpose", "autofix", "needs_human", "noise_controls", "success"])
+        if (!i[k] || typeof i[k] !== "string") problems.push(`maintenance: ${at} is missing "${k}"`);
+      if (![1, 2, 3].includes(i.tier)) problems.push(`maintenance: ${at} tier must be 1, 2 or 3`);
+      if (i.tier > 1 && !i.when) problems.push(`maintenance: ${at} is Tier ${i.tier} and must say when it is worth it ("when")`);
+      if (!Array.isArray(i.trigger) || !i.trigger.length) problems.push(`maintenance: ${at} needs at least one trigger`);
+      for (const t of i.trigger ?? []) if (!JAN_TRIGGERS.includes(t)) problems.push(`maintenance: ${at} trigger must be one of ${JAN_TRIGGERS.join(", ")} (got "${t}")`);
+      if (!i.detector.length) problems.push(`maintenance: ${at} needs at least one deterministic detector`);
+      if (!i.guards.length) problems.push(`maintenance: ${at} must say what it guards`);
+      for (const g of i.guards) if (!criteria.has(g) && !docItems.has(g)) problems.push(`maintenance: ${at} guards ${g}, which is not a rubric criterion or documentation item`);
+      for (const p of i.prerequisites) if (!criteria.has(p)) problems.push(`maintenance: ${at} prerequisite ${p} is not a rubric criterion`);
+      for (const c of i.see ?? []) if (!criteria.has(c)) problems.push(`maintenance: ${at} refers to ${c}, which is not a rubric criterion`);
+      if (!isHttps4(i.source)) problems.push(`maintenance: ${at} needs a source with a title and an https url`);
+      if (!i.detect.length) problems.push(`maintenance: ${at} has no detect patterns`);
+      for (const d of i.detect) {
+        if (!d.files) problems.push(`maintenance: ${at} detect entry is missing "files"`);
+        for (const k of ["files", "pattern", "exclude"]) {
+          if (d[k] === void 0) continue;
+          const err = regexProblem3(d[k]);
+          if (err) problems.push(`maintenance: ${at} detect ${k} is not a valid JavaScript regex: ${err}`);
+        }
+      }
+    }
+    for (const n of a.not_recommended) {
+      if (!n.practice || !n.reason) problems.push(`maintenance: ${where} not_recommended entries need "practice" and "reason"`);
+      if (n.source && !isHttps4(n.source)) problems.push(`maintenance: ${where} not_recommended source needs a title and an https url`);
+    }
+  }
+  return { problems, warnings };
+}
+var RUNNERS2 = [
+  ["GitHub Actions", /^\.github\/workflows\/.+\.ya?ml$/],
+  ["GitLab CI", /^\.gitlab-ci\.ya?ml$/],
+  ["CircleCI", /^\.circleci\/config\.ya?ml$/],
+  ["Jenkins", /(^|\/)Jenkinsfile$/],
+  ["Azure Pipelines", /^azure-pipelines\.ya?ml$/],
+  ["Bitbucket Pipelines", /^bitbucket-pipelines\.ya?ml$/],
+  ["Buildkite", /^\.buildkite\//],
+  ["Claude Code subagents", /^\.claude\/agents\/.+\.md$/],
+  ["Claude Code skills", /^\.claude\/skills\/.+\/SKILL\.md$/]
+];
+function assessMaintenance(lib, files, read2, criteria) {
+  const text = /* @__PURE__ */ new Map();
+  const get = (f) => {
+    if (!text.has(f)) text.set(f, read2(f));
+    return text.get(f);
+  };
+  const runners = RUNNERS2.filter(([, re]) => files.some((f) => re.test(f))).map(([n]) => n);
+  if (files.includes(".claude/settings.json") && /"hooks"\s*:/.test(get(".claude/settings.json"))) runners.push("Claude Code hooks");
+  const state = new Map((criteria ?? []).map((c) => [c.id, c.status]));
+  const items = [];
+  for (const area of lib.areas) {
+    for (const j of area.items) {
+      const hits = /* @__PURE__ */ new Set();
+      for (const d of j.detect) {
+        const fileRe = new RegExp(d.files, "i");
+        const ex = d.exclude ? new RegExp(d.exclude, "i") : null;
+        const re = d.pattern ? new RegExp(d.pattern, "im") : null;
+        for (const f of files) {
+          if (hits.has(f) || !fileRe.test(f) || ex && ex.test(f)) continue;
+          if (re && !re.test(get(f))) continue;
+          hits.add(f);
+        }
+      }
+      const prerequisites = j.prerequisites.map((id) => ({ id, status: criteria ? state.get(id) ?? "unverified" : "unknown" }));
+      items.push({
+        id: j.id,
+        title: j.title,
+        tier: j.tier,
+        trigger: j.trigger,
+        status: hits.size ? "present" : "absent",
+        paths: [...hits].sort().slice(0, 3),
+        prerequisites,
+        prerequisitesMet: criteria ? prerequisites.every((p) => p.status === "passed" || p.status === "n_a") : null
+      });
+    }
+  }
+  return { runners, items };
+}
+function maintenanceProbe(m) {
+  const present = m.items.filter((i) => i.status === "present");
+  return {
+    status: "partial",
+    evidence: [
+      `janitors detected: ${present.map((i) => `${i.id} ${i.title} (${i.paths.join(", ")})`).join("; ") || "none"}`,
+      `places a janitor could run: ${m.runners.join(", ") || "none found"}`
+    ],
+    note: "Detection is by file name and workflow content. The workflow-auditor confirms it and proposes which janitors to set up, after which prerequisites. Run `agentic maintenance` for the full list."
+  };
+}
+
 // src/scan.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync6, readdirSync as readdirSync5, readFileSync as readFileSync6 } from "node:fs";
-import { dirname as dirname6, extname as extname3, join as join7, relative } from "node:path";
+import { existsSync as existsSync7, readdirSync as readdirSync6, readFileSync as readFileSync7 } from "node:fs";
+import { dirname as dirname6, extname as extname3, join as join8, relative } from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   ".git",
   "node_modules",
@@ -15291,7 +15458,8 @@ var PROBES = [
   "strictness",
   "suppressions",
   "tests",
-  "docs"
+  "docs",
+  "maintenance"
 ];
 function walk(root) {
   const files = [];
@@ -15300,15 +15468,15 @@ function walk(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = readdirSync5(dir, { withFileTypes: true });
+      entries = readdirSync6(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const e of entries) {
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) stack.push(join7(dir, e.name));
+        if (!SKIP_DIRS.has(e.name)) stack.push(join8(dir, e.name));
       } else if (e.isFile()) {
-        files.push(relative(root, join7(dir, e.name)));
+        files.push(relative(root, join8(dir, e.name)));
         if (files.length >= MAX_FILES) return { files, truncated: true };
       }
     }
@@ -15317,7 +15485,7 @@ function walk(root) {
 }
 var read = (root, rel) => {
   try {
-    return readFileSync6(join7(root, rel), "utf8");
+    return readFileSync7(join8(root, rel), "utf8");
   } catch {
     return "";
   }
@@ -15547,7 +15715,7 @@ function scan(root, opts = {}) {
   };
   const adrs = matching(/(^|\/)(adr|adrs|decisions)\/.+\.md$/i);
   const archDocs = matching(/(^|\/)(ARCHITECTURE\.md|docs\/architecture[^/]*\/?.*\.md)$/i);
-  const docs = assessDocs(loadDocs(), apps, files, (rel) => read(root, rel), (rel) => existsSync6(join7(root, rel)));
+  const docs = assessDocs(loadDocs(), apps, files, (rel) => read(root, rel), (rel) => existsSync7(join8(root, rel)));
   facts.docs = { adrs, archDocs, markdownFiles: matching(/\.md$/).length, ...docs };
   probes.architecture_docs = {
     status: archDocs.length && adrs.length ? "partial" : archDocs.length || adrs.length ? "partial" : "failed",
@@ -15555,6 +15723,9 @@ function scan(root, opts = {}) {
   };
   probes.docs = docsProbe(docs);
   facts.brokenLinks = docs.brokenLinks;
+  const maintenance = assessMaintenance(loadMaintenance(), files, (rel) => read(root, rel));
+  facts.maintenance = maintenance;
+  probes.maintenance = maintenanceProbe(maintenance);
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has2);
   const secretInCi = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i.test(ciText);
   const envCommitted = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f));
@@ -15640,7 +15811,7 @@ function lintPlaybook(root) {
   const sections = /* @__PURE__ */ new Map();
   const sectionsOf = (file) => {
     if (!sections.has(file)) {
-      const text = readFileSync7(join8(root, file), "utf8");
+      const text = readFileSync8(join9(root, file), "utf8");
       const parts = [];
       let cur = { heading: "(preamble)", text: "" };
       for (const line of text.split("\n")) {
@@ -15663,7 +15834,7 @@ function lintPlaybook(root) {
     if (!rubric.priorities[c.priority]) problems.push(`rubric: ${c.id} has unknown priority ${c.priority}`);
     if (c.gate && !rubric.levels.some((l) => l.id === c.gate)) problems.push(`rubric: ${c.id} has unknown gate ${c.gate}`);
     if (c.probe && !PROBES.includes(c.probe)) problems.push(`rubric: ${c.id} references unknown probe ${c.probe}`);
-    if (!existsSync7(join8(root, c.source))) {
+    if (!existsSync8(join9(root, c.source))) {
       problems.push(`rubric: ${c.id} cites missing source ${c.source}`);
       continue;
     }
@@ -15671,7 +15842,7 @@ function lintPlaybook(root) {
     if (!hit) problems.push(`rubric: ${c.id} quote not found in ${c.source}: "${c.quote}" (standard changed? update the rubric)`);
     else covered.add(`${c.source}#${hit.heading}`);
   }
-  const standards = readdirSync6(join8(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
+  const standards = readdirSync7(join9(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
   for (const s of standards) {
     for (const sec of sectionsOf(s)) {
       if (sec.heading === "(preamble)" && sectionsOf(s).length > 1 && sec.text.trim().length < 400) continue;
@@ -15680,33 +15851,33 @@ function lintPlaybook(root) {
   }
   const mdFiles = [];
   const walk2 = (dir) => {
-    for (const e of readdirSync6(dir, { withFileTypes: true })) {
+    for (const e of readdirSync7(dir, { withFileTypes: true })) {
       if (["node_modules", ".git", "dist"].includes(e.name)) continue;
-      const p = join8(dir, e.name);
+      const p = join9(dir, e.name);
       if (e.isDirectory()) walk2(p);
       else if (e.name.endsWith(".md")) mdFiles.push(p);
     }
   };
   walk2(root);
   for (const file of mdFiles) {
-    const text = readFileSync7(file, "utf8");
+    const text = readFileSync8(file, "utf8");
     for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
       const target = m[1];
       if (/^(https?:|mailto:)/.test(target)) continue;
-      if (!existsSync7(resolve3(dirname7(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
+      if (!existsSync8(resolve3(dirname7(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
     }
     for (const m of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g)) {
       const target = m[1].replace(/[.,;:)]+$/, "");
-      if (!existsSync7(join8(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
+      if (!existsSync8(join9(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
     }
   }
-  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems, ...lintDocs(root).problems);
+  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems, ...lintDocs(root).problems, ...lintMaintenance(root).problems);
   return problems;
 }
 
 // src/record.ts
-import { existsSync as existsSync8, mkdirSync, readFileSync as readFileSync9, renameSync, writeFileSync } from "node:fs";
-import { basename as basename6, dirname as dirname8 } from "node:path";
+import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync10, renameSync, writeFileSync } from "node:fs";
+import { basename as basename7, dirname as dirname8 } from "node:path";
 
 // src/types.ts
 var UsageError = class extends Error {
@@ -15714,12 +15885,12 @@ var UsageError = class extends Error {
 
 // src/validate.ts
 var import_ajv = __toESM(require_ajv(), 1);
-import { readFileSync as readFileSync8 } from "node:fs";
-import { join as join9 } from "node:path";
+import { readFileSync as readFileSync9 } from "node:fs";
+import { join as join10 } from "node:path";
 var validator = null;
 function schemaValidator() {
   if (!validator) {
-    const schema = JSON.parse(readFileSync8(join9(playbookRoot(), "schema", "record.schema.json"), "utf8"));
+    const schema = JSON.parse(readFileSync9(join10(playbookRoot(), "schema", "record.schema.json"), "utf8"));
     const ajv = new import_ajv.Ajv({ allErrors: true, strict: false });
     validator = ajv.compile(schema);
   }
@@ -15863,6 +16034,30 @@ function validateRecord(record) {
         warnings.push(`${at} recommends a Tier ${item.tier} item without a reason; cite its condition${item.tier === 3 ? " and the recurring problem" : ""}`);
     }
   }
+  if (record.maintenance) {
+    const janLib = loadMaintenance();
+    const findingIds2 = new Set(record.findings.map((f) => f.id));
+    const crit = new Map(record.criteria.map((c) => [c.id, c.status]));
+    const seen = /* @__PURE__ */ new Set();
+    for (const r of record.maintenance.roster) {
+      const at = `maintenance ${r.id}`;
+      const j = janLib.items.get(r.id);
+      if (!j) errors.push(`${at} is not in the maintenance library`);
+      if (seen.has(r.id)) errors.push(`${at} appears more than once`);
+      seen.add(r.id);
+      if (r.status === "present" && r.evidence.length === 0) errors.push(`${at} is present without evidence (cite its workflow, skill or config)`);
+      if (r.status === "n_a" && !r.reason) errors.push(`${at} is n_a without a reason`);
+      for (const b of r.blockedBy ?? []) if (!crit.has(b)) errors.push(`${at} is blocked by ${b}, which is not a criterion in this record`);
+      if (j && r.recommend === "now") {
+        const failing = j.prerequisites.filter((p) => crit.has(p) && crit.get(p) !== "passed" && crit.get(p) !== "n_a");
+        if (failing.length) warnings.push(`${at} is recommended now but its prerequisites have not passed: ${failing.join(", ")}. Use after-prerequisites with blockedBy`);
+      }
+      if (r.recommend === "after-prerequisites" && !r.blockedBy?.length) warnings.push(`${at} waits on prerequisites but does not name them in blockedBy`);
+      for (const f of r.findingIds ?? []) if (!findingIds2.has(f)) errors.push(`${at} links unknown finding ${f}`);
+      if (j && j.tier > 1 && (r.recommend === "now" || r.recommend === "after-prerequisites") && !r.reason)
+        warnings.push(`${at} recommends a Tier ${j.tier} janitor without a reason; cite its condition${j.tier === 3 ? " and the recurring problem" : ""}`);
+    }
+  }
   const taskCycle = findCycle(record.tasks);
   if (taskCycle) errors.push(`task dependency cycle: ${taskCycle.join(" -> ")}`);
   const msCycle = findCycle(record.milestones);
@@ -15877,10 +16072,10 @@ function createRecord(store, mode) {
   const at = now();
   return {
     schemaVersion: 1,
-    assessmentId: `agentic-${basename6(store.repoRoot)}-${at.slice(0, 10)}`,
+    assessmentId: `agentic-${basename7(store.repoRoot)}-${at.slice(0, 10)}`,
     mode,
     rubricVersion: rubric.version,
-    repo: { name: basename6(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
+    repo: { name: basename7(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
     assessedRevision: headRevision(store.repoRoot),
     recordRevision: 1,
     createdAt: at,
@@ -15897,10 +16092,10 @@ function createRecord(store, mode) {
   };
 }
 function loadRecord(store) {
-  if (!existsSync8(store.recordPath)) {
+  if (!existsSync9(store.recordPath)) {
     throw new UsageError(`No assessment record for this repository (looked in ${store.recordPath}). Run \`agentic init\` first.`);
   }
-  const record = JSON.parse(readFileSync9(store.recordPath, "utf8"));
+  const record = JSON.parse(readFileSync10(store.recordPath, "utf8"));
   record.conventions ??= [];
   const rubric = loadRubric();
   for (const c of rubric.criteria) {
@@ -16025,7 +16220,7 @@ function renderHtml(record, opts) {
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       })
     ),
-    strictness: opts.strictness ? { ...opts.strictness, testing: void 0, docs: void 0 } : null,
+    strictness: opts.strictness ? { ...opts.strictness, testing: void 0, docs: void 0, maintenance: void 0 } : null,
     testingScan: opts.strictness?.testing ?? [],
     testingLayers: Object.fromEntries(
       [...loadTesting().layers.values()].map((l) => [l.id, { layer: l.layer, title: l.title, tier: l.tier, kind: l.kind, source: l.source }])
@@ -16033,6 +16228,10 @@ function renderHtml(record, opts) {
     docsScan: opts.strictness?.docs ?? null,
     docItems: Object.fromEntries(
       [...loadDocs().items.values()].map((i) => [i.id, { artifact: i.artifact, title: i.title, tier: i.tier, area: i.area, home: i.home, load: i.load, authority: i.authority, source: i.source }])
+    ),
+    maintenanceScan: opts.strictness?.maintenance ?? null,
+    janitors: Object.fromEntries(
+      [...loadMaintenance().items.values()].map((j) => [j.id, { title: j.title, tier: j.tier, when: j.when, trigger: j.trigger, guards: j.guards, prerequisites: j.prerequisites, purpose: j.purpose, detector: j.detector, autofix: j.autofix, needs_human: j.needs_human, noise_controls: j.noise_controls, success: j.success, source: j.source }])
     ),
     renderedAt: (/* @__PURE__ */ new Date()).toISOString(),
     headRevision: opts.headRevision,
@@ -16119,6 +16318,8 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .s-create, .s-generate { background: var(--accent-soft); color: var(--accent); }
 .s-retain, .s-reachable { background: var(--ok-soft); color: var(--ok); }
 .s-unreachable { background: var(--bad-soft); color: var(--bad); }
+.s-now { background: var(--accent-soft); color: var(--accent); }
+.s-after-prerequisites { background: var(--warn-soft); color: var(--warn); }
 .promote { font-family: var(--mono); font-size: 0.74rem; color: var(--accent); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); }
 nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -16411,6 +16612,56 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
       (gaps.length ? '<div class="muted" style="font-size:.84rem">Open documentation findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
   }
 
+  function maintenanceView() {
+    var J = R.maintenance || null, SC = D.maintenanceScan || null, JL = D.janitors || {};
+    var ids = Object.keys(JL);
+    if (!ids.length) return '<div class="empty">No maintenance library loaded.</div>';
+    var safeUrl = function (u) { return /^https:\/\//.test(String(u)) ? esc(u) : "#"; };
+    var crit = {};
+    R.criteria.forEach(function (c) { crit[c.id] = c.status; });
+    var blocking = function (id) { return (JL[id].prerequisites || []).filter(function (p) { return crit[p] !== "passed" && crit[p] !== "n_a"; }); };
+    var scanOf = function (id) { return SC ? SC.items.find(function (i) { return i.id === id; }) : null; };
+    var entries = J ? J.roster.map(function (r) { return { id: r.id, status: r.status, recommend: r.recommend, blockedBy: r.blockedBy || blocking(r.id), trigger: r.trigger, environment: r.environment, detector: r.detector, autofix: r.autofix, needsHuman: r.needsHuman, noiseControls: r.noiseControls, success: r.success, reason: r.reason, evidence: r.evidence || [], findingIds: r.findingIds || [] }; })
+      : ids.filter(function (id) { return JL[id].tier === 1 || (scanOf(id) && scanOf(id).status === "present"); }).map(function (id) {
+        var sc = scanOf(id), b = blocking(id);
+        return { id: id, status: sc ? sc.status : "absent", recommend: "", blockedBy: b, evidence: sc ? sc.paths : [], findingIds: [] };
+      });
+    var groups = [
+      ["Running", function (e) { return e.status === "present"; }],
+      ["Ready to set up", function (e) { return e.status !== "present" && (e.recommend === "now" || (!e.recommend && !e.blockedBy.length)); }],
+      ["Waiting on prerequisites", function (e) { return e.status !== "present" && (e.recommend === "after-prerequisites" || (!e.recommend && e.blockedBy.length)); }],
+      ["Not yet", function (e) { return e.status !== "present" && (e.recommend === "not-yet" || e.recommend === "none" || e.status === "n_a"); }],
+    ];
+    var card = function (e) {
+      var j = JL[e.id] || { title: e.id, tier: "", trigger: [], source: {} };
+      var kv = [
+        ["Trigger", (e.trigger || (j.trigger || []).join(", ")) + (e.environment ? " · " + e.environment : "")],
+        ["Guards", (j.guards || []).join(", ")],
+        ["Detector", (e.detector && e.detector.length ? e.detector : j.detector || []).join("; ")],
+        ["Fixes alone", e.autofix || j.autofix],
+        ["Needs a human", e.needsHuman || j.needs_human],
+        ["Noise limits", e.noiseControls || j.noise_controls],
+        ["Success", e.success || j.success],
+      ].map(function (x) { return x[1] ? "<dt>" + x[0] + "</dt><dd>" + esc(x[1]) + "</dd>" : ""; }).join("");
+      return '<div class="item"><div class="row"><code>' + esc(e.id) + '</code><h3 class="grow">' + esc(j.title) + "</h3>" + pill("T" + j.tier) + (e.recommend ? pill(e.recommend) : "") + pill(e.status) + "</div>" +
+        (j.purpose ? '<p class="muted" style="font-size:.88rem">' + esc(j.purpose) + "</p>" : "") +
+        (e.blockedBy.length && e.status !== "present" ? '<div style="font-size:.84rem">Waiting on ' + e.blockedBy.map(function (b) { return "<code>" + esc(b) + "</code> " + (crit[b] ? pill(crit[b]) : ""); }).join(" ") + "</div>" : "") +
+        (e.reason ? '<div style="font-size:.84rem">' + esc(e.reason) + "</div>" : "") +
+        '<details><summary>How it runs</summary><dl class="kv">' + kv + '</dl><div class="muted" style="font-size:.8rem"><a href="' + safeUrl(j.source && j.source.url) + '" target="_blank" rel="noopener noreferrer">' + esc((j.source && j.source.title) || "source") + "</a></div></details>" +
+        (e.evidence.length ? '<details><summary>Evidence</summary><ul class="ev">' + e.evidence.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></details>" : "") +
+        (e.findingIds.length ? '<div class="muted" style="font-size:.8rem">Findings: ' + e.findingIds.map(esc).join(", ") + "</div>" : "") + "</div>";
+    };
+    var legend = '<div class="legend">Janitors keep the repository from drifting once the roadmap has fixed it. Each one guards an accepted contract and waits until its prerequisite criteria pass. Tier 1 is expected at L4; Tier 2 only when its condition holds; Tier 3 only after a recurring problem. ' + (J ? "The roster is the workflow-auditor's proposal." : "Statuses are scan hints; the workflow-auditor has not proposed a roster yet.") + "</div>";
+    var body = groups.map(function (g) {
+      var xs = entries.filter(g[1]);
+      return xs.length ? '<div class="panel" style="display:grid;gap:10px"><h2>' + g[0] + ' <span class="muted num">' + xs.length + '</span></h2><div class="list">' + xs.map(card).join("") + "</div></div>" : "";
+    }).join("");
+    var where = SC ? '<div class="muted" style="font-size:.84rem">Places a janitor could run here: ' + (SC.runners.length ? SC.runners.map(esc).join(", ") : "none found") + "</div>" : "";
+    var gaps = R.findings.filter(function (f) { return !f.resolved && f.dimension === "WF"; });
+    return legend + (J && J.summary ? '<div class="panel"><p>' + esc(J.summary) + "</p></div>" : "") + where + body +
+      (gaps.length ? '<div class="muted" style="font-size:.84rem">Open workflow findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
+  }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
@@ -16451,7 +16702,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
   }
 
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], maintenance: ["Maintenance", maintenanceView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";
@@ -16566,7 +16817,7 @@ function applyPatch(record, patch, opts) {
   const log = [];
   for (const key of Object.keys(patch)) {
     if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
-    if (![...PATCHABLE, "testing", "docs", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
+    if (![...PATCHABLE, "testing", "docs", "maintenance", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
   if (patch.assessedRevision !== void 0) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
@@ -16647,6 +16898,13 @@ function applyPatch(record, patch, opts) {
     record.docs = { ...d, assessedBy: d.assessedBy ?? opts.by, assessedAt: d.assessedAt ?? now() };
     log.push(`${replaced ? "replaced" : "added"} docs (${d.target.length} target entries, ${d.inventory.length} inventory entries)`);
   }
+  if (patch.maintenance) {
+    const m = patch.maintenance;
+    if (!Array.isArray(m.roster)) throw new UsageError("maintenance needs a roster array");
+    const replaced = !!record.maintenance;
+    record.maintenance = { ...m, assessedBy: m.assessedBy ?? opts.by, assessedAt: m.assessedAt ?? now() };
+    log.push(`${replaced ? "replaced" : "added"} maintenance (${m.roster.length} janitors)`);
+  }
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
       const f = record.findings.find((x) => x.id === fid);
@@ -16654,6 +16912,13 @@ function applyPatch(record, patch, opts) {
     }
   }
   for (const [coll, ids] of Object.entries(patch.remove ?? {})) {
+    if (coll === "maintenance") {
+      if (!ids) continue;
+      if (!record.maintenance) throw new UsageError("Cannot remove maintenance: there is no maintenance assessment");
+      delete record.maintenance;
+      log.push("removed maintenance");
+      continue;
+    }
     if (coll === "docs") {
       if (!ids) continue;
       if (!record.docs) throw new UsageError("Cannot remove docs: there is no documentation assessment");
@@ -16730,6 +16995,9 @@ Testing
 Documentation
   docs [--app <root>] [--json]                 Documents present per repo and app, always-loaded context, broken links, repeated lines
 
+Maintenance
+  maintenance [--json]                         Janitors already set up, their prerequisites in the record, and where they could run
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -16739,7 +17007,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing and docs libraries
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing, docs and maintenance libraries
 `;
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -16761,7 +17029,7 @@ var need = (a, k) => {
   return v;
 };
 function readJsonInput(src) {
-  const text = src === "-" ? readFileSync10(0, "utf8") : readFileSync10(resolve4(src), "utf8");
+  const text = src === "-" ? readFileSync11(0, "utf8") : readFileSync11(resolve4(src), "utf8");
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -16777,14 +17045,15 @@ function withHints(result) {
   return { ...result, criteriaHints };
 }
 function strictnessSnapshot(store) {
-  if (!existsSync9(store.scanPath)) return null;
+  if (!existsSync10(store.scanPath)) return null;
   try {
-    const s = JSON.parse(readFileSync10(store.scanPath, "utf8"));
+    const s = JSON.parse(readFileSync11(store.scanPath, "utf8"));
     const apps = s.facts.strictness;
     const suppressions = s.facts.suppressions;
     const testing = s.facts.testing ?? [];
     const docs = s.facts.docs ?? null;
-    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs } : null;
+    const maintenance = s.facts.maintenance ?? null;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs, maintenance } : null;
   } catch {
     return null;
   }
@@ -16828,14 +17097,14 @@ function main(argv) {
     case "lint-playbook": {
       const root = resolve4(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings]) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings, ...lintMaintenance(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `\u2717 ${p}`).join("\n"));
         console.error(`
 ${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items).`);
+      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items, ${loadMaintenance(root).items.size} janitors).`);
       return 0;
     }
     case "rubric": {
@@ -16846,12 +17115,12 @@ ${problems.length} problem(s).`);
     }
     case "where": {
       const s = locateStore(cwd);
-      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync9(s.recordPath) }, null, 2));
+      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync10(s.recordPath) }, null, 2));
       return 0;
     }
     case "init": {
       const store2 = locateStore(cwd);
-      if (existsSync9(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
+      if (existsSync10(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
       const scanResult = withHints(scan(store2.repoRoot));
       const modeFlag = str(args, "mode");
       if (modeFlag && modeFlag !== "greenfield" && modeFlag !== "existing") throw new UsageError("--mode must be greenfield or existing");
@@ -16883,7 +17152,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
+          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -16892,7 +17161,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2).filter((a) => !only || a.root === only);
       if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic conventions\` to list them.`);
-      const assessed = existsSync9(store2.recordPath) ? loadRecord(store2).conventions : [];
+      const assessed = existsSync10(store2.recordPath) ? loadRecord(store2).conventions : [];
       const out = apps.map((a) => {
         const rules = applicableRules(lib, new Set(a.signals));
         return {
@@ -16920,7 +17189,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
+          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -16967,7 +17236,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
+          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17015,7 +17284,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
+          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -17024,7 +17293,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2);
       if (only && !apps.some((a) => a.root === only)) throw new UsageError(`No app root "${only}". Run \`agentic docs\` to list them.`);
-      const d = assessDocs(lib, apps, files, read2, (rel) => existsSync9(join10(store2.repoRoot, rel)));
+      const d = assessDocs(lib, apps, files, read2, (rel) => existsSync10(join11(store2.repoRoot, rel)));
       const items = d.items.filter((i) => !only || i.scope === only).map((i) => {
         const full = lib.items.get(i.id);
         return { ...i, title: full.title, when: full.when, purpose: full.purpose, home: full.home, load: full.load, authority: full.authority, belongs_here: full.belongs_here, not_here: full.not_here, see: full.see ?? [], source: full.source };
@@ -17056,23 +17325,61 @@ ${problems.length} problem(s).`);
       }
       return 0;
     }
+    case "maintenance": {
+      const store2 = locateStore(cwd);
+      const { files } = walk(store2.repoRoot);
+      const read2 = (rel) => {
+        try {
+          return readFileSync11(join11(store2.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadMaintenance();
+      const record2 = existsSync10(store2.recordPath) ? loadRecord(store2) : null;
+      const m = assessMaintenance(lib, files, read2, record2?.criteria);
+      const items = m.items.map((i) => {
+        const j = lib.items.get(i.id);
+        return { ...i, when: j.when, guards: j.guards, purpose: j.purpose, detector: j.detector, agent_step: j.agent_step, autofix: j.autofix, needs_human: j.needs_human, noise_controls: j.noise_controls, success: j.success, see: j.see ?? [], source: j.source };
+      });
+      const notRecommended = lib.areas.flatMap((a) => a.not_recommended);
+      if (args.flags.json) {
+        console.log(JSON.stringify({ hasRecord: !!record2, runners: m.runners, items, notRecommended }, null, 2));
+        return 0;
+      }
+      console.log(`places a janitor could run: ${m.runners.join(", ") || "none found"}`);
+      if (!record2) console.log("no record yet: prerequisites are unknown (run /agentic:assess)");
+      const hidden = items.filter((i) => i.tier === 3 && i.status === "absent").length;
+      for (const i of items.filter((x) => x.tier < 3 || x.status === "present").sort((x, y) => x.tier - y.tier || x.id.localeCompare(y.id))) {
+        const mark = i.status === "present" ? "\u2713" : i.prerequisitesMet ? "\u2192" : "\xB7";
+        console.log(`  ${mark} T${i.tier} ${i.id} ${i.title} [${i.trigger.join(", ")}]${i.status === "present" ? `: ${i.paths.join(", ")}` : ""}`);
+        if (i.status === "absent") {
+          const waiting = i.prerequisites.filter((p) => p.status !== "passed" && p.status !== "n_a");
+          if (record2) console.log(`      ${waiting.length ? `waiting on ${waiting.map((p) => `${p.id} (${p.status})`).join(", ")}` : "prerequisites pass"}`);
+          if (i.tier > 1) console.log(`      when: ${i.when}`);
+        }
+      }
+      if (hidden) console.log(`  (${hidden} Tier 3 janitors not shown: only worth it after a cited recurring problem; see --json)`);
+      console.log("\u2713 set up   \u2192 prerequisites pass, not set up   \xB7 waiting, or prerequisites unknown");
+      return 0;
+    }
     case "adopt": {
       const store2 = locateStore(cwd);
       if (store2.adopted) {
         console.log(`Already adopted at ${store2.recordPath}`);
         return 0;
       }
-      if (!existsSync9(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
-      const dest = join10(store2.repoRoot, ".agentic");
+      if (!existsSync10(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
+      const dest = join11(store2.repoRoot, ".agentic");
       mkdirSync2(dest, { recursive: true });
-      cpSync(store2.recordPath, join10(dest, "record.json"));
-      writeFileSync2(join10(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
+      cpSync(store2.recordPath, join11(dest, "record.json"));
+      writeFileSync2(join11(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
       writeFileSync2(
-        join10(dest, "README.md"),
+        join11(dest, "README.md"),
         "# Agentic readiness record\n\n`record.json` is the authoritative assessment, roadmap and execution state produced by the Agentic Playbook plugin.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change.\n"
       );
       rmSync(store2.dir, { recursive: true, force: true });
-      console.log(`Adopted record into ${join10(dest, "record.json")}. Commit .agentic/ to make it durable.`);
+      console.log(`Adopted record into ${join11(dest, "record.json")}. Commit .agentic/ to make it durable.`);
       return 0;
     }
   }
@@ -17199,7 +17506,7 @@ ${problems.length} problem(s).`);
     case "render": {
       recordScore(store, record);
       const st = staleness(store, record);
-      const out = resolve4(str(args, "out") ?? join10(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
+      const out = resolve4(str(args, "out") ?? join11(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
       mkdirSync2(dirname9(out), { recursive: true });
       writeFileSync2(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
       console.log(out);

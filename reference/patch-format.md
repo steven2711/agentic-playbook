@@ -74,6 +74,14 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
     "navigation": [ { "goal": "decisions", "reachable": false, "route": ["CLAUDE.md"], "note": "no link to any decision record" } ],
     "assessedRevision": "<sha>"
   },
+  "maintenance": {
+    "roster": [
+      { "id": "JAN-DOC-01", "status": "absent", "recommend": "after-prerequisites", "blockedBy": ["CTX-01"], "trigger": "pull request", "environment": "GitHub Actions (existing ci.yml)", "evidence": ["no doc check in .github/workflows/"], "findingIds": ["F-WF-002"] },
+      { "id": "JAN-DEP-01", "status": "present", "recommend": "none", "evidence": [".github/dependabot.yml"] }
+    ],
+    "summary": "Dependabot runs; the documentation check waits on CTX-01.",
+    "assessedRevision": "<sha>"
+  },
   "remove": { "tasks": ["T-009"] }
 }
 ```
@@ -103,4 +111,10 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
   - `relocate` and `consolidate` need `currentPaths` and a `home`. `create` needs a `home`.
   - `findingIds` must exist.
   - Remove the snapshot with `"remove": { "docs": true }`.
+- **Maintenance:** one roster for the repository, replaced whole on each apply.
+  - Each `id` must exist in the [maintenance library](maintenance/README.md) and appear once.
+  - A `present` entry needs evidence, and an `n_a` entry needs a `reason`.
+  - `blockedBy` must name criteria in the record. An entry recommended `now` whose prerequisites have not passed draws a warning: use `after-prerequisites` with `blockedBy`.
+  - `findingIds` must exist.
+  - Remove the roster with `"remove": { "maintenance": true }`.
 - **Mode:** `"mode": "existing"` switches the stage. Criteria that only held stage defaults (`n_a` or `deferred` by rubric rule) are recomputed.

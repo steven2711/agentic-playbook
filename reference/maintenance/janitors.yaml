@@ -1,0 +1,215 @@
+area: janitors
+title: Maintenance agents (janitors)
+reviewed: 2026-11
+items:
+  - id: JAN-DOC-01
+    title: Documentation check on every pull request
+    tier: 1
+    trigger: [pr]
+    guards: [CTX-08, CTX-09, DOC-ENT-01]
+    prerequisites: [CTX-01, VER-03]
+    purpose: Catch documentation drift in the change that causes it, while the author still has the context.
+    detector:
+      - agentic docs --json (broken links, always-loaded lines, repeated instructions)
+      - the repository's link or docs check, if CTX-09 added one
+    agent_step: For the changed paths, find the documents that describe them, compare their claims with the diff, and propose exact corrections in the same pull request.
+    autofix: Relative links whose target moved in the same pull request, and regenerated content that a generator owns.
+    needs_human: Any change to a contract, requirement or decision record, and any correction it cannot cite code for.
+    noise_controls: One review comment per pull request. Only documents linked to changed paths. Silent when it finds nothing.
+    success: Fewer mismatches in the auditor's claim sampling (CTX-08) at each reassessment, and the share of its suggestions that authors accept.
+    detect:
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'pull_request[\s\S]*(claude|anthropic)[\s\S]*(doc|readme|claude\.md)|(doc|readme)[\s\S]*pull_request[\s\S]*(claude|anthropic)' }
+      - { files: '^\.claude/(agents|skills)/.*(doc-?check|docs?-?review|doc-?verif).*' }
+    see: [WF-06]
+    source: { title: Claude Code GitHub Actions, url: https://code.claude.com/docs/en/github-actions }
+
+  - id: JAN-FBK-01
+    title: Agent failures become durable fixes
+    tier: 1
+    trigger: [event]
+    guards: [WF-02, WF-03]
+    prerequisites: [WF-01, WF-02]
+    purpose: Stop agents repeating the same mistake. Each blocked task, failed verification or reverted agent change should end as a document, a test or a rule.
+    detector:
+      - agentic next --json (blocked tasks and their reasons)
+      - failed evidence in the record
+      - revert commits of agent changes in git history
+    agent_step: Classify the cause. Missing context becomes a document fix, a missing check becomes a test or lint rule, and an unclear policy goes to a human.
+    autofix: Nothing. It proposes the fix as a task or pull request.
+    needs_human: Every proposal. A human decides whether the cause is real and where the fix belongs.
+    noise_controls: One proposal per distinct cause. A repeated cause is added to the existing proposal instead of opening a new one.
+    success: The same cause recurs less often, and the time from failure to durable fix falls.
+    detect:
+      - { files: '^\.claude/(agents|skills)/.*(retro|postmortem|failure|lesson).*' }
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: '(retro|postmortem|failure.?feedback|lessons?.?learned)' }
+    see: [WF-09]
+    source: { title: Postmortem Culture (Site Reliability Engineering), url: https://sre.google/sre-book/postmortem-culture/ }
+
+  - id: JAN-CTX-01
+    title: Context janitor
+    tier: 2
+    when: The repository has .claude rules or skills, or agent guidance in more than one file.
+    trigger: [pr, schedule]
+    guards: [CTX-03, CTX-04, DOC-ENT-01]
+    prerequisites: [CTX-01, CTX-03]
+    purpose: Keep what agents load small, consistent and current.
+    detector:
+      - agentic docs --json (always-loaded lines, repeated instruction lines, broken links)
+    agent_step: Judge conflicting instructions, skills that refer to commands or paths that no longer exist, and always-loaded guidance that only matters to part of the repository.
+    autofix: Links to files that moved.
+    needs_human: Removing or rewording any instruction, and moving guidance between files.
+    noise_controls: Fail only when always-loaded lines or repeated lines grow against the base branch. The scheduled run opens at most one pull request.
+    success: Always-loaded lines and repeated lines stay flat or fall, and no conflicting instructions are found at reassessment.
+    detect:
+      - { files: '^\.claude/(agents|skills)/.*(context|guidance|claude-?md).*(janitor|lint|check|garden).*' }
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'context.?janitor|claude\.md.*(lint|check)' }
+    see: [WF-08]
+    source: { title: Manage Claude's memory (Claude Code docs), url: https://code.claude.com/docs/en/memory }
+
+  - id: JAN-ARC-01
+    title: Architecture janitor
+    tier: 2
+    when: Boundary rules exist and pass, at zero or behind a ratcheted baseline (ARC-01 and ARC-04 pass).
+    trigger: [pr, schedule]
+    guards: [ARC-01, ARC-04, DOC-ARC-01, DOC-ARC-02]
+    prerequisites: [ARC-01, ARC-04]
+    purpose: Keep the code inside the boundaries and decisions the team accepted, and notice decisions that were made without a record.
+    detector:
+      - the repository's boundary check and baseline ratchet, on every pull request
+    agent_step: On a schedule, compare recent changes with the architecture overview and the ADRs. Flag new dependencies between areas and decisions that have no record. Propose an ADR draft where one is missing.
+    autofix: Nothing in code. It may draft an ADR for a human to accept.
+    needs_human: Any change to boundary rules or baselines, and any refactoring.
+    noise_controls: Report only new violation identities. Never flag style alone. At most a few issues per run, highest-impact first.
+    success: The baseline count falls, no new violation is merged, and the architecture overview matches the code at reassessment.
+    detect:
+      - { files: '^\.claude/(agents|skills)/.*(arch|boundar).*' }
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'arch(itecture)?.?janitor|arch(itecture)?.?(drift|review)' }
+    see: [WF-08]
+    source: { title: Large-Scale Changes (Software Engineering at Google, ch. 22), url: https://abseil.io/resources/swe-book/html/ch22.html }
+
+  - id: JAN-QLT-01
+    title: Flaky test janitor
+    tier: 2
+    when: CI has enough run history to see tests that pass only on retry.
+    trigger: [schedule]
+    guards: [VER-07, VER-05]
+    prerequisites: [VER-03, VER-05]
+    purpose: Keep test verdicts trustworthy, because agents act on them.
+    detector:
+      - CI run history (reruns, and failures that pass on the same revision)
+    agent_step: Diagnose the likely source of non-determinism (time, order, shared state, network, async waits) and propose a fix.
+    autofix: Quarantine a test proven flaky on one revision, with an issue linked and an owner named.
+    needs_human: Deleting a test, weakening an assertion, or leaving a test in quarantine past its deadline.
+    noise_controls: One issue per test. Act only above a failure-rate threshold. Quarantined tests have an expiry date.
+    success: The flake rate and the time to fix a flaky test both fall.
+    detect:
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'flak(y|e)' }
+      - { files: '^\.claude/(agents|skills)/.*flak.*' }
+    see: [WF-08]
+    source: { title: Flaky Tests at Google and How We Mitigate Them, url: https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html }
+
+  - id: JAN-DEP-01
+    title: Dependency updates
+    tier: 2
+    when: The repository has dependencies pinned in a lockfile.
+    trigger: [schedule]
+    guards: [SEC-04, VER-02]
+    prerequisites: [VER-03, VER-05]
+    purpose: Keep dependencies current in small, reviewable steps instead of rare, risky jumps.
+    detector:
+      - Renovate or Dependabot
+    agent_step: None is needed. An agent may summarise breaking changes on a major update.
+    autofix: Patch and minor updates merge automatically when the single CI gate passes.
+    needs_human: Major updates and any update that needs code changes.
+    noise_controls: Group related updates, run on a schedule, and cap open pull requests.
+    success: Dependency age and the time to patch known vulnerabilities both fall.
+    detect:
+      - { files: '^(\.github/)?(renovate\.json5?|\.renovaterc(\.json5?)?)$' }
+      - { files: '^\.github/dependabot\.ya?ml$' }
+      - { files: '^package\.json$', pattern: '"renovate"\s*:' }
+    see: [WF-08, SEC-04]
+    source: { title: Renovate automerge, url: https://docs.renovatebot.com/key-concepts/automerge/ }
+
+  - id: JAN-DOC-02
+    title: Scheduled documentation gardening
+    tier: 2
+    when: The pull-request check (JAN-DOC-01) runs, and claim sampling still finds drift in documents that no pull request touched.
+    trigger: [schedule]
+    guards: [CTX-08, CTX-10, CTX-11]
+    prerequisites: [CTX-08, CTX-09]
+    purpose: Find drift that no single change caused, such as a document describing code that was later changed elsewhere.
+    detector:
+      - agentic docs --json
+      - the repository's link or docs check
+      - documents whose referenced code changed since the document was last edited (git history)
+    agent_step: Sample claims in those documents against the current code. Open narrow correction pull requests, and record anything ambiguous for a human.
+    autofix: Links, generated content, and command names that resolve to exactly one script.
+    needs_human: Contracts, requirements, decisions, and anything it cannot cite code for.
+    noise_controls: At most a few pull requests per run, one document per pull request. Never rewrite a document because it is old. Remember rejected proposals so it does not propose them again.
+    success: Drift found per sample falls, and most of its pull requests are merged without edits.
+    detect:
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'schedule[\s\S]*(doc.?garden|stale.?docs|docs?.?drift)' }
+      - { files: '^\.claude/(agents|skills)/.*garden.*' }
+    see: [WF-07]
+    source: { title: Automate work with scheduled tasks (Claude Code docs), url: https://code.claude.com/docs/en/routines }
+
+  - id: JAN-FBK-02
+    title: Knowledge-gap miner
+    tier: 3
+    when: The same kind of agent mistake has recurred and failure feedback (JAN-FBK-01) has not prevented it.
+    trigger: [schedule]
+    guards: [CTX-11, WF-09]
+    prerequisites: [WF-09]
+    purpose: Find what agents repeatedly lack, from review comments and stopped tasks, before it causes another failure.
+    detector:
+      - review comments and task block reasons from the period
+    agent_step: Cluster repeated questions and corrections, and propose the missing document, rule or test for each cluster.
+    autofix: Nothing.
+    needs_human: Every proposal.
+    noise_controls: Report only clusters seen several times. One summary per run.
+    success: Fewer review comments of the same kind.
+    detect:
+      - { files: '^\.claude/(agents|skills)/.*(knowledge|gap).*' }
+    see: [WF-09]
+    source: { title: Documentation (Software Engineering at Google, ch. 10), url: https://abseil.io/resources/swe-book/html/ch10.html }
+
+  - id: JAN-QLT-02
+    title: Dead code janitor
+    tier: 3
+    when: Unused code has misled an agent or a reviewer more than once, with those cases cited.
+    trigger: [schedule]
+    guards: [ARC-02]
+    prerequisites: [VER-03, VER-08]
+    purpose: Remove code that agents read and copy but nothing runs.
+    detector:
+      - an unused-code tool for the stack, such as Knip, vulture or deadcode
+    agent_step: Confirm the code is unreachable, including through reflection, configuration and public API, and propose removal.
+    autofix: Unused files and exports the tool reports with no other references, in a pull request that passes the full gate.
+    needs_human: Anything in a public API, and anything only reached through configuration.
+    noise_controls: One small pull request per run. Ignore list for intentional exports.
+    success: Unused-code count falls and no removal is reverted.
+    detect:
+      - { files: '(^|/)(knip\.jsonc?|\.knip\.jsonc?|knip\.config\.(ts|js))$' }
+      - { files: '(^|/)(pyproject\.toml|setup\.cfg)$', pattern: 'vulture' }
+    see: [WF-08]
+    source: { title: Knip, url: https://knip.dev/ }
+
+not_recommended:
+  - practice: Janitors that refactor because code looks stylistically inconsistent
+    reason: The standard rules it out. Style is the formatter's and linter's job; refactoring for style alone produces noisy pull requests and churn.
+    source: { title: Large-Scale Changes (Software Engineering at Google, ch. 22), url: https://abseil.io/resources/swe-book/html/ch22.html }
+  - practice: Auto-merging janitor pull requests without a deterministic gate
+    reason: Without a reliable single CI gate, an auto-merge trusts the agent's own judgment of its own change.
+    source: { title: Renovate automerge, url: https://docs.renovatebot.com/key-concepts/automerge/ }
+  - practice: A scheduled gardener before the pull-request check runs
+    reason: The pull-request check stops new drift where it starts and costs far less. Scheduling first means cleaning up drift that keeps arriving.
+  - practice: Janitors that hold privileged credentials while running code from untrusted pull requests
+    reason: A pull request from a fork can run its own code with the workflow's secrets.
+    source: { title: Preventing pwn requests (GitHub Security Lab), url: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/ }
+  - practice: A custom orchestration framework for janitors
+    reason: Claude Code headless mode, GitHub Actions, scheduled tasks, hooks and subagents already cover triggering and running them.
+    source: { title: Run Claude Code programmatically, url: https://code.claude.com/docs/en/headless }
+  - practice: Rewriting documents because they are old
+    reason: Age is not drift. Change a document only when it disagrees with the code or the accepted intent, with evidence.
+  - practice: Starting a janitor before the contract it guards is accepted
+    reason: A janitor detects drift from something written down. Without the accepted conventions, boundaries or layout, it invents intent.

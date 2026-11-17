@@ -529,6 +529,7 @@ criteria:
     quote: Detect architectural drift, duplicated patterns, boundary violations
     applies: { greenfield: deferred }
     activates_when: Enough code exists for drift to occur.
+    probe: maintenance
     evidence_required: Janitor definitions, what they detect, what they may auto-correct, success measures.
 
   - id: WF-09

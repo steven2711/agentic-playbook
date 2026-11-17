@@ -129,7 +129,8 @@ export interface Patch {
   conventions?: Record<string, unknown>[];
   testing?: Record<string, unknown>[];
   docs?: Record<string, unknown>;
-  remove?: Partial<Record<Collection | "testing", string[]>> & { docs?: boolean };
+  maintenance?: Record<string, unknown>;
+  remove?: Partial<Record<Collection | "testing", string[]>> & { docs?: boolean; maintenance?: boolean };
 }
 
 /**
@@ -141,7 +142,7 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
   const log: string[] = [];
   for (const key of Object.keys(patch)) {
     if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
-    if (![...PATCHABLE, "testing", "docs", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
+    if (![...PATCHABLE, "testing", "docs", "maintenance", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
   if (patch.assessedRevision !== undefined) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
@@ -229,6 +230,15 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     log.push(`${replaced ? "replaced" : "added"} docs (${d.target.length} target entries, ${d.inventory.length} inventory entries)`);
   }
 
+  // The maintenance roster is one snapshot per repository: replaced whole.
+  if (patch.maintenance) {
+    const m = patch.maintenance;
+    if (!Array.isArray(m.roster)) throw new UsageError("maintenance needs a roster array");
+    const replaced = !!record.maintenance;
+    record.maintenance = { ...m, assessedBy: (m.assessedBy as string | undefined) ?? opts.by, assessedAt: (m.assessedAt as string | undefined) ?? now() } as unknown as NonNullable<AssessmentRecord["maintenance"]>;
+    log.push(`${replaced ? "replaced" : "added"} maintenance (${m.roster.length} janitors)`);
+  }
+
   // Keep finding.taskIds consistent with task.findingIds (both directions).
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
@@ -237,7 +247,14 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     }
   }
 
-  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection | "testing" | "docs", string[] | boolean][]) {
+  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection | "testing" | "docs" | "maintenance", string[] | boolean][]) {
+    if (coll === "maintenance") {
+      if (!ids) continue;
+      if (!record.maintenance) throw new UsageError("Cannot remove maintenance: there is no maintenance assessment");
+      delete record.maintenance;
+      log.push("removed maintenance");
+      continue;
+    }
     if (coll === "docs") {
       if (!ids) continue;
       if (!record.docs) throw new UsageError("Cannot remove docs: there is no documentation assessment");
