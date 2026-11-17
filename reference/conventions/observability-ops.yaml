@@ -1,0 +1,85 @@
+domain: observability-ops
+title: Observability and operations
+reviewed: 2026-11
+applies_when: [server]
+rules:
+  - id: OPS-01
+    title: Logs are structured event streams with correlation IDs
+    rule: Write logs as structured events (JSON with consistent field names) to stdout. Include the request or trace ID and use a defined set of levels. Do not use ad hoc string logs.
+    why: Structured, correlated logs can be searched across services. Free-text logs cannot be searched reliably at scale.
+    do: "logger.info({ orderId, traceId, durationMs }, 'order placed')"
+    dont: "console.log('placed order ' + id + '!!')"
+    enforceable: "partial: no-console lint in server code, plus a shared logger"
+    source: { title: "The Twelve-Factor App: Logs", url: "https://12factor.net/logs" }
+
+  - id: OPS-02
+    title: Logs never contain secrets or sensitive personal data
+    rule: Redact tokens, passwords, keys and sensitive personal data at the logger level. Log identifiers, not payloads.
+    why: Logs are widely replicated and retained. A secret in a log is a secret leaked.
+    do: Logger redaction paths for authorization, password and card fields.
+    dont: "logger.info({ body: req.body })"
+    enforceable: "partial: logger redaction config and secret scanning of log fixtures"
+    source: { title: "OWASP Logging Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" }
+
+  - id: OPS-03
+    title: Services emit the four golden signals
+    rule: Every service and critical endpoint reports latency (successes and errors separately), traffic, errors and saturation. Dashboards and alerts are built on these signals.
+    why: These four signals detect most user-visible problems. Without them, incidents are found by customers.
+    do: Request duration histograms by route and status, plus pool and queue saturation gauges.
+    dont: CPU graphs only.
+    enforceable: false
+    source: { title: "Google SRE Book: Monitoring Distributed Systems", url: "https://sre.google/sre-book/monitoring-distributed-systems/" }
+
+  - id: OPS-04
+    title: Trace context propagates across every boundary
+    rule: Propagate W3C trace context through HTTP, queues and background jobs with OpenTelemetry or an equivalent, so that one request can be followed end to end.
+    why: In distributed systems, the slow or failing hop cannot be found without propagated context.
+    do: OpenTelemetry auto-instrumentation, with trace context injected into message headers.
+    dont: A new trace started by every service and every job.
+    enforceable: false
+    source: { title: "OpenTelemetry: Context propagation", url: "https://opentelemetry.io/docs/concepts/context-propagation/" }
+
+  - id: OPS-05
+    title: User journeys have SLOs and error budgets
+    rule: Define service level objectives for critical user journeys. Use the remaining error budget to decide between shipping features and investing in reliability.
+    why: Without SLOs, reliability is either over-invested or ignored, and alerting has no principled threshold.
+    do: "Checkout: 99.9% of requests succeed in under 800 ms over 28 days; alert on burn rate."
+    dont: An alert on every 5xx.
+    enforceable: false
+    source: { title: "Google SRE Book: Service Level Objectives", url: "https://sre.google/sre-book/service-level-objectives/" }
+
+  - id: OPS-06
+    title: Risky changes ship behind flags that have owners and expiry dates
+    rule: Release behaviour changes behind feature flags when they need staged exposure or a kill switch. Every flag has an owner and a removal date, and stale flags are deleted.
+    why: Flags separate deploying from releasing. Flags nobody removes become permanent hidden complexity.
+    do: "flag new-checkout, owner payments, remove by 2027-01"
+    dont: Hundreds of flags whose purpose nobody remembers.
+    enforceable: "partial: a flag registry with expiry checks"
+    source: { title: "Feature Toggles (aka Feature Flags)", url: "https://martinfowler.com/articles/feature-toggles.html" }
+
+  - id: OPS-07
+    title: Releases are progressive and roll back automatically
+    rule: Deploy to a small slice first, such as a canary or one cell or region. Compare its health with the baseline, and roll back automatically on regression before widening.
+    why: Most outages come from changes. Progressive delivery limits how far a bad change reaches.
+    do: A one-box canary, then waves by region, with automatic rollback on alarm.
+    dont: Deploying to all hosts at once and checking dashboards afterwards.
+    enforceable: false
+    source: { title: "Amazon Builders' Library: Automating safe, hands-off deployments", url: "https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/" }
+
+  - id: OPS-08
+    title: Health checks distinguish liveness from readiness, and shutdown is graceful
+    rule: Liveness reports whether the process works. Readiness reports whether it can take traffic, including critical dependencies, without failing on non-critical ones. On SIGTERM the service drains in-flight work.
+    why: Health checks that are too shallow route traffic to broken hosts. Checks that are too deep cause fleet-wide outages when a dependency blips.
+    do: "/healthz (process) and /readyz (database pool ready), with draining on SIGTERM"
+    dont: A liveness probe that fails when a downstream API is slow.
+    enforceable: false
+    source: { title: "Amazon Builders' Library: Implementing health checks", url: "https://aws.amazon.com/builders-library/implementing-health-checks/" }
+
+  - id: OPS-09
+    title: Avoid rarely exercised fallback paths
+    rule: Prefer making the primary path more reliable, or failing fast, over fallback logic that runs only during failures. Fallbacks that must exist are exercised continuously.
+    why: Code that runs only during an outage is untested exactly when it matters, and often makes the outage worse.
+    do: Retry the primary with backoff, then fail fast with a clear error.
+    dont: Silently switching to an untested secondary database during an incident.
+    enforceable: false
+    source: { title: "Amazon Builders' Library: Avoiding fallback in distributed systems", url: "https://aws.amazon.com/builders-library/avoiding-fallback-in-distributed-systems/" }

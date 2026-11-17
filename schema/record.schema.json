@@ -1,0 +1,226 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentic-playbook/record.schema.json",
+  "title": "Agentic readiness assessment record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "assessmentId", "mode", "rubricVersion", "repo", "assessedRevision", "recordRevision", "createdAt", "updatedAt", "criteria", "findings", "milestones", "tasks", "evidence", "approvals", "conventions", "scoreHistory", "artifact"],
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]*-[A-Za-z0-9.-]+$" },
+    "ids": { "type": "array", "items": { "$ref": "#/definitions/id" }, "uniqueItems": true },
+    "priority": { "enum": ["P0", "P1", "P2"] },
+    "text": { "type": "string", "minLength": 1 },
+    "texts": { "type": "array", "items": { "$ref": "#/definitions/text" } },
+    "timestamp": { "type": "string", "minLength": 10 },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "status": { "enum": ["passed", "partial", "failed", "n_a", "unverified", "deferred"] },
+        "evidence": { "$ref": "#/definitions/texts" },
+        "reason": { "type": "string" },
+        "trigger": { "type": "string" },
+        "notes": { "type": "string" },
+        "stageDefault": { "type": "boolean" },
+        "assessedBy": { "type": "string" },
+        "assessedAt": { "type": "string" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "kind", "dimension", "priority", "currentState", "desiredState", "evidence", "remediation", "criterionIds", "taskIds"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "title": { "$ref": "#/definitions/text" },
+        "description": { "type": "string" },
+        "kind": { "enum": ["verified", "inferred", "recommendation", "unknown", "deferred"] },
+        "dimension": { "enum": ["CTX", "VER", "ARC", "SEC", "EVAL", "WF"] },
+        "priority": { "$ref": "#/definitions/priority" },
+        "currentState": { "type": "string" },
+        "desiredState": { "type": "string" },
+        "evidence": { "$ref": "#/definitions/texts" },
+        "remediation": { "type": "string" },
+        "criterionIds": { "$ref": "#/definitions/ids" },
+        "taskIds": { "$ref": "#/definitions/ids" },
+        "dependsOn": { "$ref": "#/definitions/ids" },
+        "complexity": { "enum": ["S", "M", "L", "XL"] },
+        "risks": { "type": "string" },
+        "reason": { "type": "string" },
+        "resolved": { "type": "boolean" }
+      }
+    },
+    "exitCriterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "text": { "$ref": "#/definitions/text" }
+      }
+    },
+    "milestone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "objective", "dependsOn", "exitCriteria", "status"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "title": { "$ref": "#/definitions/text" },
+        "objective": { "$ref": "#/definitions/text" },
+        "scope": { "type": "string" },
+        "outcomes": { "$ref": "#/definitions/texts" },
+        "dependsOn": { "$ref": "#/definitions/ids" },
+        "exitCriteria": { "type": "array", "items": { "$ref": "#/definitions/exitCriterion" }, "minItems": 1 },
+        "status": { "enum": ["pending", "in_progress", "verification_required", "completed", "blocked", "deferred"] }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "text": { "$ref": "#/definitions/text" }
+      }
+    },
+    "historyEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "from", "to", "by"],
+      "properties": {
+        "at": { "$ref": "#/definitions/timestamp" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "by": { "type": "string" },
+        "reason": { "type": "string" },
+        "revision": { "type": ["string", "null"] }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "milestoneId", "title", "description", "priority", "dependsOn", "findingIds", "acceptanceCriteria", "verification", "status", "history"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "milestoneId": { "$ref": "#/definitions/id" },
+        "title": { "$ref": "#/definitions/text" },
+        "description": { "$ref": "#/definitions/text" },
+        "priority": { "$ref": "#/definitions/priority" },
+        "dependsOn": { "$ref": "#/definitions/ids" },
+        "findingIds": { "$ref": "#/definitions/ids" },
+        "acceptanceCriteria": { "type": "array", "items": { "$ref": "#/definitions/acceptance" }, "minItems": 1 },
+        "verification": { "type": "array", "items": { "$ref": "#/definitions/text" }, "minItems": 1 },
+        "status": { "enum": ["pending", "in_progress", "verification_required", "completed", "blocked", "deferred"] },
+        "blockedReason": { "type": "string" },
+        "deferredTrigger": { "type": "string" },
+        "implementer": { "type": "string" },
+        "requiresApproval": { "type": "boolean" },
+        "history": { "type": "array", "items": { "$ref": "#/definitions/historyEntry" } }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "verifier", "action", "revision", "result", "at", "covers"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "taskId": { "$ref": "#/definitions/id" },
+        "milestoneId": { "$ref": "#/definitions/id" },
+        "covers": { "$ref": "#/definitions/ids" },
+        "kind": { "enum": ["test", "check", "ci", "commit", "pr", "doc", "setting", "approval", "eval", "other"] },
+        "verifier": { "$ref": "#/definitions/text" },
+        "action": { "$ref": "#/definitions/text" },
+        "revision": { "type": ["string", "null"] },
+        "result": { "enum": ["pass", "fail"] },
+        "location": { "type": "string" },
+        "notes": { "type": "string" },
+        "at": { "$ref": "#/definitions/timestamp" }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "subject", "approvedBy", "at"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "subject": { "$ref": "#/definitions/text" },
+        "approvedBy": { "$ref": "#/definitions/text" },
+        "at": { "$ref": "#/definitions/timestamp" },
+        "note": { "type": "string" }
+      }
+    },
+    "convention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "rule", "status", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "scope": { "$ref": "#/definitions/text" },
+        "rule": { "type": "string", "pattern": "^[A-Z]+-[0-9]{2}$" },
+        "status": { "enum": ["documented", "followed", "contradicted", "absent", "n_a"] },
+        "evidence": { "$ref": "#/definitions/texts" },
+        "reason": { "type": "string" },
+        "promoteTo": { "type": "string" },
+        "extraSources": { "type": "array", "items": { "type": "string", "pattern": "^https://" } },
+        "decision": { "enum": ["proposed", "accepted", "declined"] },
+        "notes": { "type": "string" },
+        "assessedBy": { "type": "string" },
+        "assessedAt": { "type": "string" }
+      }
+    },
+    "scoreEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "revision", "recordRevision", "score", "confidence", "level", "byDimension"],
+      "properties": {
+        "at": { "$ref": "#/definitions/timestamp" },
+        "revision": { "type": ["string", "null"] },
+        "recordRevision": { "type": "integer" },
+        "score": { "type": "number" },
+        "confidence": { "type": "number" },
+        "level": { "type": "string" },
+        "byDimension": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "assessmentId": { "$ref": "#/definitions/text" },
+    "mode": { "enum": ["greenfield", "existing"] },
+    "rubricVersion": { "type": "integer" },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "#/definitions/text" },
+        "remote": { "type": ["string", "null"] },
+        "defaultBranch": { "type": ["string", "null"] }
+      }
+    },
+    "assessedRevision": { "type": ["string", "null"] },
+    "recordRevision": { "type": "integer", "minimum": 1 },
+    "createdAt": { "$ref": "#/definitions/timestamp" },
+    "updatedAt": { "$ref": "#/definitions/timestamp" },
+    "criteria": { "type": "array", "items": { "$ref": "#/definitions/criterion" } },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "milestones": { "type": "array", "items": { "$ref": "#/definitions/milestone" } },
+    "tasks": { "type": "array", "items": { "$ref": "#/definitions/task" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidence" } },
+    "approvals": { "type": "array", "items": { "$ref": "#/definitions/approval" } },
+    "conventions": { "type": "array", "items": { "$ref": "#/definitions/convention" } },
+    "scoreHistory": { "type": "array", "items": { "$ref": "#/definitions/scoreEntry" } },
+    "artifact": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["url", "publishedRecordRevision", "publishedAt"],
+      "properties": {
+        "url": { "type": "string" },
+        "publishedRecordRevision": { "type": "integer" },
+        "publishedAt": { "$ref": "#/definitions/timestamp" }
+      }
+    }
+  }
+}

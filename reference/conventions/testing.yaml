@@ -1,0 +1,77 @@
+domain: testing
+title: Testing
+reviewed: 2026-11
+applies_when: [any]
+rules:
+  - id: TST-01
+    title: Tests exercise behaviour through public interfaces
+    rule: Test what a unit does through the interface its callers use, not its private methods or internal call sequence.
+    why: Tests coupled to implementation break on every refactor and stop being trusted. Behaviour tests survive refactoring and catch real regressions.
+    do: "expect(cart.total()).toEqual(money(30))"
+    dont: "expect(cart._recalculate).toHaveBeenCalledTimes(2)"
+    enforceable: false
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TST-02
+    title: Mostly small, fast tests, with fewer large ones
+    rule: Most tests are small, fast and isolated. Integration and end-to-end tests cover the critical paths that small tests cannot.
+    why: An inverted pyramid gives slow, flaky feedback that agents and humans learn to ignore.
+    do: Domain logic covered by unit tests, plus one end-to-end test per critical user journey.
+    dont: Every behaviour checked only through a browser end-to-end suite.
+    enforceable: false
+    source: { title: "The Practical Test Pyramid", url: "https://martinfowler.com/articles/practical-test-pyramid.html" }
+
+  - id: TST-03
+    title: Tests are deterministic and hermetic
+    rule: Tests do not depend on real network calls, wall-clock time, unseeded randomness, test order or shared mutable state. Flaky tests are quarantined and fixed, not retried until they pass.
+    why: One flaky test teaches everyone, agents included, to ignore red builds.
+    do: "vi.useFakeTimers(); seeded faker; network disabled in the test setup"
+    dont: "await sleep(2000) and a retry: 3 in CI"
+    enforceable: "partial: network blocking in test setup and flaky-test detection"
+    source: { title: "Eradicating Non-Determinism in Tests", url: "https://martinfowler.com/articles/nonDeterminism.html" }
+
+  - id: TST-04
+    title: Prefer real implementations and fakes over mocks
+    rule: Use the real object when it is fast and deterministic. Otherwise use a maintained fake. Mock interactions only at boundaries you do not own.
+    why: Heavily mocked tests restate the implementation and pass while production breaks.
+    do: An in-memory repository fake shared by all service tests.
+    dont: Mocking five collaborators to test a ten-line function.
+    enforceable: false
+    source: { title: "Software Engineering at Google, ch. 13: Test Doubles", url: "https://abseil.io/resources/swe-book/html/ch13.html" }
+
+  - id: TST-05
+    title: If it must not break, it has a test
+    rule: Every bug fix includes a regression test that fails without the fix. Every behaviour someone relies on is covered by a test.
+    why: Under Google's "Beyoncé Rule", infrastructure changes may break anything that has no test. A regression test is the only durable record that a bug was fixed.
+    do: A fix PR that adds a test reproducing the reported input.
+    dont: "Fixes #123 with no test change"
+    enforceable: "partial: changed-code coverage threshold"
+    source: { title: "Software Engineering at Google, ch. 11: Testing Overview", url: "https://abseil.io/resources/swe-book/html/ch11.html" }
+
+  - id: TST-06
+    title: Tests are DAMP, not DRY
+    rule: "Each test reads on its own: setup, action and assertion are visible in the test body. Prefer clear duplication over clever shared helpers."
+    why: When a test fails, the reader has to understand it immediately. Indirection in tests hides what is being asserted.
+    do: A test that builds exactly the data it needs with small builder helpers.
+    dont: A test that calls runScenario(7) from a shared table nobody can read.
+    enforceable: false
+    source: { title: "Software Engineering at Google, ch. 12: Unit Testing", url: "https://abseil.io/resources/swe-book/html/ch12.html" }
+
+  - id: TST-07
+    title: UI tests query the way users do
+    rule: Find elements by accessible role, label and text, not by CSS classes, component internals or test IDs (test IDs are a last resort).
+    why: Tests written like a user's view survive refactors and also check accessibility.
+    do: "screen.getByRole('button', { name: /submit order/i })"
+    dont: "container.querySelector('.btn-primary-2')"
+    applies_when: [web]
+    enforceable: "eslint-plugin-testing-library"
+    source: { title: "Testing Library: Guiding Principles", url: "https://testing-library.com/docs/guiding-principles" }
+
+  - id: TST-08
+    title: Coverage is a signal on changed code, not a target
+    rule: Measure coverage on changed lines in every PR and investigate gaps. Do not chase a global percentage or write assertion-free tests to raise it.
+    why: Global targets invite gaming. Changed-code coverage shows whether new behaviour is tested at all.
+    do: A PR comment that shows which changed lines no test exercises.
+    dont: Tests that call functions without asserting anything, written to reach 80%.
+    enforceable: "coverage tool with a changed-lines report in CI"
+    source: { title: "Google Testing Blog: Code Coverage Best Practices", url: "https://testing.googleblog.com/2020/08/code-coverage-best-practices.html" }

@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Plugin bin/ is on the Bash tool's PATH while the plugin is enabled.
+here="$(cd "$(dirname "$0")" && pwd)"
+exec node "$here/../cli/dist/agentic.mjs" "$@"

@@ -1,0 +1,100 @@
+domain: frontend-web
+title: Frontend web applications
+reviewed: 2026-11
+applies_when: [web]
+rules:
+  - id: FE-01
+    title: Keep minimal state and derive the rest
+    rule: Store the smallest set of state needed. Compute anything derivable during render. Do not copy props into state, and do not use effects to keep two pieces of state in sync.
+    why: Duplicated state drifts out of sync. Effect-driven syncing adds extra renders and ordering bugs.
+    do: "const fullName = first + ' ' + last"
+    dont: "useEffect(() => setFullName(first + ' ' + last), [first, last])"
+    applies_when: [react]
+    enforceable: "partial: eslint-plugin-react-hooks catches some cases"
+    source: { title: "React docs: You Might Not Need an Effect", url: "https://react.dev/learn/you-might-not-need-an-effect" }
+
+  - id: FE-02
+    title: Components and hooks are pure and follow the Rules of React
+    rule: Rendering is free of side effects. Props and state are treated as immutable. Hooks are called only at the top level of components and custom hooks.
+    why: Impure rendering breaks concurrent rendering, memoization and the React Compiler, and causes bugs that are hard to reproduce.
+    do: Side effects run in event handlers, or in effects for synchronizing with external systems.
+    dont: Mutating a prop array during render, or calling a hook inside a condition.
+    applies_when: [react]
+    enforceable: "eslint-plugin-react-hooks (rules-of-hooks and React Compiler rules)"
+    source: { title: "React docs: Rules of React", url: "https://react.dev/reference/rules" }
+
+  - id: FE-03
+    title: Server data goes through one caching data layer
+    rule: Fetch remote data through the framework's data mechanism or one client cache, such as server components, loaders, TanStack Query or SWR. Do not fetch ad hoc in effects.
+    why: Fetching in effects causes race conditions, waterfalls, no caching and duplicate requests.
+    do: "const { data, error, isPending } = useQuery({ queryKey: ['order', id], queryFn })"
+    dont: "useEffect(() => { fetch(url).then(r => r.json()).then(setData) }, [url])"
+    applies_when: [react]
+    enforceable: false
+    source: { title: "React docs: You Might Not Need an Effect (Fetching data)", url: "https://react.dev/learn/you-might-not-need-an-effect" }
+
+  - id: FE-04
+    title: Every async view handles loading, empty, error and success
+    rule: Each view that depends on async data renders an explicit state for loading, empty, error and success. An error boundary contains rendering failures in each route or major region.
+    why: The unhappy states are where users get stuck. One render error should not blank the whole app.
+    do: A route-level error boundary with a retry action, and an empty state with a call to action.
+    dont: "data && <List items={data} />, which shows nothing on error"
+    enforceable: false
+    source: { title: "React docs: Catching rendering errors with an error boundary", url: "https://react.dev/reference/react/Component" }
+
+  - id: FE-05
+    title: The UI meets WCAG 2.2 AA
+    rule: Use semantic HTML before ARIA. Every interactive element can be reached and operated by keyboard and has an accessible name. Focus is visible and managed in dialogs. Colour contrast meets AA.
+    why: Accessibility is a legal and product requirement. Accessibility fixed after launch costs much more than accessibility built in.
+    do: "<button> with a text label, and <label for> on inputs"
+    dont: "<div onClick> with no role, tabIndex or keyboard handler"
+    enforceable: "partial: eslint-plugin-jsx-a11y, plus axe-core in component or end-to-end tests"
+    source: { title: "W3C Web Content Accessibility Guidelines (WCAG) 2.2", url: "https://www.w3.org/TR/WCAG22/" }
+
+  - id: FE-06
+    title: Performance has budgets on Core Web Vitals
+    rule: Set budgets for LCP (≤ 2.5 s), INP (≤ 200 ms) and CLS (≤ 0.1) at the 75th percentile, plus a JavaScript bundle budget. Check them in CI and in real-user monitoring.
+    why: Performance regressions arrive one small PR at a time. Without budgets nobody owns them.
+    do: Lighthouse CI or size-limit failing a PR that exceeds the budget.
+    dont: Performance checked by hand before a launch.
+    enforceable: "Lighthouse CI budgets or size-limit"
+    source: { title: "web.dev: Web Vitals", url: "https://web.dev/articles/vitals" }
+
+  - id: FE-07
+    title: Components have one responsibility
+    rule: Split UI along single responsibilities, mirroring the data model. Keep data fetching, state orchestration and presentation separate enough that each can be tested on its own.
+    why: Components that do everything are hard to test, reuse or change safely.
+    do: OrderPage loads the data, OrderSummary renders it, and useOrderActions owns the mutations.
+    dont: An 800-line component that fetches, transforms, validates and renders.
+    applies_when: [react]
+    enforceable: "partial: max-lines or complexity lint"
+    source: { title: "React docs: Thinking in React", url: "https://react.dev/learn/thinking-in-react" }
+
+  - id: FE-08
+    title: The server/client boundary is explicit and pushed to the leaves
+    rule: Default to server components. Mark only the interactive leaves with "use client". Never pass secrets or server-only modules across the boundary. Use the server-only package for server code.
+    why: A misplaced "use client" ships unnecessary JavaScript. A leaked import can expose secrets to the browser.
+    do: "import 'server-only' in lib/db.ts; <AddToCart> is the only client component on the page"
+    dont: A layout marked "use client" that then imports the database client.
+    applies_when: [next]
+    enforceable: "partial: the server-only and client-only packages"
+    source: { title: "Next.js docs: Server and Client Components", url: "https://nextjs.org/docs/app/getting-started/server-and-client-components" }
+
+  - id: FE-09
+    title: Untrusted content is never rendered as raw HTML
+    rule: Rely on the framework's escaping. If raw HTML is unavoidable, sanitize it with a maintained sanitizer, isolate it in one reviewed component, and add a Content Security Policy.
+    why: Cross-site scripting through raw HTML is one of the most common web vulnerabilities.
+    do: "<SafeHtml html={DOMPurify.sanitize(md)} />, used in one place"
+    dont: "dangerouslySetInnerHTML={{ __html: comment.body }}"
+    enforceable: "react/no-danger and eslint-plugin-no-unsanitized"
+    source: { title: "OWASP Cross Site Scripting Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" }
+
+  - id: FE-10
+    title: List keys are stable identities
+    rule: Key list items by a stable ID from the data, never by array index or a random value.
+    why: Unstable keys corrupt component state and focus when lists reorder.
+    do: "items.map(i => <Row key={i.id} />)"
+    dont: "items.map((i, idx) => <Row key={idx} />)"
+    applies_when: [react]
+    enforceable: "react/no-array-index-key"
+    source: { title: "React docs: Rendering Lists", url: "https://react.dev/learn/rendering-lists" }

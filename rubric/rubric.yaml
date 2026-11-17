@@ -1,0 +1,510 @@
+# Agentic Readiness rubric — single source of truth for scoring.
+#
+# Every criterion cites the playbook standard it derives from (`source`) and a
+# verbatim `quote` from that standard. `agentic lint-playbook` fails if a quote
+# disappears or a standard section loses coverage, so the rubric and the prose
+# cannot drift apart silently.
+#
+# Scoring (computed by the CLI, never written by hand):
+#   credit: passed = 1, partial = 0.5, failed/unverified = 0
+#   weight: by priority (P0 = 3, P1 = 2, P2 = 1)
+#   n_a and deferred criteria are excluded from the denominator
+#   level: highest Ln such that every applicable criterion gated at <= Ln is passed
+version: 1
+
+priorities:
+  P0: { weight: 3, label: Foundational blocker }
+  P1: { weight: 2, label: High-leverage improvement }
+  P2: { weight: 1, label: Advanced capability }
+
+levels:
+  - { id: L0, name: Assisted, summary: Agents help a human who drives and reviews everything. }
+  - { id: L1, name: Supervised, summary: Agents can find their way and run the real checks; humans review every change. }
+  - { id: L2, name: Bounded autonomy, summary: Deterministic gates and stop conditions let agents complete bounded tasks safely. }
+  - { id: L3, name: Reduced review, summary: Architecture, ratchets, evals and independent acceptance justify lighter human review. }
+  - { id: L4, name: Autonomous maintenance, summary: The repository continuously detects and corrects its own drift. }
+
+dimensions:
+  - id: CTX
+    name: Context & knowledge architecture
+    source: standards/documentation-architecture.md
+  - id: VER
+    name: Deterministic verification & CI gate
+    source: standards/verification.md
+  - id: ARC
+    name: Architecture enforcement & ratcheting
+    source: standards/verification.md
+  - id: SEC
+    name: Security & delivery controls
+    source: standards/verification.md
+  - id: EVAL
+    name: Agent evaluations
+    source: standards/agent-evaluations.md
+  - id: WF
+    name: Autonomous workflow & maintenance
+    source: standards/autonomous-workflows.md
+
+criteria:
+  # ---------------------------------------------------------------- CTX
+  - id: CTX-01
+    dimension: CTX
+    title: Root CLAUDE.md is a concise navigational entry point
+    priority: P0
+    gate: L1
+    probe: claude_md
+    source: standards/documentation-architecture.md
+    quote: authoritative navigation and instruction entry point
+    evidence_required: Path to CLAUDE.md, its length, and confirmation it states purpose, commands, constraints and links rather than embedding deep reference material.
+
+  - id: CTX-02
+    dimension: CTX
+    title: Essential commands are documented and resolve to real scripts
+    priority: P0
+    gate: L1
+    probe: claude_md_commands
+    source: standards/documentation-architecture.md
+    quote: essential commands, universally applicable constraints, and links
+    evidence_required: Each documented command mapped to the manifest script or file that defines it.
+
+  - id: CTX-03
+    dimension: CTX
+    title: Each instruction has one authoritative home; agent guidance does not conflict
+    priority: P0
+    gate: L2
+    probe: agent_guidance_sources
+    source: standards/documentation-architecture.md
+    quote: Give each instruction one authoritative home
+    evidence_required: Inventory of CLAUDE.md, AGENTS.md, .claude/rules, skills and nested guidance with any duplicates or contradictions cited by path and line.
+
+  - id: CTX-04
+    dimension: CTX
+    title: Guidance is scoped to paths and repeatable workflows are skills
+    priority: P1
+    probe: scoped_rules
+    source: standards/documentation-architecture.md
+    quote: Scope guidance to applicable paths where useful, use project skills for repeatable workflows
+    evidence_required: Scoped rules, nested CLAUDE.md files or skills, and whether globally loaded context is limited to universally applicable content.
+
+  - id: CTX-05
+    dimension: CTX
+    title: Approved requirements and acceptance criteria are discoverable and distinct from agent proposals
+    priority: P0
+    gate: L2
+    source: standards/documentation-architecture.md
+    quote: product requirements and approved acceptance criteria
+    evidence_required: Location of approved intent and how an agent distinguishes it from generated plans.
+
+  - id: CTX-06
+    dimension: CTX
+    title: Architecture, dependency direction and key decisions (ADRs) are documented
+    priority: P0
+    gate: L2
+    probe: architecture_docs
+    source: standards/documentation-architecture.md
+    quote: architecture and dependency direction, ADRs
+    evidence_required: Architecture doc and ADR paths, with dependency direction stated.
+
+  - id: CTX-07
+    dimension: CTX
+    title: Authority hierarchy separates contracts, facts, history, plans and operations
+    priority: P1
+    gate: L3
+    source: standards/documentation-architecture.md
+    quote: Distinguish approved requirements, architectural contracts, implementation facts, historical decisions
+    evidence_required: How each document declares its authority and which wins on conflict.
+
+  - id: CTX-08
+    dimension: CTX
+    title: Sampled documentation claims match the implementation
+    priority: P1
+    gate: L3
+    source: standards/documentation-architecture.md
+    quote: when sampling claims against implementation, tests, or configuration
+    evidence_required: At least five sampled claims with doc path:line and the code/test/config path:line that confirms or contradicts each.
+
+  - id: CTX-09
+    dimension: CTX
+    title: Deterministic documentation checks run in CI
+    priority: P1
+    gate: L3
+    probe: doc_checks
+    source: standards/documentation-architecture.md
+    quote: Use lightweight deterministic CI checks for applicable links, required files, metadata
+    evidence_required: CI job that checks links, required files or command references, and its current result.
+
+  - id: CTX-10
+    dimension: CTX
+    title: Interfaces, integrations, deployment and operations are documented where they exist
+    priority: P2
+    source: standards/documentation-architecture.md
+    quote: interfaces and integrations, and deployment and operations
+    applies: { greenfield: deferred }
+    activates_when: The first external integration or deployment target exists.
+    evidence_required: Paths to integration contracts and runbooks, or confirmation none exist.
+
+  - id: CTX-11
+    dimension: CTX
+    title: Agents can find requirements, decisions, boundaries and verification commands
+    priority: P1
+    source: standards/documentation-architecture.md
+    quote: Evaluate whether agents can find requirements, decisions, boundaries, and verification commands
+    evidence_required: Result of a navigation exercise starting from CLAUDE.md for each of the four targets.
+
+  - id: CTX-12
+    dimension: CTX
+    title: Each app or layer has scoped engineering conventions that hold judgment rules only
+    priority: P1
+    gate: L2
+    probe: conventions
+    source: standards/documentation-architecture.md
+    quote: Give each deployable app or layer, such as web, API, worker, or shared packages, an engineering conventions file scoped to the paths it governs
+    evidence_required: Conventions file per app root and the paths it loads for; whether rules carry rationale and examples, avoid restating lint rules, and match the code (path:line). The conventions-advisor report per app.
+
+  # ---------------------------------------------------------------- VER
+  - id: VER-01
+    dimension: VER
+    title: Canonical commands exist for format, lint, type check, build and test
+    priority: P0
+    gate: L1
+    probe: canonical_commands
+    source: standards/verification.md
+    quote: Inventory canonical commands for formatting, lint, type checking, build, unit and integration tests
+    evidence_required: Command per category with its defining file, or n/a with reason.
+
+  - id: VER-02
+    dimension: VER
+    title: Setup is reproducible with pinned toolchain and lockfile
+    priority: P0
+    gate: L1
+    probe: reproducible_setup
+    source: standards/verification.md
+    quote: Document setup and pin relevant inputs so local and CI runs use equivalent rules
+    evidence_required: Lockfile, toolchain pin (.nvmrc, .tool-versions, packageManager, etc.) and documented setup steps.
+
+  - id: VER-03
+    dimension: VER
+    title: CI runs the canonical checks on every change
+    priority: P0
+    gate: L1
+    probe: ci_runs_checks
+    source: standards/verification.md
+    quote: Require a stable CI gate that fails when an applicable check fails
+    evidence_required: CI workflow path and the steps that invoke each canonical check.
+
+  - id: VER-04
+    dimension: VER
+    title: Local and CI runs use equivalent rules
+    priority: P1
+    gate: L2
+    source: standards/verification.md
+    quote: local and CI runs use equivalent rules
+    evidence_required: CI invokes the same scripts/config as local commands; differences listed.
+
+  - id: VER-05
+    dimension: VER
+    title: A single stable CI gate fails on failed, skipped or missing results
+    priority: P0
+    gate: L2
+    source: standards/verification.md
+    quote: is skipped, or lacks a result
+    evidence_required: Aggregate gate job definition and how it treats skipped or missing checks.
+
+  - id: VER-06
+    dimension: VER
+    title: Required checks and branch protection are verified, not assumed
+    priority: P0
+    gate: L2
+    probe: branch_protection
+    source: standards/verification.md
+    quote: Verify actual required-check and protection settings before claiming enforcement
+    evidence_required: Output of the protection/ruleset API for the default branch, or unverified with reason.
+
+  - id: VER-07
+    dimension: VER
+    title: Tests are reliable enough for agents to trust their verdict
+    priority: P1
+    gate: L3
+    source: standards/verification.md
+    quote: Classify each check as passed, failed, not applicable with a reason, or unverified with a reason
+    applies: { greenfield: deferred }
+    activates_when: The test suite has more than a handful of real tests.
+    evidence_required: Recent CI history, retry/quarantine configuration, known flaky tests.
+
+  - id: VER-08
+    dimension: VER
+    title: Changed-code testing and coverage are evaluated
+    priority: P1
+    gate: L3
+    probe: coverage
+    source: standards/verification.md
+    quote: Evaluate meaningful changed-code testing and coverage as functionality appears
+    applies: { greenfield: deferred }
+    activates_when: The first user-facing feature is implemented.
+    evidence_required: Coverage tool, changed-code threshold and where it is enforced.
+
+  - id: VER-09
+    dimension: VER
+    title: Changes are reviewed against the applicable conventions and recurring violations become deterministic checks
+    priority: P1
+    gate: L3
+    source: standards/verification.md
+    quote: review each change against the engineering conventions for its paths, and promote recurring violations into deterministic checks
+    applies: { greenfield: deferred }
+    activates_when: The first feature change is reviewed against a conventions file.
+    evidence_required: Where conventions review happens (independent verifier, review bot, CODEOWNERS on conventions files), a sample of reviews citing rules, and conventions that were promoted into lint rules.
+
+  # ---------------------------------------------------------------- ARC
+  - id: ARC-01
+    dimension: ARC
+    title: Module boundaries and dependency direction are enforced by tooling
+    priority: P0
+    gate: L3
+    probe: boundary_tooling
+    source: standards/verification.md
+    quote: enforce justified module boundaries, dependency direction, and interfaces
+    evidence_required: Boundary tool configuration and the CI step that runs it.
+
+  - id: ARC-02
+    dimension: ARC
+    title: Applicable clean rules start at zero violations
+    priority: P1
+    gate: L3
+    source: standards/verification.md
+    quote: Start applicable clean rules with zero violations
+    evidence_required: Rules enforced at zero and how new ones are introduced.
+
+  - id: ARC-03
+    dimension: ARC
+    title: Legacy debt lives in reviewed, versioned baselines with stable identities
+    priority: P1
+    gate: L3
+    probe: baselines
+    source: standards/verification.md
+    quote: reviewed, versioned baselines with stable violation identities
+    applies: { greenfield: n_a }
+    evidence_required: Baseline file paths, identity format, scope and rationale.
+
+  - id: ARC-04
+    dimension: ARC
+    title: Ratchet fails new violation identities even when the total is flat
+    priority: P1
+    gate: L3
+    source: standards/verification.md
+    quote: fail any new identity even if another violation was removed and the total stays flat
+    evidence_required: Ratchet comparison logic and a captured equal-count replacement test.
+
+  - id: ARC-05
+    dimension: ARC
+    title: Enforcement, baseline and exception changes require independent review
+    priority: P0
+    gate: L2
+    probe: codeowners
+    source: standards/verification.md
+    quote: Require independent review of enforcement, baseline, and exception changes
+    evidence_required: CODEOWNERS or ruleset entries covering policy, CI and baseline paths.
+
+  - id: ARC-06
+    dimension: ARC
+    title: A candidate change cannot pass by relaxing the policy that judges it
+    priority: P0
+    gate: L3
+    source: standards/verification.md
+    quote: Ensure the candidate cannot pass by changing the policy or baseline that judges it
+    evidence_required: Mechanism (trusted-base policy, protected paths) and a captured negative test.
+
+  - id: ARC-07
+    dimension: ARC
+    title: Negative cases for enforcement have been executed and captured
+    priority: P1
+    gate: L3
+    source: standards/verification.md
+    quote: isolated negative cases for a prohibited architecture change
+    evidence_required: Expected vs actual verdicts for prohibited change, failed and skipped check, returning violation, policy relaxation.
+
+  # ---------------------------------------------------------------- SEC
+  - id: SEC-01
+    dimension: SEC
+    title: Secrets are handled safely and scanned for
+    priority: P0
+    gate: L2
+    probe: secret_scanning
+    source: standards/verification.md
+    quote: Cover secret handling, least privilege, controlled merging, and reproducible setup
+    evidence_required: Secret scanning configuration, .env handling, absence of committed secrets.
+
+  - id: SEC-02
+    dimension: SEC
+    title: CI and agents run with least privilege; untrusted code never sees privileged credentials
+    priority: P0
+    gate: L2
+    probe: ci_permissions
+    source: standards/autonomous-workflows.md
+    quote: Avoid granting untrusted code access to privileged credentials.
+    evidence_required: Workflow permissions blocks, pull_request_target usage, token scopes.
+
+  - id: SEC-03
+    dimension: SEC
+    title: Agent permissions deny destructive and out-of-scope actions
+    priority: P0
+    gate: L2
+    probe: agent_settings
+    source: standards/autonomous-workflows.md
+    quote: When agents must stop and request approval.
+    evidence_required: .claude/settings.json permissions and hooks that block destructive or policy-relaxing actions.
+
+  - id: SEC-04
+    dimension: SEC
+    title: Dependency and security scanning run without grandfathering
+    priority: P1
+    gate: L3
+    probe: dependency_scanning
+    source: standards/verification.md
+    quote: Security-critical rules prohibit grandfathering
+    evidence_required: Scanner configuration and CI step; confirmation security findings are not baselined.
+
+  # ---------------------------------------------------------------- EVAL
+  - id: EVAL-01
+    dimension: EVAL
+    title: Representative evaluation cases are defined with an independent evaluator
+    priority: P1
+    gate: L3
+    probe: eval_cases
+    source: standards/agent-evaluations.md
+    quote: Define each case with a task, starting state, approved acceptance criteria, permitted tools, and an independent evaluator
+    evidence_required: Eval case files and their evaluator definitions.
+
+  - id: EVAL-02
+    dimension: EVAL
+    title: Eval fixtures are repeatable (synthetic where no product exists)
+    priority: P1
+    gate: L3
+    source: standards/agent-evaluations.md
+    quote: use isolated synthetic fixtures rather than inventing product features
+    evidence_required: Fixture paths and how they are reset.
+
+  - id: EVAL-03
+    dimension: EVAL
+    title: Cases cover context discovery, boundaries, defect repair and approval recognition
+    priority: P2
+    source: standards/agent-evaluations.md
+    quote: Include context discovery, architecture boundaries, and conflict recognition
+    evidence_required: Mapping of cases to the representative task categories.
+
+  - id: EVAL-04
+    dimension: EVAL
+    title: Eval runs record model, environment, outcome and evidence
+    priority: P1
+    gate: L4
+    source: standards/agent-evaluations.md
+    quote: record the model, environment, outcome, and supporting evidence
+    applies: { greenfield: deferred }
+    activates_when: Eval cases exist and have been run at least once.
+    evidence_required: Location of eval run records.
+
+  - id: EVAL-05
+    dimension: EVAL
+    title: Agent performance metrics are tracked over time
+    priority: P2
+    gate: L4
+    source: standards/agent-evaluations.md
+    quote: Improvements or regressions in agent performance over time.
+    applies: { greenfield: deferred }
+    activates_when: Real feature work is being done by agents.
+    evidence_required: Metrics for completion, interventions, pass rate, regressions, cost per accepted change.
+
+  # ---------------------------------------------------------------- WF
+  - id: WF-01
+    dimension: WF
+    title: Implementation workflow defines planning, sources, ambiguity handling and stop conditions
+    priority: P0
+    gate: L2
+    source: standards/autonomous-workflows.md
+    quote: When agents should plan before implementing.
+    evidence_required: Location of the workflow definition (CLAUDE.md, skill, rule) and its stop/approval conditions.
+
+  - id: WF-02
+    dimension: WF
+    title: Self-repair is bounded and escalates
+    priority: P1
+    gate: L2
+    source: standards/autonomous-workflows.md
+    quote: How many remediation attempts are appropriate before stopping or escalating.
+    evidence_required: Stated retry bound and escalation path.
+
+  - id: WF-03
+    dimension: WF
+    title: Implementation evidence is recorded and completion is independently verified
+    priority: P0
+    gate: L3
+    source: standards/autonomous-workflows.md
+    quote: How task completion can be independently verified.
+    evidence_required: Where evidence is recorded and who/what verifies acceptance independent of the implementer.
+
+  - id: WF-04
+    dimension: WF
+    title: High-risk and enforcement-policy changes are protected at the agent layer
+    priority: P0
+    gate: L2
+    probe: policy_hooks
+    source: standards/autonomous-workflows.md
+    quote: How high-risk changes and changes to enforcement policies are protected.
+    evidence_required: Hooks, permission rules or review requirements that intercept edits to policy files.
+
+  - id: WF-05
+    dimension: WF
+    title: Uses native Claude Code capabilities instead of custom orchestration
+    priority: P2
+    source: standards/autonomous-workflows.md
+    quote: Do not introduce a custom agent orchestration framework
+    evidence_required: Inventory of orchestration code or tooling and whether native features cover it.
+
+  - id: WF-06
+    dimension: WF
+    title: PR-triggered documentation verification
+    priority: P1
+    gate: L4
+    source: standards/autonomous-workflows.md
+    quote: PR-triggered documentation verification
+    evidence_required: Trigger, deterministic checks, agent step and its output.
+
+  - id: WF-07
+    dimension: WF
+    title: Scheduled documentation gardening with bounded execution
+    priority: P2
+    gate: L4
+    source: standards/autonomous-workflows.md
+    quote: Scheduled documentation gardening
+    applies: { greenfield: deferred }
+    activates_when: Documentation and application maturity justify the recurring cost.
+    evidence_required: Schedule, environment, permissions, retry limits and recent run output.
+
+  - id: WF-08
+    dimension: WF
+    title: Architecture, quality and context janitors with noise controls
+    priority: P2
+    gate: L4
+    source: standards/autonomous-workflows.md
+    quote: Detect architectural drift, duplicated patterns, boundary violations
+    applies: { greenfield: deferred }
+    activates_when: Enough code exists for drift to occur.
+    evidence_required: Janitor definitions, what they detect, what they may auto-correct, success measures.
+
+  - id: WF-09
+    dimension: WF
+    title: Agent failures feed back into docs, tests or constraints
+    priority: P1
+    gate: L4
+    source: standards/autonomous-workflows.md
+    quote: Propose how those failures could become documentation improvements, automated tests, or enforceable constraints.
+    evidence_required: Mechanism that captures agent failures and converts them into durable fixes.
+
+  - id: WF-10
+    dimension: WF
+    title: Independent review, risk-based merge, deployment and observation are assessed
+    priority: P2
+    gate: L4
+    source: standards/autonomous-workflows.md
+    quote: Assess independent review, risk-based merge decisions, deployment, and observation against existing capabilities.
+    applies: { greenfield: deferred }
+    activates_when: The application is deployed to an environment with real users.
+    evidence_required: Review automation, merge policy, deploy pipeline and observability signals.

@@ -1,0 +1,54 @@
+domain: languages
+title: Language style and type safety
+reviewed: 2026-11
+applies_when: [any]
+rules:
+  - id: TS-01
+    title: TypeScript runs in strict mode with no untyped boundaries
+    rule: Turn on strict in tsconfig. Do not use `any` at module boundaries. Parse external data, such as network, storage and environment values, into typed values instead of casting it.
+    why: An unchecked cast moves a type error from compile time to production. Agents trust type signatures.
+    do: "const user = UserSchema.parse(await res.json())"
+    dont: "const user = (await res.json()) as User"
+    applies_when: [typescript]
+    enforceable: "tsconfig strict plus @typescript-eslint/no-explicit-any and no-unsafe-*"
+    source: { title: "TypeScript TSConfig reference: strict", url: "https://www.typescriptlang.org/tsconfig/#strict" }
+
+  - id: TS-02
+    title: TypeScript follows one published style guide
+    rule: The app names one published TypeScript style guide as its baseline and records only its deliberate deviations.
+    why: A named baseline answers most style questions without debate and gives agents a consistent target.
+    do: "CONVENTIONS: Baseline is the Google TypeScript Style Guide. Deviation: we allow default exports in Next.js route files."
+    dont: Unwritten, reviewer-specific style preferences.
+    applies_when: [typescript]
+    enforceable: "partial: a shared ESLint config"
+    source: { title: "Google TypeScript Style Guide", url: "https://google.github.io/styleguide/tsguide.html" }
+
+  - id: PY-01
+    title: Python follows PEP 8 and a published style guide, with type hints at boundaries
+    rule: Format and lint to PEP 8 through tooling. Annotate public functions with types and check them with a type checker.
+    why: Python's dynamism hides interface errors until runtime. Type hints make module contracts visible to people and agents.
+    do: "def charge(order: Order, amount: Decimal) -> Receipt:"
+    dont: "def charge(o, a):  # a is cents? dollars?"
+    applies_when: [python]
+    enforceable: "ruff plus mypy or pyright in CI"
+    source: { title: "Google Python Style Guide", url: "https://google.github.io/styleguide/pyguide.html" }
+
+  - id: GO-01
+    title: Go follows Effective Go and the Code Review Comments
+    rule: Write idiomatic Go. Keep interfaces small and define them where they are consumed. Pass context.Context first. Do not use package-level mutable state. Give error strings no capital letter and no trailing punctuation.
+    why: Idiomatic Go is what reviewers and tools expect. Deviating from it costs every reader time.
+    do: "func (s *Store) Get(ctx context.Context, id ID) (*Order, error)"
+    dont: A large interface exported next to its only implementation.
+    applies_when: [go]
+    enforceable: "partial: go vet, staticcheck and golangci-lint"
+    source: { title: "Go Code Review Comments", url: "https://go.dev/wiki/CodeReviewComments" }
+
+  - id: JAVA-01
+    title: Java follows the Google Java Style Guide or a named equivalent
+    rule: Adopt a published Java style guide. Enforce formatting with a formatter and record only the deliberate deviations.
+    why: A named baseline ends style debates and gives agents a consistent target.
+    do: google-java-format in the build, with deviations listed in the conventions file.
+    dont: Formatting rules that exist only in reviewers' heads.
+    applies_when: [java]
+    enforceable: "google-java-format, Checkstyle or Spotless"
+    source: { title: "Google Java Style Guide", url: "https://google.github.io/styleguide/javaguide.html" }

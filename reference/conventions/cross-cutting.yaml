@@ -1,0 +1,103 @@
+domain: cross-cutting
+title: Cross-cutting engineering practice
+reviewed: 2026-11
+applies_when: [any]
+rules:
+  - id: CC-01
+    title: Changes are small and self-contained
+    rule: Each change does one thing, includes its related tests, and can be reviewed and rolled back on its own. Split refactors from behaviour changes.
+    why: Small changes get faster, more thorough review, are easier to roll back, and merge with fewer conflicts.
+    do: One PR renames the module; a follow-up PR changes its behaviour.
+    dont: A 2,000-line PR that mixes a refactor, a feature and a dependency bump.
+    enforceable: "partial: a PR-size check in CI"
+    source: { title: "Google Engineering Practices: Small CLs", url: "https://google.github.io/eng-practices/review/developer/small-cls.html" }
+
+  - id: CC-02
+    title: Review approves changes that improve code health
+    rule: Reviewers approve once a change clearly improves the overall health of the code, even if it is not perfect. They check design, functionality, complexity, tests, naming and comments, and label nits as nits.
+    why: Without a shared bar, reviews either block progress on taste or let code health erode.
+    do: "Nit: consider a clearer name. Approving."
+    dont: Blocking a correct change over a personal style preference that no guide states.
+    enforceable: false
+    source: { title: "Google Engineering Practices: The Standard of Code Review", url: "https://google.github.io/eng-practices/review/reviewer/standard.html" }
+
+  - id: CC-03
+    title: Style is settled once and enforced by tools
+    rule: Formatting and mechanical style rules come from a formatter and a linter configured in the repository. Write a rule as prose only when a tool cannot check it.
+    why: Style debated in review wastes reviewer attention, and prose rules that a tool could enforce drift and get ignored.
+    do: Prettier or gofmt runs in CI and pre-commit. Reviews never comment on formatting.
+    dont: A conventions document that restates the formatter's configuration.
+    enforceable: "formatter and linter in CI"
+    source: { title: "Software Engineering at Google, ch. 8: Style Guides and Rules", url: "https://abseil.io/resources/swe-book/html/ch08.html" }
+
+  - id: CC-04
+    title: Names carry domain meaning
+    rule: Name by what something represents in the domain, not by how it is implemented. Avoid ambiguous abbreviations. Use the same term for the same concept everywhere in the app.
+    why: Agents and new engineers navigate by name. Inconsistent or vague names cause wrong edits.
+    do: "invoice.markOverdue(), customerId"
+    dont: "data2, handleStuff(), custId in one file and clientId in another"
+    enforceable: "partial: naming-convention lint covers casing only"
+    source: { title: "Google TypeScript Style Guide: Naming", url: "https://google.github.io/styleguide/tsguide.html" }
+
+  - id: CC-05
+    title: Comments explain why, not what
+    rule: Code says what it does. Comments explain intent, constraints and non-obvious decisions. Public interfaces are documented.
+    why: Comments that restate the code go stale. The reason behind a decision cannot be recovered from the code alone.
+    do: "// Retry only once: the upstream is not idempotent for partial failures."
+    dont: "// increment i"
+    enforceable: false
+    source: { title: "Google Engineering Practices: What to look for in a code review", url: "https://google.github.io/eng-practices/review/reviewer/looking-for.html" }
+
+  - id: CC-06
+    title: Dependencies point inward along declared module boundaries
+    rule: The domain core does not import frameworks, transport or persistence. Outer layers depend on inner ones, never the reverse. Modules have no import cycles.
+    why: Inverted or cyclic dependencies make every change ripple outward and defeat bounded, safe agent edits.
+    do: "routes -> services -> domain; repositories implement domain interfaces"
+    dont: domain/order.ts importing express or the ORM client
+    enforceable: "dependency-cruiser, eslint-plugin-boundaries, import-linter or ArchUnit"
+    source: { title: "The Clean Architecture: The Dependency Rule", url: "https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html" }
+
+  - id: CC-07
+    title: Dependencies are deliberate and kept to one version
+    rule: A new third-party dependency needs a stated reason and an owner. Keep a single version of each dependency across the repository. Update through automation.
+    why: Every dependency is long-term maintenance and attack surface. Multiple versions cause subtle conflicts.
+    do: A PR that adds a library explains why it is needed over the existing alternative.
+    dont: Three date libraries, or two major versions of the same client.
+    enforceable: "partial: lockfile, dependency review and Renovate or Dependabot"
+    source: { title: "Software Engineering at Google, ch. 21: Dependency Management", url: "https://abseil.io/resources/swe-book/html/ch21.html" }
+
+  - id: CC-08
+    title: Configuration comes from the environment and is validated at startup
+    rule: Values that vary between deploys come from the environment, never from constants in code. Validate the whole configuration once at startup and fail fast.
+    why: Hard-coded configuration leaks secrets and breaks parity between environments. Lazy reads fail at runtime, far from the cause.
+    do: "const env = EnvSchema.parse(process.env) at boot"
+    dont: "process.env.API_URL read ad hoc in twenty files with different defaults"
+    enforceable: "partial: secret scanning plus an env schema"
+    source: { title: "The Twelve-Factor App: Config", url: "https://12factor.net/config" }
+
+  - id: CC-09
+    title: Significant decisions are written down before they are built
+    rule: Changes to architecture, data models, public interfaces or cross-team contracts start with a short design doc or ADR. It records context, the alternatives considered and the trade-offs.
+    why: Undocumented decisions get relitigated or silently reversed, often by an agent with no context.
+    do: "docs/adr/0007-event-outbox.md, linked from the PR"
+    dont: A new queue introduced in a feature PR with no recorded rationale.
+    enforceable: false
+    source: { title: "Design Docs at Google", url: "https://www.industrialempathy.com/posts/design-docs-at-google/" }
+
+  - id: CC-10
+    title: The public surface is explicit and small
+    rule: Each module exports only its intended interface. Anything observable may become depended on, so keep internals private and treat any change to observable behaviour as a contract change.
+    why: With enough users, every observable behaviour becomes depended on (Hyrum's Law). An accidental surface becomes a permanent surface.
+    do: "package.json exports map; an index.ts that re-exports only the public API"
+    dont: Consumers deep-importing src/internal/utils from another package.
+    enforceable: "partial: an exports field, boundary lint or API Extractor"
+    source: { title: "Hyrum's Law", url: "https://www.hyrumslaw.com/" }
+
+  - id: CC-11
+    title: Errors are handled once, with context
+    rule: Either handle an error or return it with added context, not both. Never swallow errors silently. Preserve the original cause.
+    why: Logging and re-throwing duplicates noise. A swallowed error hides failures. Lost causes make incidents slow to diagnose.
+    do: "throw new PaymentError('capture failed', { cause: err })"
+    dont: "catch (e) { console.log(e); throw e }  or  catch {}"
+    enforceable: "partial: no-empty catch lint, and errorlint or wrapcheck in Go"
+    source: { title: "Uber Go Style Guide: Errors (Handle Errors Once)", url: "https://github.com/uber-go/guide/blob/master/style.md" }

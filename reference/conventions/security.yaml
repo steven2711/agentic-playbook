@@ -1,0 +1,70 @@
+domain: security
+title: Application security
+reviewed: 2026-11
+applies_when: [any]
+rules:
+  - id: APPSEC-01
+    title: Authorization is checked on the server for every request and object
+    rule: Deny by default. Check permissions on the server for every request, at the level of the object or resource being accessed. Do it in one reusable policy layer, not ad hoc in each handler.
+    why: Broken access control is the top OWASP risk. Object-level checks forgotten in one handler expose other users' data.
+    do: "await policy.assertCan(user, 'read', order) before returning the order"
+    dont: Hiding the button in the UI while the API returns any order ID it is asked for.
+    applies_when: [server]
+    enforceable: "partial: semgrep rules requiring the policy call in handlers"
+    source: { title: "OWASP Top 10 A01: Broken Access Control", url: "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+
+  - id: APPSEC-02
+    title: Secrets live in a secret manager, never in code
+    rule: Secrets come from a secret manager or injected environment at runtime. They are never committed, are scoped per environment and are rotatable. Push protection blocks accidental commits.
+    why: Committed secrets are harvested from history within minutes and cannot be truly removed.
+    do: Secrets injected from the cloud secret manager at deploy; .env.example in the repo.
+    dont: A committed .env or a hard-coded API key.
+    enforceable: "gitleaks or trufflehog in CI, plus push protection"
+    source: { title: "OWASP Secrets Management Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html" }
+
+  - id: APPSEC-03
+    title: Credentials and cryptography use vetted libraries
+    rule: Hash passwords with argon2id, scrypt or bcrypt through a maintained library. Use platform or vetted libraries for sessions, tokens and crypto. Never write your own.
+    why: Homegrown authentication and crypto fail in subtle ways that tests do not reveal.
+    do: "argon2.hash(password) with library defaults"
+    dont: "sha256(password + 'salt')"
+    applies_when: [server]
+    enforceable: "partial: semgrep crypto rules"
+    source: { title: "OWASP Password Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" }
+
+  - id: APPSEC-04
+    title: Every identity has least privilege
+    rule: Service accounts, CI tokens, database users and agents each get only the permissions their job needs. Credentials are separate per environment and short-lived where possible.
+    why: Least privilege limits the damage from a compromised credential or a misbehaving automation.
+    do: A read-only database user for reporting, and OIDC-federated short-lived CI credentials.
+    dont: One admin key shared by the app, CI and developers.
+    enforceable: "partial: policy-as-code checks on IAM and CI permissions"
+    source: { title: "Building Secure and Reliable Systems (Google), ch. 5: Design for Least Privilege", url: "https://google.github.io/building-secure-and-reliable-systems/raw/ch05.html" }
+
+  - id: APPSEC-05
+    title: Vulnerable dependencies are found and updated continuously
+    rule: Scan dependencies in CI and update them through automation. Fix known-exploitable vulnerabilities within a defined SLA.
+    why: Most applications are mostly third-party code. Outdated components are a top OWASP risk.
+    do: Renovate or Dependabot plus an audit step that fails on critical findings.
+    dont: Dependencies upgraded once a year by hand.
+    enforceable: "Dependabot or Renovate, plus npm audit, pip-audit, govulncheck or osv-scanner in CI"
+    source: { title: "OWASP Top 10 A06: Vulnerable and Outdated Components", url: "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" }
+
+  - id: APPSEC-06
+    title: Security requirements target an ASVS level
+    rule: Choose the OWASP ASVS level that fits the application's risk. Map its requirements to tests or review checklists for authentication, sessions, access control and data protection.
+    why: Without an explicit target, security work is ad hoc and gaps go unnoticed until an audit or incident.
+    do: "CONVENTIONS: target ASVS L2; session requirements covered by tests in auth/__tests__"
+    dont: "We are secure because we use a framework."
+    enforceable: false
+    source: { title: "OWASP Application Security Verification Standard", url: "https://owasp.org/www-project-application-security-verification-standard/" }
+
+  - id: APPSEC-07
+    title: Web responses send security headers and a Content Security Policy
+    rule: Send a restrictive Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options and frame-ancestors, plus secure, HttpOnly and SameSite cookies.
+    why: Headers are cheap defence in depth against cross-site scripting, clickjacking and downgrade attacks.
+    do: A CSP with nonces and no unsafe-inline, set by middleware and tested.
+    dont: No CSP, or a policy of "default-src *".
+    applies_when: [web]
+    enforceable: "header assertions in tests or a CI scanner"
+    source: { title: "OWASP HTTP Security Response Headers Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" }

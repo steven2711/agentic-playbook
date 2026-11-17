@@ -1,0 +1,104 @@
+domain: backend-api
+title: Backend services and APIs
+reviewed: 2026-11
+applies_when: [http-api]
+rules:
+  - id: API-01
+    title: APIs are resource-oriented
+    rule: Model the API as named resources in a hierarchy, operated on by standard methods (Get, List, Create, Update, Delete). Add custom methods only when no standard method fits.
+    why: Consistent resource modelling makes an API predictable for clients and for agents generating code against it.
+    do: "GET /v1/orders/{id}, POST /v1/orders/{id}:cancel"
+    dont: "POST /getOrderDataForUser, POST /doCancel"
+    enforceable: "partial: an OpenAPI linter (Spectral) or api-linter"
+    source: { title: "Google AIP-121: Resource-oriented design", url: "https://google.aip.dev/121" }
+
+  - id: API-02
+    title: The contract is defined first and versioned in the repository
+    rule: Describe every external API in a machine-readable specification (OpenAPI, protobuf or GraphQL SDL), checked into the repository. Review spec changes before implementation. Generate or validate clients and servers from the spec.
+    why: A spec-first contract makes breaking changes visible in review and gives agents an authoritative interface.
+    do: An openapi.yaml change reviewed in the same PR as its handler.
+    dont: An API documented only by reading the route handlers.
+    enforceable: "spec lint plus contract tests"
+    source: { title: "Zalando RESTful API Guidelines: API First", url: "https://opensource.zalando.com/restful-api-guidelines/" }
+
+  - id: API-03
+    title: No breaking changes within a major version
+    rule: Changes within a version are additive only. Removing or renaming fields, tightening validation or changing semantics requires a new major version and a deprecation period.
+    why: Clients cannot upgrade in lockstep with the server. Breaking changes cause outages elsewhere.
+    do: Add a new optional field, and deprecate the old one with a sunset date.
+    dont: Renaming userId to user_id in place.
+    enforceable: "oasdiff or buf breaking in CI"
+    source: { title: "Google AIP-180: Backwards compatibility", url: "https://google.aip.dev/180" }
+
+  - id: API-04
+    title: The API exposes a major version
+    rule: Public APIs carry a major version in the path or package, such as v1. Minor and patch changes are not exposed.
+    why: An explicit major version gives clients a stable target and gives you room to evolve.
+    do: "/v1/orders"
+    dont: "/orders with breaking changes shipped silently"
+    enforceable: "partial: spec lint"
+    source: { title: "Google AIP-185: API versioning", url: "https://google.aip.dev/185" }
+
+  - id: API-05
+    title: List endpoints paginate with opaque tokens
+    rule: Every list operation is paginated from day one. It takes a page size with a server-enforced maximum and returns an opaque next-page token.
+    why: Adding pagination later is a breaking change. Unbounded lists become outages as data grows.
+    do: "GET /v1/orders?page_size=50&page_token=… → { orders, next_page_token }"
+    dont: "GET /v1/orders returning every row"
+    enforceable: "partial: a Spectral rule on list responses"
+    source: { title: "Google AIP-158: Pagination", url: "https://google.aip.dev/158" }
+
+  - id: API-06
+    title: Errors use one consistent, machine-readable model
+    rule: Every error returns the correct HTTP or RPC status, a stable machine-readable code, a human-readable message and optional structured details. The same shape is used everywhere. Internals are never leaked.
+    why: Clients and agents branch on error codes. Inconsistent shapes and leaked stack traces cause both bugs and security problems.
+    do: "409 { type, title, status, code: 'ORDER_ALREADY_PAID', detail }"
+    dont: "200 { success: false, error: 'Error: at Object.<anonymous> (db.js:42)' }"
+    enforceable: "partial: contract tests on error responses"
+    source: { title: "Google AIP-193: Errors (see also RFC 9457 Problem Details)", url: "https://google.aip.dev/193" }
+
+  - id: API-07
+    title: Mutations are safe to retry
+    rule: Operations that are not naturally idempotent accept a client-supplied idempotency key or request ID. The server returns the original result for repeats.
+    why: Networks retry. Without idempotency, a retried payment or order becomes a duplicate.
+    do: "POST /v1/payments with an Idempotency-Key header, deduplicated on the server"
+    dont: A client retry loop around a non-idempotent POST.
+    enforceable: false
+    source: { title: "Amazon Builders' Library: Making retries safe with idempotent APIs", url: "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/" }
+
+  - id: API-08
+    title: Every remote call has a timeout and bounded retries with jitter
+    rule: Every outbound network call sets an explicit timeout. Retries are capped, use exponential backoff with jitter, and apply only to idempotent or keyed operations.
+    why: Missing timeouts exhaust resources. Synchronized retries amplify outages into cascading failures.
+    do: "client.get(url, { timeout: 2000, retry: { limit: 2, backoff: 'exponential+jitter' } })"
+    dont: "fetch(url) with no timeout inside a request handler"
+    enforceable: "partial: a lint rule on client construction, or a shared HTTP client wrapper"
+    source: { title: "Amazon Builders' Library: Timeouts, retries and backoff with jitter", url: "https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" }
+
+  - id: API-09
+    title: Input is validated and parsed at the edge
+    rule: Validate each request against a schema at the transport boundary and turn it into typed domain values. Reject unknown or invalid input there. Inner layers trust the types.
+    why: Scattered validation misses cases. Unvalidated input is the start of most injection and logic bugs.
+    do: "const cmd = CreateOrder.parse(req.body) in the route, then service.create(cmd)"
+    dont: Using req.body fields directly three layers deep.
+    enforceable: "partial: a schema validator required at route registration"
+    source: { title: "OWASP Input Validation Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html" }
+
+  - id: API-10
+    title: Handlers are thin; domain logic is framework-independent
+    rule: Transport handlers parse input, call one application service and map the result. Business rules live in a domain or service layer that does not import the web framework or the ORM.
+    why: Logic tangled with transport cannot be reused or tested in isolation, and every framework upgrade becomes a rewrite.
+    do: "route → OrderService.place(cmd) → domain Order.place()"
+    dont: Business rules, SQL and HTTP response shaping in one handler.
+    enforceable: "dependency-cruiser, import-linter or ArchUnit layer rules"
+    source: { title: "Microsoft .NET Architecture: Designing a DDD-oriented microservice", url: "https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/ddd-oriented-microservice" }
+
+  - id: API-11
+    title: Services protect themselves from overload
+    rule: Set per-client rate limits and concurrency limits. Shed load early with clear retryable errors rather than queueing without limit.
+    why: Without load shedding, a traffic spike turns into a full outage instead of a partial degradation.
+    do: "429 or 503 with Retry-After when concurrency exceeds the limit"
+    dont: An unbounded in-memory queue in front of the database.
+    applies_when: [server]
+    enforceable: false
+    source: { title: "Google SRE Book: Handling Overload", url: "https://sre.google/sre-book/handling-overload/" }

@@ -1,0 +1,12 @@
+{
+  "name": "agentic-playbook",
+  "owner": { "name": "Agentic Playbook maintainers" },
+  "description": "The Agentic Playbook as an executable Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "agentic",
+      "source": "./",
+      "description": "Agentic readiness assessment, scoring, roadmap and verified execution."
+    }
+  ]
+}

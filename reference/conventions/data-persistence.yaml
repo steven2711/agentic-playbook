@@ -1,0 +1,77 @@
+domain: data-persistence
+title: Data and persistence
+reviewed: 2026-11
+applies_when: [db]
+rules:
+  - id: DATA-01
+    title: Schema changes are versioned migrations applied by automation
+    rule: Every schema change is a migration that is checked in, reviewed and applied by the deploy pipeline. Nobody edits a shared database schema by hand.
+    why: Manual changes make environments drift and cannot be reproduced, reviewed or rolled back.
+    do: "migrations/20261101_add_order_status.sql, applied by CI/CD"
+    dont: Running ALTER TABLE in a production console.
+    enforceable: "a migration tool plus a CI check that the schema matches the migrations"
+    source: { title: "Evolutionary Database Design", url: "https://martinfowler.com/articles/evodb.html" }
+
+  - id: DATA-02
+    title: Migrations use expand/contract so they stay compatible
+    rule: "Every migration works with both the currently deployed code and the new code. Rename or drop in phases: add the new structure, migrate reads and writes, backfill, then remove the old structure."
+    why: Deploys are not atomic. A migration that breaks the running version causes an outage during rollout.
+    do: Add a nullable column, dual-write, backfill, switch reads, then drop the old column in a later release.
+    dont: Renaming a column in the same release as the code that uses the new name.
+    enforceable: "partial: a migration linter such as squawk or strong_migrations"
+    source: { title: "Parallel Change (expand/contract)", url: "https://martinfowler.com/bliki/ParallelChange.html" }
+
+  - id: DATA-03
+    title: No N+1 query patterns
+    rule: Load the related data a request needs in a bounded number of queries, using joins, eager loading or batching. Never query once per item in a loop.
+    why: N+1 queries pass in development and collapse under production data volumes.
+    do: "orders = Order.objects.select_related('customer')"
+    dont: "for o in orders: o.customer.name   # one query per order"
+    enforceable: "partial: query-count assertions in tests or an N+1 detector"
+    source: { title: "Django docs: Database access optimization", url: "https://docs.djangoproject.com/en/stable/topics/db/optimization/" }
+
+  - id: DATA-04
+    title: Transactions are short, explicit and contain no remote calls
+    rule: Open transactions in the application or service layer around one unit of work. Choose the isolation level deliberately. Never make network calls while a transaction is open.
+    why: Long or implicit transactions cause lock contention and deadlocks. Remote calls inside a transaction hold locks for unbounded time.
+    do: "await db.transaction(async tx => { … }) with the external call made after commit"
+    dont: Calling the payment provider inside an open transaction.
+    enforceable: false
+    source: { title: "PostgreSQL docs: Transaction Isolation", url: "https://www.postgresql.org/docs/current/transaction-iso.html" }
+
+  - id: DATA-05
+    title: State changes and events are published without dual writes
+    rule: When a state change must also emit an event or message, write the event to an outbox table in the same transaction and relay it afterwards. Do not write to the database and the broker separately.
+    why: Dual writes eventually lose or duplicate events when one side fails.
+    do: INSERT INTO outbox in the same transaction as the order update, with a relay that publishes it.
+    dont: "await db.save(order); await kafka.send(event)"
+    applies_when: [server]
+    enforceable: false
+    source: { title: "Microservices.io: Transactional outbox", url: "https://microservices.io/patterns/data/transactional-outbox.html" }
+
+  - id: DATA-06
+    title: Queries are always parameterized
+    rule: Build every query with bound parameters or a query builder. Never concatenate or interpolate untrusted values into query strings. Allowlist dynamic identifiers such as sort columns.
+    why: SQL injection remains one of the most damaging and most preventable vulnerabilities.
+    do: "db.query('SELECT * FROM orders WHERE id = $1', [id])"
+    dont: "db.query(`SELECT * FROM orders WHERE id = ${id}`)"
+    enforceable: "semgrep or an ORM lint rule against raw interpolation"
+    source: { title: "OWASP SQL Injection Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html" }
+
+  - id: DATA-07
+    title: Data access lives behind a persistence layer
+    rule: Queries live in repositories or a data-access module. Handlers, UI and domain logic do not import the ORM or driver directly.
+    why: Scattered queries make schema changes risky and prevent consistent caching, authorization and testing.
+    do: "orderRepo.findOpenByCustomer(id)"
+    dont: "prisma.order.findMany(…) inside a React server component and three route files"
+    enforceable: "boundary lint (dependency-cruiser, import-linter or ArchUnit)"
+    source: { title: "Microsoft .NET Architecture: Designing the infrastructure persistence layer", url: "https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design" }
+
+  - id: DATA-08
+    title: Hot queries are indexed and checked with EXPLAIN
+    rule: Each query path on a large or growing table has a supporting index. New hot queries are checked with EXPLAIN before merge.
+    why: Missing indexes are invisible on small data and become the cause of production incidents.
+    do: A PR that adds a query includes its index migration and the EXPLAIN plan.
+    dont: Sequential scans over a growing table found later by an alert.
+    enforceable: false
+    source: { title: "PostgreSQL docs: Using EXPLAIN", url: "https://www.postgresql.org/docs/current/using-explain.html" }
