@@ -5,6 +5,7 @@ import { commitCount, defaultBranch, headRevision, remoteUrl } from "./git.js";
 import { detectApps } from "./conventions.js";
 import { assessStrictness, countSuppressions, loadStrictness } from "./strictness.js";
 import { assessTesting, loadTesting } from "./testing.js";
+import { assessDocs, docsProbe, loadDocs } from "./docs.js";
 import type { CriterionStatus, Mode } from "./types.js";
 
 /**
@@ -27,7 +28,7 @@ export const PROBES = [
   "claude_md", "agent_guidance_sources", "scoped_rules", "canonical_commands", "claude_md_commands", "reproducible_setup",
   "ci_runs_checks", "doc_checks", "ci_permissions", "boundary_tooling", "baselines", "codeowners", "architecture_docs",
   "secret_scanning", "dependency_scanning", "agent_settings", "policy_hooks", "coverage", "eval_cases", "branch_protection",
-  "conventions", "strictness", "suppressions", "tests",
+  "conventions", "strictness", "suppressions", "tests", "docs",
 ] as const;
 
 export interface ProbeResult {
@@ -335,22 +336,14 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
   // ---------- docs
   const adrs = matching(/(^|\/)(adr|adrs|decisions)\/.+\.md$/i);
   const archDocs = matching(/(^|\/)(ARCHITECTURE\.md|docs\/architecture[^/]*\/?.*\.md)$/i);
-  facts.docs = { adrs, archDocs, markdownFiles: matching(/\.md$/).length };
+  const docs = assessDocs(loadDocs(), apps, files, (rel) => read(root, rel), (rel) => existsSync(join(root, rel)));
+  facts.docs = { adrs, archDocs, markdownFiles: matching(/\.md$/).length, ...docs };
   probes.architecture_docs = {
     status: archDocs.length && adrs.length ? "partial" : archDocs.length || adrs.length ? "partial" : "failed",
     evidence: [`architecture docs: ${archDocs.slice(0, 5).join(", ") || "none"}`, `ADRs: ${adrs.length}`],
   };
-  const broken: string[] = [];
-  for (const md of matching(/\.md$/).slice(0, 400)) {
-    const text = read(root, md);
-    for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
-      const target = m[1]!;
-      if (/^(https?:|mailto:|tel:|\/\/)/.test(target) || target.startsWith("<")) continue;
-      const abs = resolve(root, dirname(md), decodeURI(target));
-      if (!existsSync(abs)) broken.push(`${md} -> ${target}`);
-    }
-  }
-  facts.brokenLinks = broken;
+  probes.docs = docsProbe(docs);
+  facts.brokenLinks = docs.brokenLinks;
 
   // ---------- security
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has);

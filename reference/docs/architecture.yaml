@@ -1,0 +1,63 @@
+area: architecture
+title: Architecture and decisions
+reviewed: 2026-11
+items:
+  - id: DOC-ARC-01
+    artifact: Architecture overview
+    title: An architecture overview with the apps, their boundaries and dependency direction
+    tier: 2
+    applies_when: [multi-app]
+    when: The repository has more than one app or package.
+    scope: repo
+    purpose: Tells agents which app may depend on which, so they do not add a dependency that crosses a boundary.
+    home: docs/architecture.md
+    load: linked
+    authority: contract
+    belongs_here: A context and container view of the system, each app's responsibility, the allowed dependency direction and where each boundary is enforced.
+    not_here: Code-level detail that the code already shows.
+    detect:
+      - { files: '(^|/)ARCHITECTURE\.md$|^docs/architecture[^/]*(/.+)?\.md$' }
+    see: [CTX-06]
+    source: { title: "The C4 model for visualising software architecture", url: "https://c4model.com/" }
+
+  - id: DOC-ARC-02
+    artifact: Architecture decision records
+    title: Significant decisions are recorded as ADRs
+    tier: 2
+    when: Choices are being made that later contributors will question, such as a framework, datastore, boundary or deploy target, or the repository has more than one app.
+    scope: repo
+    purpose: Keeps the reason for a decision next to the code, so agents do not undo it.
+    home: docs/adr/NNNN-<slug>.md
+    load: linked
+    authority: history
+    belongs_here: One decision per file with its context, the decision, its status and its consequences. Superseded records stay and link forward.
+    not_here: Plans and open proposals, which belong in design docs.
+    detect:
+      - { files: '(^|/)(adr|adrs|decisions)/.+\.md$' }
+    see: [CTX-06, CTX-07]
+    source: { title: "Michael Nygard: Documenting Architecture Decisions", url: "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions" }
+
+  - id: DOC-ARC-03
+    artifact: Diagrams as code
+    title: Architecture diagrams kept as text next to the docs
+    tier: 3
+    when: The architecture overview has been misread or has drifted from the code more than once.
+    scope: repo
+    purpose: Diagrams that change in the same review as the code they describe.
+    home: docs/architecture.md (Mermaid or Structurizr blocks)
+    load: linked
+    authority: contract
+    belongs_here: Context and container diagrams as Mermaid, Structurizr or PlantUML.
+    not_here: Exported images with no source.
+    detect:
+      - { files: '\.(md|dsl|puml)$', pattern: '```mermaid|workspace\s*\{|@startuml|C4Context' }
+    see: [CTX-06]
+    source: { title: "The C4 model for visualising software architecture", url: "https://c4model.com/" }
+
+not_recommended:
+  - practice: An ADR for every small choice
+    reason: Reserve ADRs for decisions that are costly to reverse; a log of trivia hides the decisions that matter.
+    source: { title: "Microsoft Azure Well-Architected: Architecture decision record", url: "https://learn.microsoft.com/en-us/azure/well-architected/architect-role/architecture-decision-record" }
+  - practice: Rewriting or deleting old ADRs when a decision changes
+    reason: The history is the point. Add a new record that supersedes the old one.
+    source: { title: "Michael Nygard: Documenting Architecture Decisions", url: "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions" }

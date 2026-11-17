@@ -4,6 +4,7 @@ import { lintLibrary } from "./conventions.js";
 import { loadRubric } from "./rubric.js";
 import { lintStrictness } from "./strictness.js";
 import { lintTesting } from "./testing.js";
+import { lintDocs } from "./docs.js";
 import { PROBES } from "./scan.js";
 
 /**
@@ -15,6 +16,7 @@ import { PROBES } from "./scan.js";
  *  - the conventions library: sources, enforceability, signals (see lintLibrary)
  *  - the strictness library: tiers, sources, valid detect regexes (see lintStrictness)
  *  - the testing library: layer tiers, sources, regexes, TST references (see lintTesting)
+ *  - the docs library: item tiers, load, authority, sources, regexes, CTX references (see lintDocs)
  */
 export function lintPlaybook(root: string): string[] {
   const problems: string[] = [];
@@ -87,6 +89,6 @@ export function lintPlaybook(root: string): string[] {
       if (!existsSync(join(root, target))) problems.push(`ref: ${relative(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
     }
   }
-  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems);
+  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems, ...lintDocs(root).problems);
   return problems;
 }

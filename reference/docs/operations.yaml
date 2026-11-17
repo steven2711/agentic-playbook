@@ -1,0 +1,81 @@
+area: operations
+title: Deployment, configuration and operations
+reviewed: 2026-11
+items:
+  - id: DOC-OPS-01
+    artifact: Configuration reference
+    title: Every environment variable the app reads is listed with an example
+    tier: 2
+    when: The app reads configuration from environment variables.
+    scope: app
+    purpose: Lets an agent run the app and add configuration without guessing names or committing secrets.
+    home: <app>/.env.example
+    load: linked
+    authority: fact
+    belongs_here: Each variable with a safe example value and a one-line description. Never real secrets.
+    not_here: Secret values.
+    detect:
+      - { files: '(^|/)\.env\.(example|sample|template)$|(^|/)docs/(config|configuration)[^/]*\.md$' }
+    see: [CTX-02, CTX-10]
+    source: { title: "The Twelve-Factor App: Config", url: "https://12factor.net/config" }
+
+  - id: DOC-OPS-02
+    artifact: Deploy and rollback procedure
+    title: How the app is released and rolled back
+    tier: 2
+    applies_when: [deployable]
+    when: The app is deployed, as shown by a Dockerfile, IaC or platform config.
+    scope: app
+    purpose: Lets someone release and roll back without tribal knowledge, and tells agents which changes need a migration or a flag.
+    home: docs/operations/<app>-deploy.md
+    load: linked
+    authority: operation
+    belongs_here: The release path, environments, how to roll back, and changes that need extra steps such as migrations.
+    not_here: Pipeline config that CI already states; link to it.
+    detect:
+      - { files: '(^|/)(DEPLOY|DEPLOYMENT|RELEASING|RELEASE)\.md$|(^|/)docs/(deploy|deployment|release|ops|operations)[^/]*(/.+)?\.md$' }
+    see: [CTX-10]
+    source: { title: "Google SRE book: Release Engineering", url: "https://sre.google/sre-book/release-engineering/" }
+
+  - id: DOC-OPS-03
+    artifact: Runbooks
+    title: A runbook entry for each production alert
+    tier: 2
+    applies_when: [deployable]
+    when: The app has production alerts or an on-call rotation.
+    scope: app
+    purpose: Tells the responder what an alert means and what to do first.
+    home: docs/runbooks/<alert>.md
+    load: on-demand
+    authority: operation
+    belongs_here: What the alert means, how to confirm it, first mitigations and escalation.
+    not_here: Postmortems, which belong in their own history.
+    detect:
+      - { files: '(^|/)(runbooks?|playbooks?)/.+\.md$|(^|/)RUNBOOK\.md$' }
+    see: [CTX-10]
+    source: { title: "Google SRE workbook: On-Call", url: "https://sre.google/workbook/on-call/" }
+
+  - id: DOC-OPS-04
+    artifact: Service level objectives
+    title: Written SLOs for user-facing services
+    tier: 3
+    applies_when: [deployable]
+    when: Incidents recur where nobody had agreed what healthy means.
+    scope: app
+    purpose: Sets the reliability target that alerts and release decisions follow.
+    home: docs/operations/<app>-slo.md
+    load: linked
+    authority: contract
+    belongs_here: The SLIs, targets, measurement window and error-budget policy.
+    not_here: Dashboards; link to them.
+    detect:
+      - { files: '(^|/)[^/]*slos?[^/]*\.(md|ya?ml)$' }
+    see: [CTX-10]
+    source: { title: "Google SRE workbook: Implementing SLOs", url: "https://sre.google/workbook/implementing-slos/" }
+
+not_recommended:
+  - practice: Runbooks for alerts that do not exist yet
+    reason: Write a runbook entry when an alert is created; speculative runbooks go stale unread.
+    source: { title: "Google SRE workbook: On-Call", url: "https://sre.google/workbook/on-call/" }
+  - practice: Treating an external wiki as the authority for deploy steps that the repository's pipeline encodes
+    reason: The wiki drifts from the pipeline. Keep the procedure next to the code, or link from the repository to one owned page.

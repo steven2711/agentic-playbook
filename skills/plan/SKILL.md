@@ -51,15 +51,33 @@ Build or refresh the remediation roadmap from the assessment record. Focus from 
    - **Missing Tier 1 layers:** add a task "Add the <layer> layer for <app>": the runner or harness, one real test, and the CI step. Put it before the tasks that need that layer.
    - **Tier 2 layers:** add only when their `when` condition holds now. Never schedule Tier 3 without a cited recurring defect, or anything in `not_recommended`.
 
-8. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
+8. Plan the documentation work. Read `agentic docs --json` and the record's `docs` snapshot.
+   - **If any target entry has an action other than `retain` or `none`:** add a first task "Adopt documentation layout", with `requiresApproval: true`. It writes the target layout (each document's home, load mode and authority) into a short section of the root CLAUDE.md or `docs/README.md`, and the human reviews it. The other documentation tasks depend on it.
+   - **Group the remaining actions** into tasks a single session can finish:
+     - "Create <artifact> at <home>"
+     - "Relocate <path> to <home>"
+     - "Consolidate <paths> into <home>"
+     - "Archive <path>"
 
-9. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
+     Tier 1 comes first. Put moves before creations that link to the moved files.
+   - **Acceptance criteria:**
+     - every relative link in the touched docs resolves (`agentic docs` reports no new broken links)
+     - `agentic docs` shows the item present at its home
+     - the navigation goal it serves is reachable from CLAUDE.md
+     - no instruction is left in two homes
+     - the always-loaded line count does not grow, unless the task says why
+   - **CI and ownership:** tasks that add a CI docs check or CODEOWNERS entries set `requiresApproval: true`.
+   - **Tier 2 items:** add them only when the auditor cited their condition. Never schedule Tier 3 without a cited recurring problem, or anything in `not_recommended`.
 
-10. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
+9. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
 
-11. Follow **Publish the tracker**.
+10. If milestones already exist, keep the IDs of work that is unchanged. Never remove completed tasks.
 
-12. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
+11. Run `agentic apply <patch> --by agent:plan`. Fix any warnings about unlinked actionable findings, then run `agentic validate`.
+
+12. Follow **Publish the tracker**.
+
+13. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the first dependency-ready milestone; and the decisions that need a human.
 
    **Stop and ask the user to approve the roadmap.** When they approve:
    - Record it with `agentic approve roadmap --by human:<name the user gives>`.

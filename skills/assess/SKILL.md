@@ -31,6 +31,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
 
 5. Merge their outputs into one patch in the session scratchpad.
    - Include `"assessedRevision": "HEAD"`, all criteria, and all findings.
+   - Include the context-auditor's `docs` snapshot (inventory, target layout, loading and navigation) as the patch's `docs` key.
    - Do not invent anything the auditors did not evidence.
    - Resolve overlaps:
      - **Duplicate findings:** keep the stronger evidence.
@@ -51,7 +52,7 @@ Arguments: `$ARGUMENTS`. This can be an optional mode override (`greenfield` or 
    - the score, level and confidence, as printed by the CLI
    - the top P0 findings
    - what blocks the next level
-   - the inventory highlights
+   - the documentation target layout: always-loaded lines, the Tier 1 documents to create, and the main relocate, consolidate and archive actions
    - per app: its stack, whether it has scoped conventions, and the top 3 to 5 conventions recommendations, each with rule ID and source title. Ask which ones to adopt.
    - per app: its testing kind, missing Tier 1 layers, and the critical-path count with the uncovered high-consequence paths
    - open questions that need a human decision

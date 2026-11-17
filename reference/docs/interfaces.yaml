@@ -1,0 +1,65 @@
+area: interfaces
+title: Interfaces and integration contracts
+reviewed: 2026-11
+items:
+  - id: DOC-INT-01
+    artifact: API contract
+    title: The HTTP API has a machine-readable contract in the repository
+    tier: 2
+    applies_when: [http-api]
+    when: The API has consumers outside this app, such as a separately deployed client, another team or partners.
+    scope: app
+    purpose: States what the API promises, so agents do not break a consumer while changing a handler.
+    home: <app>/openapi.yaml (or the framework's generated spec, checked in)
+    load: linked
+    authority: contract
+    belongs_here: Paths, request and response schemas, errors and authentication, as OpenAPI, a GraphQL schema or protobuf.
+    not_here: Prose that repeats the schema.
+    detect:
+      - { files: '(^|/)(openapi|swagger)[^/]*\.(ya?ml|json)$|\.graphqls?$|\.proto$' }
+      - { files: '(^|/)(package\.json|pyproject\.toml|requirements[^/]*\.txt|go\.mod|pom\.xml|build\.gradle(\.kts)?)$', pattern: 'swagger|openapi|springdoc|swaggo|fastapi|graphql' }
+    see: [CTX-10]
+    source: { title: "OpenAPI Specification", url: "https://spec.openapis.org/oas/latest.html" }
+
+  - id: DOC-INT-02
+    artifact: Message contract
+    title: Queue and event message shapes are documented as schemas
+    tier: 2
+    applies_when: [worker]
+    when: The producer of the messages is deployed separately from this worker.
+    scope: app
+    purpose: States the message shape both sides rely on.
+    home: <app>/asyncapi.yaml or <app>/schemas/
+    load: linked
+    authority: contract
+    belongs_here: Channels, message payload schemas and delivery guarantees, as AsyncAPI, Avro, JSON Schema or protobuf.
+    not_here: Handler implementation detail.
+    detect:
+      - { files: '(^|/)asyncapi[^/]*\.(ya?ml|json)$|\.(avsc|proto)$|(^|/)(events|messages|schemas?)/.+\.(json|ya?ml)$' }
+    see: [CTX-10]
+    source: { title: "AsyncAPI documentation", url: "https://www.asyncapi.com/docs" }
+
+  - id: DOC-INT-03
+    artifact: Generated API reference
+    title: Reference docs generated from a library's public API
+    tier: 3
+    applies_when: [library]
+    when: External consumers repeatedly misuse the public API or ask questions the doc comments already answer.
+    scope: app
+    purpose: A browsable reference that cannot drift from the code.
+    home: Generated in CI from doc comments
+    load: none
+    authority: generated
+    belongs_here: Output of typedoc, Sphinx, pdoc, godoc or rustdoc.
+    not_here: Hand-written copies of signatures.
+    detect:
+      - { files: '(^|/)(package\.json|pyproject\.toml|mkdocs\.ya?ml|conf\.py|typedoc\.json)$', pattern: 'typedoc|sphinx|pdoc|mkdocstrings|api-extractor|dokka' }
+    see: [CTX-10]
+    source: { title: "Software Engineering at Google, ch. 10: Documentation", url: "https://abseil.io/resources/swe-book/html/ch10.html" }
+
+not_recommended:
+  - practice: Hand-maintained API docs that duplicate a schema the code already generates
+    reason: Two sources for one contract drift. Check in the generated contract and document only what it cannot say.
+  - practice: Doc comments on every function, including private helpers
+    reason: Comments that restate the code go stale. Document public interfaces and non-obvious why.
+    source: { title: "Google documentation guide: Philosophy", url: "https://google.github.io/styleguide/docguide/philosophy.html" }

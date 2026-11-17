@@ -1,0 +1,44 @@
+area: product
+title: Requirements, acceptance criteria and design proposals
+reviewed: 2026-11
+items:
+  - id: DOC-PRD-01
+    artifact: Requirements and acceptance criteria
+    title: Approved requirements and acceptance criteria have a home in the repository
+    tier: 2
+    when: Features are built against requirements agreed with someone outside the implementing team, such as a product owner or a customer.
+    scope: repo
+    purpose: Gives agents the approved intent to check work against, kept apart from their own proposals.
+    home: docs/product/<feature>.md
+    load: linked
+    authority: contract
+    belongs_here: The problem, the users, the approved acceptance criteria, and who approved them and when.
+    not_here: Implementation plans and agent proposals, which belong in plans or the roadmap.
+    detect:
+      - { files: '(^|/)(docs/)?(requirements|specs?|prd|product)/.+\.md$|(^|/)(REQUIREMENTS|SPEC|PRD)\.md$' }
+    see: [CTX-05, CTX-07]
+    source: { title: "Malte Ubl: Design Docs at Google", url: "https://www.industrialempathy.com/posts/design-docs-at-google/" }
+
+  - id: DOC-PRD-02
+    artifact: Design docs
+    title: Design docs for changes that span apps or take weeks
+    tier: 2
+    when: A planned change spans several apps, changes a data model or public interface, or will take more than a few weeks.
+    scope: repo
+    purpose: Records the options and trade-offs before building, so reviewers and agents can see why.
+    home: docs/design/<yyyy-mm>-<slug>.md
+    load: linked
+    authority: plan
+    belongs_here: Context, goals and non-goals, the proposed design, alternatives considered and cross-cutting concerns.
+    not_here: Small changes, which a pull request description covers.
+    detect:
+      - { files: '(^|/)docs/(design|rfcs?|proposals?)/.+\.md$|(^|/)(rfcs?)/.+\.md$' }
+    see: [CTX-07]
+    source: { title: "Malte Ubl: Design Docs at Google", url: "https://www.industrialempathy.com/posts/design-docs-at-google/" }
+
+not_recommended:
+  - practice: Keeping requirements only in an external tracker or wiki that agents cannot read
+    reason: Agents cannot check their work against intent they cannot see. Link or copy the approved acceptance criteria into the repository.
+  - practice: Writing a design doc for every change
+    reason: The cost is only repaid for changes that are large, risky or hard to reverse.
+    source: { title: "Malte Ubl: Design Docs at Google", url: "https://www.industrialempathy.com/posts/design-docs-at-google/" }

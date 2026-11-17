@@ -1,0 +1,41 @@
+area: per-app
+title: Per-app documentation in multi-app repositories
+reviewed: 2026-11
+items:
+  - id: DOC-APP-01
+    artifact: Scoped conventions
+    title: Each app has conventions that load only for its paths
+    tier: 1
+    applies_when: [multi-app]
+    scope: app
+    purpose: Gives agents the judgment rules for this app without loading them for every other app.
+    home: .claude/rules/<app>.md with paths frontmatter, or <app>/CLAUDE.md
+    load: path-scoped
+    authority: contract
+    belongs_here: Judgment rules with a rationale and an example, such as where logic belongs and how errors propagate, plus a "Testing" section for the test strategy.
+    not_here: Rules a linter, formatter or compiler already enforces.
+    detect:
+      - { conventions: true }
+    see: [CTX-04, CTX-12]
+    source: { title: "Claude Code docs: How Claude remembers your project (CLAUDE.md)", url: "https://code.claude.com/docs/en/memory" }
+
+  - id: DOC-APP-02
+    artifact: App README
+    title: Each app has a README with its purpose, commands and owner
+    tier: 1
+    applies_when: [multi-app]
+    scope: app
+    purpose: Lets someone work on one app without reading the whole repository.
+    home: <app>/README.md
+    load: linked
+    authority: fact
+    belongs_here: What the app does, how to run and test it, what it depends on and who owns it.
+    not_here: Repository-wide setup, which the root README covers.
+    detect:
+      - { files: '^README(\.md)?$' }
+    see: [CTX-11]
+    source: { title: "Google documentation guide: READMEs", url: "https://google.github.io/styleguide/docguide/READMEs.html" }
+
+not_recommended:
+  - practice: One global style document standing in for per-app conventions in a multi-app repository
+    reason: Each app's judgment rules differ, and a global document loads irrelevant rules everywhere.

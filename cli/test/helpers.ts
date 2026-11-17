@@ -84,6 +84,27 @@ export function testedMonorepo(): string {
   });
 }
 
+/** A monorepo for the docs assessment: a long root CLAUDE.md with a broken link and a line repeated in a rule, a deployable API with no runbook, no ADRs, and a web app with a README. */
+export function documentedMonorepo(): string {
+  const repeated = "Always validate request bodies with zod before touching the database layer.";
+  const filler = Array.from({ length: 290 }, (_, i) => `- rule ${i}: keep things tidy`).join("\n");
+  return makeRepo({
+    "package.json": JSON.stringify({ name: "mono", private: true }),
+    "pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+    "README.md": "# Mono\n\nRun `pnpm install` then `pnpm test`.\n",
+    "CLAUDE.md": `# Mono\n\nSee [architecture](docs/architecture.md) and [missing](docs/nope.md).\n\n- ${repeated}\n${filler}\n`,
+    ".claude/rules/api.md": `---\npaths:\n  - "apps/api/**"\n---\n# API\n\n- ${repeated}\n`,
+    "docs/architecture.md": "# Architecture\n\nweb -> api\n",
+    "apps/web/package.json": JSON.stringify({ name: "web", dependencies: { next: "15.0.0", react: "19.0.0" } }),
+    "apps/web/README.md": "# Web\n",
+    "apps/web/app/page.tsx": "export default function Page() { return null }\n",
+    "apps/api/package.json": JSON.stringify({ name: "api", dependencies: { express: "4.21.0" } }),
+    "apps/api/Dockerfile": "FROM node:22\n",
+    "apps/api/.env.example": "DATABASE_URL=postgres://localhost/dev\n",
+    "apps/api/src/index.ts": "export {}\n",
+  });
+}
+
 export function run(repo: string, ...argv: string[]): { code: number; out: string; err: string } {
   const out: string[] = [];
   const err: string[] = [];

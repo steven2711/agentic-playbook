@@ -12,6 +12,7 @@ import { scan, walk, type ScanResult } from "./scan.js";
 import { applicableChecks, assessStrictness, countSuppressions, lintStrictness, loadStrictness } from "./strictness.js";
 import { computeScore } from "./score.js";
 import { assessTesting, lintTesting, loadTesting, profilesFor } from "./testing.js";
+import { assessDocs, lintDocs, loadDocs } from "./docs.js";
 import { UsageError, type AssessmentRecord, type Mode, type WorkStatus } from "./types.js";
 import { validateRecord } from "./validate.js";
 import { addEvidence, applyPatch, readyTasks, transitionTask, type Patch } from "./workflow.js";
@@ -45,6 +46,9 @@ Strictness
 Testing
   tests [--app <root>] [--json]                Per app: kind, test layers present, critical-path candidates, coverage tooling
 
+Documentation
+  docs [--app <root>] [--json]                 Documents present per repo and app, always-loaded context, broken links, repeated lines
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -54,7 +58,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness and testing libraries
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing and docs libraries
 `;
 
 type Args = { _: string[]; flags: Record<string, string | boolean> };
@@ -107,7 +111,8 @@ function strictnessSnapshot(store: StoreLocation) {
     const apps = s.facts.strictness as never;
     const suppressions = s.facts.suppressions as never;
     const testing = (s.facts.testing ?? []) as never;
-    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing } : null;
+    const docs = (s.facts.docs ?? null) as never;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs } : null;
   } catch {
     return null;
   }
@@ -156,13 +161,13 @@ export function main(argv: string[]): number {
     case "lint-playbook": {
       const root = resolve(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings]) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `✗ ${p}`).join("\n"));
         console.error(`\n${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers).`);
+      console.log(`✓ playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items).`);
       return 0;
     }
     case "rubric": {
@@ -336,6 +341,54 @@ export function main(argv: string[]): number {
         }
         if (a.untestedDirs.length) console.log(`  directories with code and no tests: ${a.untestedDirs.join(", ")}`);
         console.log(`  coverage: ${a.coverage.join("; ") || "none found"}`);
+      }
+      return 0;
+    }
+    case "docs": {
+      const store = locateStore(cwd);
+      const { files } = walk(store.repoRoot);
+      const read = (rel: string) => {
+        try {
+          return readFileSync(join(store.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadDocs();
+      const only = str(args, "app");
+      const apps = detectApps(files, read);
+      if (only && !apps.some((a) => a.root === only)) throw new UsageError(`No app root "${only}". Run \`agentic docs\` to list them.`);
+      const d = assessDocs(lib, apps, files, read, (rel) => existsSync(join(store.repoRoot, rel)));
+      const items = d.items
+        .filter((i) => !only || i.scope === only)
+        .map((i) => {
+          const full = lib.items.get(i.id)!;
+          return { ...i, title: full.title, when: full.when, purpose: full.purpose, home: full.home, load: full.load, authority: full.authority, belongs_here: full.belongs_here, not_here: full.not_here, see: full.see ?? [], source: full.source };
+        });
+      const notRecommended = lib.areas.flatMap((a) => a.not_recommended.map((n) => ({ area: a.area, ...n })));
+      if (args.flags.json) {
+        console.log(JSON.stringify({ ...d, items, notRecommended }, null, 2));
+        return 0;
+      }
+      console.log(`conditions: ${d.repoConditions.filter((c) => c !== "any").join(", ") || "none"}`);
+      console.log(`always loaded: ${d.alwaysLoadedLines} lines (${d.alwaysLoaded.map((a) => `${a.file} ${a.lines}`).join(", ") || "nothing"})`);
+      const scopes = [...new Set(items.map((i) => i.scope))];
+      for (const sc of scopes) {
+        console.log(sc === "repo" ? "repository" : sc);
+        for (const i of items.filter((x) => x.scope === sc && (x.tier < 3 || x.status === "present")).sort((x, y) => x.tier - y.tier || x.id.localeCompare(y.id))) {
+          const mark = i.status === "present" ? "✓" : i.tier === 1 ? "✗" : "·";
+          const detail = i.status === "present" ? i.paths.join(", ") : i.tier === 1 ? `expected at ${i.home}` : `when: ${i.when}`;
+          console.log(`  ${mark} T${i.tier} ${i.id} ${i.artifact}: ${detail}`);
+        }
+      }
+      console.log(`${d.docFileCount} documentation files`);
+      if (d.brokenLinks.length) {
+        console.log(`broken relative links (${d.brokenLinks.length}):`);
+        for (const b of d.brokenLinks.slice(0, 15)) console.log(`  ✗ ${b}`);
+      }
+      if (d.duplicates.length) {
+        console.log(`lines repeated across agent guidance files (${d.duplicates.length}):`);
+        for (const x of d.duplicates.slice(0, 10)) console.log(`  ${x.files.join(" + ")}: ${x.line}`);
       }
       return 0;
     }

@@ -162,6 +162,38 @@ export interface TestingAssessment {
   assessedAt?: string;
 }
 
+/** The repository's documentation as judged by the context-auditor: inventory plus target layout. A snapshot, replaced whole on each run. */
+export interface DocsAssessment {
+  inventory: {
+    location: string;
+    purpose: string;
+    audience?: string;
+    scope?: string;
+    authority?: "contract" | "fact" | "history" | "plan" | "operation" | "generated" | "enforcement" | "unclear";
+    owner?: string;
+    dependencies?: string;
+    issue?: string;
+    disposition: "retain" | "relocate" | "consolidate" | "generate" | "archive" | "investigate";
+  }[];
+  target: {
+    id: string;
+    scope: string;
+    status: "present" | "absent" | "misplaced" | "n_a";
+    action: "retain" | "create" | "relocate" | "consolidate" | "generate" | "archive" | "none";
+    currentPaths?: string[];
+    home?: string;
+    reason?: string;
+    evidence: string[];
+    findingIds?: string[];
+  }[];
+  loading?: { alwaysLoadedLines: number; issues: string[] };
+  navigation?: { goal: "requirements" | "decisions" | "boundaries" | "commands"; reachable: boolean; route: string[]; note?: string }[];
+  summary?: string;
+  assessedRevision?: string | null;
+  assessedBy?: string;
+  assessedAt?: string;
+}
+
 export interface AssessmentRecord {
   schemaVersion: 1;
   assessmentId: string;
@@ -180,6 +212,7 @@ export interface AssessmentRecord {
   approvals: Approval[];
   conventions: ConventionAssessment[];
   testing?: TestingAssessment[];
+  docs?: DocsAssessment;
   scoreHistory: ScoreEntry[];
   artifact: { url: string; publishedRecordRevision: number; publishedAt: string } | null;
 }

@@ -64,6 +64,16 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
       "criticalPaths": { "total": 14, "covered": 9, "uncovered": ["apps/api/src/billing/refund.ts"] },
       "coverage": "repo-wide, not enforced", "assessedRevision": "<sha>" }
   ],
+  "docs": {
+    "inventory": [ { "location": "docs/STYLE.md", "purpose": "Global style rules for all apps", "authority": "contract", "disposition": "relocate", "issue": "Loads web rules for API work" } ],
+    "target": [
+      { "id": "DOC-ARC-02", "scope": "repo", "status": "absent", "action": "create", "home": "docs/adr/", "reason": "3 apps; datastore switch in a1b2c3d", "evidence": ["no adr/ or decisions/ directory"], "findingIds": ["F-CTX-004"] },
+      { "id": "DOC-APP-01", "scope": "apps/web", "status": "misplaced", "action": "relocate", "currentPaths": ["docs/STYLE.md"], "home": ".claude/rules/web.md", "evidence": ["docs/STYLE.md:1-80 covers only apps/web"] }
+    ],
+    "loading": { "alwaysLoadedLines": 412, "issues": ["CLAUDE.md:120-300 holds web-only rules"] },
+    "navigation": [ { "goal": "decisions", "reachable": false, "route": ["CLAUDE.md"], "note": "no link to any decision record" } ],
+    "assessedRevision": "<sha>"
+  },
   "remove": { "tasks": ["T-009"] }
 }
 ```
@@ -86,4 +96,11 @@ A patch is a JSON object. Every collection is upserted by `id`: new IDs are adde
   - `documented`, `followed` and `contradicted` need evidence. `n_a` needs a `reason`.
   - `decision` defaults to `proposed`. Set it to `accepted` or `declined` only when the user decides.
 - **Testing:** one snapshot per app `scope`, replaced whole on each apply (no `id`). Layer IDs must exist in the [testing profiles](testing/README.md). A `present` layer needs evidence, an `n_a` layer needs a `reason`, and `covered` cannot exceed `total`. Remove one with `"remove": { "testing": ["apps/api"] }`.
+- **Docs:** one snapshot for the repository, replaced whole on each apply.
+  - Target `id`s must exist in the [documentation library](docs/README.md), and each `scope` and `id` pair appears once.
+  - A `present` entry needs evidence, and an `n_a` entry needs a `reason`.
+  - An `absent` or `misplaced` entry needs an action, or a `reason` for leaving it.
+  - `relocate` and `consolidate` need `currentPaths` and a `home`. `create` needs a `home`.
+  - `findingIds` must exist.
+  - Remove the snapshot with `"remove": { "docs": true }`.
 - **Mode:** `"mode": "existing"` switches the stage. Criteria that only held stage defaults (`n_a` or `deferred` by rubric rule) are recomputed.

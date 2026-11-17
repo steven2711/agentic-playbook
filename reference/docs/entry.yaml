@@ -1,0 +1,115 @@
+area: entry
+title: Agent entry point and navigation
+reviewed: 2026-11
+items:
+  - id: DOC-ENT-01
+    artifact: Root CLAUDE.md
+    title: A concise root CLAUDE.md that navigates rather than explains
+    tier: 1
+    scope: repo
+    purpose: The one file every agent session loads. It states the project's purpose, the essential commands, the constraints that apply everywhere, and links to everything else.
+    home: CLAUDE.md
+    load: always
+    authority: contract
+    belongs_here: Purpose in a sentence or two, the build, test, lint and typecheck commands, universal constraints, and links to the architecture, decisions, requirements and per-app rules. Aim for under 200 lines.
+    not_here: Deep reference material, per-app rules, lint or formatter rules the tools already enforce, and history.
+    detect:
+      - { files: '^(\.claude/)?CLAUDE\.md$' }
+    see: [CTX-01, CTX-11]
+    source: { title: "Claude Code docs: How Claude remembers your project (CLAUDE.md)", url: "https://code.claude.com/docs/en/memory" }
+
+  - id: DOC-ENT-02
+    artifact: README
+    title: A README with setup and the verification commands
+    tier: 1
+    scope: repo
+    purpose: Lets a person or an agent set up the repository and run its checks from a clean checkout.
+    home: README.md
+    load: linked
+    authority: fact
+    belongs_here: What the project is, prerequisites, setup, how to run, test and verify, and where further docs live.
+    not_here: Design rationale and decisions, which belong in the architecture docs or ADRs.
+    detect:
+      - { files: '^README(\.md)?$', pattern: 'install|setup|getting started|npm (run|test|ci)|pnpm|yarn|make |pytest|go test|cargo|gradle|mvn' }
+    see: [CTX-02]
+    source: { title: "Google documentation guide: READMEs", url: "https://google.github.io/styleguide/docguide/READMEs.html" }
+
+  - id: DOC-ENT-03
+    artifact: Project skills
+    title: Repeatable multi-step workflows as project skills
+    tier: 2
+    when: The same multi-step workflow, such as a release, a migration or adding an endpoint, is written out in docs or repeated in history.
+    scope: repo
+    purpose: Loads a workflow's instructions only when the task needs them, instead of in every session.
+    home: .claude/skills/<workflow>/SKILL.md
+    load: on-demand
+    authority: operation
+    belongs_here: Step-by-step procedures with the commands and checks for one workflow.
+    not_here: Universal constraints, which belong in CLAUDE.md.
+    detect:
+      - { files: '^\.claude/skills/[^/]+/SKILL\.md$' }
+    see: [CTX-04]
+    source: { title: "Claude Code docs: Skills", url: "https://code.claude.com/docs/en/skills" }
+
+  - id: DOC-ENT-04
+    artifact: Docs check in CI
+    title: Links and referenced paths in docs are checked in CI
+    tier: 2
+    when: The repository has more than about ten Markdown docs, or CLAUDE.md links to other docs.
+    scope: repo
+    purpose: Catches broken links and moved files before an agent follows them.
+    home: CI workflow step
+    load: none
+    authority: enforcement
+    belongs_here: A link checker such as lychee or markdown-link-check run on every change.
+    not_here: Prose style linting before there is a recurring style problem.
+    detect:
+      - { files: '^(\.github/workflows/.+\.ya?ml|\.gitlab-ci\.yml|package\.json|Makefile|\.pre-commit-config\.yaml)$', pattern: 'lychee|markdown-link-check|linkinator|remark-validate-links|markdownlint|check-links' }
+    see: [CTX-09]
+    source: { title: "Write the Docs: Docs as Code", url: "https://www.writethedocs.org/guide/docs-as-code/" }
+
+  - id: DOC-ENT-05
+    artifact: Owners for agent guidance
+    title: CODEOWNERS covers CLAUDE.md, rules and docs
+    tier: 2
+    when: More than one person or team regularly changes the repository.
+    scope: repo
+    purpose: Changes to agent guidance and contracts get reviewed by someone accountable for them.
+    home: .github/CODEOWNERS
+    load: none
+    authority: enforcement
+    belongs_here: Owner entries for CLAUDE.md, .claude/, docs/ and each app's conventions file.
+    not_here: Ownership of application code, unless that already exists.
+    detect:
+      - { files: '^(\.github/|docs/)?CODEOWNERS$', pattern: 'CLAUDE|\.claude|docs' }
+    see: [CTX-03, CTX-07]
+    source: { title: "GitHub Docs: About code owners", url: "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners" }
+
+  - id: DOC-ENT-06
+    artifact: Documentation gardening
+    title: A scheduled job that proposes fixes for stale docs
+    tier: 3
+    when: Stale-documentation findings recur across reassessments.
+    scope: repo
+    purpose: Keeps docs fresh when the people who change the code keep forgetting to.
+    home: Scheduled CI workflow
+    load: none
+    authority: enforcement
+    belongs_here: A periodic job that checks docs against the code and opens a reviewable change.
+    not_here: Automatic merging of documentation changes.
+    detect:
+      - { files: '^\.github/workflows/.+\.ya?ml$', pattern: 'doc.?(garden|janitor|fresh)|stale.?docs' }
+    see: [CTX-08]
+    source: { title: "Software Engineering at Google, ch. 10: Documentation", url: "https://abseil.io/resources/swe-book/html/ch10.html" }
+
+not_recommended:
+  - practice: A long, monolithic root CLAUDE.md that holds every rule for every app
+    reason: It loads into every session, costs context and lowers adherence. Move per-app rules into path-scoped rules and link deep material.
+    source: { title: "Claude Code docs: How Claude remembers your project (CLAUDE.md)", url: "https://code.claude.com/docs/en/memory" }
+  - practice: Restating lint, formatter or compiler rules in CLAUDE.md or other docs
+    reason: The tools already enforce them, and the restatement drifts from the config.
+  - practice: An AGENTS.md or other cross-agent mirror of CLAUDE.md that nobody asked for
+    reason: Two homes for the same instructions drift apart. Add one only when another agent tool actually needs it.
+    source: { title: "AGENTS.md", url: "https://agents.md/" }
+  - practice: Copying the same instruction into several docs
+    reason: Each instruction needs one authoritative home; copies drift and conflict.

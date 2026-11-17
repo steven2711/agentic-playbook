@@ -8,6 +8,7 @@ These rules apply to every `/agentic:*` command and every subagent it starts. Th
 - [rubric.yaml](../rubric/rubric.yaml) turns the standards into scored criteria. Each criterion quotes its standard.
 - The [conventions baseline library](conventions/README.md) holds recommended engineering conventions. Each one cites a public source. Recommendations must reference a library rule ID, and the CLI rejects any other. A repository adopts a convention only when a human accepts it. The [conventions template](../templates/conventions.md) is the starting point for an app's conventions file.
 - The [strictness profiles](strictness/README.md) say which deterministic checks are worth turning on for each stack, in cost tiers, and which are not recommended. Strictness recommendations must reference a profile check ID. Tier 2 needs its trigger met, and Tier 3 needs a cited recurring defect.
+- The [documentation library](docs/README.md) says which documents a repository and each app should have, where each lives, how agents load it and what authority it carries. A proposed document must reference a library item ID (`DOC-`) and follow the same tier rules. Keep an existing equivalent home rather than moving a document for its own sake.
 - The [testing profiles](testing/README.md) say which test layers each kind of app should have and what belongs in each. Testing recommendations must reference a profile layer ID (`TL-`) or a conventions TST rule, and follow the same tier rules. A coverage percentage is never a target.
 
 ## The CLI is the only writer

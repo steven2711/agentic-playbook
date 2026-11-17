@@ -6,11 +6,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { lintLibrary } from "../src/conventions.js";
 import { lintStrictness } from "../src/strictness.js";
 import { lintTesting } from "../src/testing.js";
+import { lintDocs } from "../src/docs.js";
 import { lintPlaybook } from "../src/lint.js";
 import { playbookRoot } from "../src/paths.js";
 import { loadRubric } from "../src/rubric.js";
 import { computeScore } from "../src/score.js";
-import { GREENFIELD, existingRepo, makeRepo, monorepo, patch, planned, readRecord, run, testedMonorepo } from "./helpers.js";
+import { GREENFIELD, documentedMonorepo, existingRepo, makeRepo, monorepo, patch, planned, readRecord, run, testedMonorepo } from "./helpers.js";
 
 beforeEach(() => {
   process.env.AGENTIC_HOME = mkdtempSync(join(tmpdir(), "agentic-home-"));
@@ -467,5 +468,121 @@ describe("testing assessment", () => {
     const r = readRecord(repo);
     expect(r.criteria.find((c) => c.id === "VER-11")!.status).toBe("unverified");
     expect(r.criteria.find((c) => c.id === "VER-12")!.status).toBe("deferred");
+  });
+});
+
+describe("documentation architecture", () => {
+  const copyPlaybook = () => {
+    const copy = mkdtempSync(join(tmpdir(), "agentic-pb-"));
+    for (const d of ["rubric", "standards", "schema", "reference", "templates"]) cpSync(join(playbookRoot(), d), join(copy, d), { recursive: true });
+    return copy;
+  };
+
+  it("the docs library lints clean, and rejects bad ids, missing triggers, bad enums, unknown criteria, bad regexes and stale reviews", () => {
+    expect(lintDocs(playbookRoot())).toEqual({ problems: [], warnings: [] });
+    const copy = copyPlaybook();
+    const f = join(copy, "reference", "docs", "architecture.yaml");
+    writeFileSync(
+      f,
+      readFileSync(f, "utf8")
+        .replace("id: DOC-ARC-03", "id: DOC-ARC-3")
+        .replace("    when: Choices are being made that later contributors will question, such as a framework, datastore, boundary or deploy target, or the repository has more than one app.\n", "")
+        .replace("load: linked\n    authority: history", "load: sometimes\n    authority: history")
+        .replace("see: [CTX-06, CTX-07]", "see: [CTX-99]")
+        .replace("'(^|/)(adr|adrs|decisions)/.+\\.md$'", "'(^|/)(adr'"),
+    );
+    const { problems } = lintDocs(copy);
+    expect(problems.some((p) => p.includes("DOC-ARC-3") && p.includes("DOC-AAA-NN"))).toBe(true);
+    expect(problems.some((p) => p.includes("DOC-ARC-02") && p.includes('"when"'))).toBe(true);
+    expect(problems.some((p) => p.includes("DOC-ARC-02") && p.includes("load must be"))).toBe(true);
+    expect(problems.some((p) => p.includes("DOC-ARC-02") && p.includes("CTX-99"))).toBe(true);
+    expect(problems.some((p) => p.includes("DOC-ARC-02") && p.includes("not a valid JavaScript regex"))).toBe(true);
+    expect(lintDocs(playbookRoot(), new Date("2028-06-01")).warnings[0]).toContain("last reviewed");
+  });
+
+  it("reports items per repo and app, always-loaded lines, broken links and repeated lines", () => {
+    const repo = documentedMonorepo();
+    const out = JSON.parse(run(repo, "docs", "--json").out);
+    const item = (scope: string, id: string) => out.items.find((i: { scope: string; id: string }) => i.scope === scope && i.id === id);
+    expect(out.repoConditions).toEqual(expect.arrayContaining(["multi-app", "deployable", "http-api"]));
+    expect(item("repo", "DOC-ENT-01")).toMatchObject({ status: "present", paths: ["CLAUDE.md"] });
+    expect(item("repo", "DOC-ENT-02").status).toBe("present");
+    expect(item("repo", "DOC-ARC-01").status).toBe("present");
+    expect(item("repo", "DOC-ARC-02")).toMatchObject({ status: "absent", tier: 2 });
+    expect(item("apps/api", "DOC-APP-01")).toMatchObject({ status: "present", paths: [".claude/rules/api.md"] });
+    expect(item("apps/web", "DOC-APP-01").status).toBe("absent");
+    expect(item("apps/web", "DOC-APP-02").status).toBe("present");
+    expect(item("apps/api", "DOC-APP-02").status).toBe("absent");
+    expect(item("apps/api", "DOC-OPS-01").status).toBe("present");
+    expect(item("apps/api", "DOC-OPS-03").status).toBe("absent"); // deployable: runbook applies (Tier 2)
+    expect(item("apps/web", "DOC-OPS-03")).toBeUndefined(); // not deployable
+    expect(item("apps/api", "DOC-INT-01").title).toMatch(/contract/);
+    expect(out.alwaysLoaded.map((a: { file: string }) => a.file)).toEqual(["CLAUDE.md"]);
+    expect(out.alwaysLoadedLines).toBeGreaterThan(290);
+    expect(out.brokenLinks).toEqual(["CLAUDE.md -> docs/nope.md"]);
+    expect(out.duplicates[0].files).toEqual([".claude/rules/api.md", "CLAUDE.md"]);
+    expect(out.notRecommended.some((n: { practice: string }) => /monolithic/i.test(n.practice))).toBe(true);
+
+    const text = run(repo, "docs").out;
+    expect(text).toContain("✗ T1 DOC-APP-01 Scoped conventions: expected at");
+    expect(text).toContain("✗ CLAUDE.md -> docs/nope.md");
+
+    run(repo, "init");
+    const before = JSON.parse(run(repo, "score", "--json").out).score;
+    const scan = JSON.parse(run(repo, "scan", "--json").out);
+    expect(scan.probes.docs.status).toBe("failed");
+    expect(scan.probes.docs.evidence[0]).toMatch(/missing: .*Scoped conventions \(apps\/web\)/);
+    expect(scan.facts.brokenLinks).toEqual(["CLAUDE.md -> docs/nope.md"]);
+    expect(JSON.parse(run(repo, "score", "--json").out).score).toBe(before);
+  });
+
+  it("a single-app repo with a CLAUDE.md and README has no Tier 1 gaps", () => {
+    const repo = makeRepo({ ...GREENFIELD, "README.md": "# GF\n\nnpm install, then npm test.\n" });
+    const out = JSON.parse(run(repo, "docs", "--json").out);
+    expect(out.items.filter((i: { tier: number; status: string }) => i.tier === 1 && i.status === "absent")).toEqual([]);
+    expect(out.items.some((i: { id: string }) => i.id === "DOC-APP-01")).toBe(false);
+    expect(JSON.parse(run(repo, "scan", "--json").out).probes.docs.status).toBe("partial");
+  });
+
+  it("stores one docs snapshot, replaced whole, validated against the library, and rendered", () => {
+    const repo = documentedMonorepo();
+    run(repo, "init");
+    run(repo, "scan");
+    expect(patch(repo, { findings: [{ id: "F-CTX-001", title: "No ADRs", kind: "verified", dimension: "CTX", priority: "P1", currentState: "none", desiredState: "ADR log", evidence: ["no docs/adr"], remediation: "DOC-ARC-02", criterionIds: ["CTX-06"] }] }).code).toBe(0);
+    const snap = {
+      inventory: [{ location: "CLAUDE.md", purpose: "Entry point", authority: "contract", disposition: "consolidate", issue: "300 lines" }],
+      target: [
+        { id: "DOC-ENT-01", scope: "repo", status: "present", action: "consolidate", currentPaths: ["CLAUDE.md"], home: "CLAUDE.md", evidence: ["CLAUDE.md is 296 lines"] },
+        { id: "DOC-ARC-02", scope: "repo", status: "absent", action: "create", home: "docs/adr/", reason: "two apps", evidence: ["no decisions directory"], findingIds: ["F-CTX-001"] },
+        { id: "DOC-APP-01", scope: "apps/web", status: "absent", action: "create", home: ".claude/rules/web.md", evidence: [] },
+      ],
+      loading: { alwaysLoadedLines: 296, issues: ["CLAUDE.md holds 290 generic rules"] },
+      navigation: [{ goal: "decisions", reachable: false, route: ["CLAUDE.md"] }],
+      summary: "Entry point is too long and decisions are unrecorded.",
+    };
+    expect(patch(repo, { docs: snap }, "agent:context-auditor").code).toBe(0);
+    expect(patch(repo, { docs: { ...snap, summary: "second run" } }).code).toBe(0);
+    const r = readRecord(repo);
+    expect(r.docs!.summary).toBe("second run");
+    expect(r.docs!.assessedBy).toBe("agent:claude");
+    expect(r.docs!.target).toHaveLength(3);
+
+    const bad = (target: unknown[]) => patch(repo, { docs: { ...snap, target } }).err;
+    expect(bad([{ id: "DOC-ZZZ-01", scope: "repo", status: "absent", action: "create", home: "x", evidence: [] }])).toContain("not in the documentation library");
+    expect(bad([{ id: "DOC-ARC-02", scope: "repo", status: "absent", action: "none", evidence: [] }])).toContain("has no action");
+    expect(bad([{ id: "DOC-APP-01", scope: "apps/web", status: "misplaced", action: "relocate", home: "x", evidence: [] }])).toContain("needs currentPaths and a home");
+    expect(bad([{ id: "DOC-ENT-01", scope: "repo", status: "present", action: "retain", evidence: [] }])).toContain("without evidence");
+    expect(bad([snap.target[1], snap.target[1]])).toContain("more than once");
+    expect(bad([{ ...snap.target[1], findingIds: ["F-CTX-404"] }])).toContain("unknown finding F-CTX-404");
+
+    const html = join(mkdtempSync(join(tmpdir(), "agentic-r-")), "v.html");
+    run(repo, "render", "--out", html);
+    const page = readFileSync(html, "utf8");
+    expect(page).toContain("docsView");
+    expect(page).toContain('"docsScan":{');
+    expect(page).toContain("DOC-ARC-02");
+
+    expect(patch(repo, { remove: { docs: true } }).code).toBe(0);
+    expect(readRecord(repo).docs).toBeUndefined();
   });
 });

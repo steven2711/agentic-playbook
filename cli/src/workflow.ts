@@ -128,7 +128,8 @@ export interface Patch {
   approvals?: Record<string, unknown>[];
   conventions?: Record<string, unknown>[];
   testing?: Record<string, unknown>[];
-  remove?: Partial<Record<Collection | "testing", string[]>>;
+  docs?: Record<string, unknown>;
+  remove?: Partial<Record<Collection | "testing", string[]>> & { docs?: boolean };
 }
 
 /**
@@ -140,7 +141,7 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
   const log: string[] = [];
   for (const key of Object.keys(patch)) {
     if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
-    if (![...PATCHABLE, "testing", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
+    if (![...PATCHABLE, "testing", "docs", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
   if (patch.assessedRevision !== undefined) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
@@ -219,6 +220,15 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     log.push(`${idx >= 0 ? "replaced" : "added"} testing ${scope}`);
   }
 
+  // The documentation assessment is one snapshot per repository: replaced whole.
+  if (patch.docs) {
+    const d = patch.docs;
+    if (!Array.isArray(d.inventory) || !Array.isArray(d.target)) throw new UsageError("docs needs inventory and target arrays");
+    const replaced = !!record.docs;
+    record.docs = { ...d, assessedBy: (d.assessedBy as string | undefined) ?? opts.by, assessedAt: (d.assessedAt as string | undefined) ?? now() } as unknown as NonNullable<AssessmentRecord["docs"]>;
+    log.push(`${replaced ? "replaced" : "added"} docs (${d.target.length} target entries, ${d.inventory.length} inventory entries)`);
+  }
+
   // Keep finding.taskIds consistent with task.findingIds (both directions).
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
@@ -227,7 +237,15 @@ export function applyPatch(record: AssessmentRecord, patch: Patch, opts: { by: s
     }
   }
 
-  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection | "testing", string[]][]) {
+  for (const [coll, ids] of Object.entries(patch.remove ?? {}) as [Collection | "testing" | "docs", string[] | boolean][]) {
+    if (coll === "docs") {
+      if (!ids) continue;
+      if (!record.docs) throw new UsageError("Cannot remove docs: there is no documentation assessment");
+      delete record.docs;
+      log.push("removed docs");
+      continue;
+    }
+    if (typeof ids === "boolean") throw new UsageError(`remove.${coll} must be a list of ids`);
     if (coll === "testing") {
       for (const scope of ids) {
         const idx = (record.testing ?? []).findIndex((t) => t.scope === scope);

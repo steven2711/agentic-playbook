@@ -3,6 +3,7 @@ import { computeScore } from "./score.js";
 import { loadRubric } from "./rubric.js";
 import type { AppStrictness, SuppressionReport } from "./strictness.js";
 import { loadTesting, type AppTesting } from "./testing.js";
+import { loadDocs, type DocsScan } from "./docs.js";
 import type { AssessmentRecord } from "./types.js";
 
 /**
@@ -16,6 +17,7 @@ export interface StrictnessSnapshot {
   apps: AppStrictness[];
   suppressions: SuppressionReport;
   testing?: AppTesting[];
+  docs?: DocsScan | null;
 }
 
 export function renderHtml(record: AssessmentRecord, opts: { headRevision: string | null; commitsBehind: number | null; strictness?: StrictnessSnapshot | null }): string {
@@ -30,10 +32,14 @@ export function renderHtml(record: AssessmentRecord, opts: { headRevision: strin
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       }),
     ),
-    strictness: opts.strictness ? { ...opts.strictness, testing: undefined } : null,
+    strictness: opts.strictness ? { ...opts.strictness, testing: undefined, docs: undefined } : null,
     testingScan: opts.strictness?.testing ?? [],
     testingLayers: Object.fromEntries(
       [...loadTesting().layers.values()].map((l) => [l.id, { layer: l.layer, title: l.title, tier: l.tier, kind: l.kind, source: l.source }]),
+    ),
+    docsScan: opts.strictness?.docs ?? null,
+    docItems: Object.fromEntries(
+      [...loadDocs().items.values()].map((i) => [i.id, { artifact: i.artifact, title: i.title, tier: i.tier, area: i.area, home: i.home, load: i.load, authority: i.authority, source: i.source }]),
     ),
     renderedAt: new Date().toISOString(),
     headRevision: opts.headRevision,
@@ -117,6 +123,10 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .s-absent, .s-wrong-layer { background: var(--warn-soft); color: var(--warn); }
 .s-present, .s-covered { background: var(--ok-soft); color: var(--ok); }
 .s-uncovered { background: var(--bad-soft); color: var(--bad); }
+.s-misplaced, .s-relocate, .s-consolidate, .s-investigate { background: var(--warn-soft); color: var(--warn); }
+.s-create, .s-generate { background: var(--accent-soft); color: var(--accent); }
+.s-retain, .s-reachable { background: var(--ok-soft); color: var(--ok); }
+.s-unreachable { background: var(--bad-soft); color: var(--bad); }
 .promote { font-family: var(--mono); font-size: 0.74rem; color: var(--accent); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); }
 nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -363,6 +373,52 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     }).join("");
   }
 
+  function docsView() {
+    var J = R.docs || null, SC = D.docsScan || null, DI = D.docItems || {};
+    if (!J && !SC) return '<div class="empty">No documentation assessment yet. Run /agentic:docs (it also runs inside /agentic:assess).</div>';
+    var safeUrl = function (u) { return /^https:\/\//.test(String(u)) ? esc(u) : "#"; };
+    var list = function (xs) { return '<ul class="ev">' + xs.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>"; };
+    var legend = '<div class="legend">Items come from the sourced documentation library. Tier 1 is always expected; Tier 2 only when its condition holds; Tier 3 only after a recurring problem. ' + (J ? "Statuses and actions are the auditor's target layout." : "Statuses are scan hints; the context-auditor has not judged them yet.") + "</div>";
+    var entries = J ? J.target.map(function (t) { return { id: t.id, scope: t.scope, status: t.status, action: t.action, home: t.home, paths: t.currentPaths || [], evidence: t.evidence.concat(t.reason ? [t.reason] : []), findingIds: t.findingIds || [] }; })
+      : SC.items.filter(function (i) { return i.tier === 1 || i.status === "present"; }).map(function (i) { return { id: i.id, scope: i.scope, status: i.status, action: "", home: "", paths: i.paths, evidence: [], findingIds: [] }; });
+    var scopes = [];
+    entries.forEach(function (e) { if (scopes.indexOf(e.scope) < 0) scopes.push(e.scope); });
+    scopes.sort(function (a, b) { return a === "repo" ? -1 : b === "repo" ? 1 : a < b ? -1 : 1; });
+    var target = scopes.map(function (sc) {
+      var rows = entries.filter(function (e) { return e.scope === sc; }).map(function (e) {
+        var m = DI[e.id] || { artifact: e.id, title: "", tier: "", home: "", load: "", authority: "", source: {} };
+        var where = e.paths.length ? e.paths.map(function (p) { return "<code>" + esc(p) + "</code>"; }).join(", ") : "";
+        var home = e.home || m.home;
+        var moveTo = e.action && e.action !== "retain" && e.action !== "none" && home ? ' → <code>' + esc(home) + "</code>" : "";
+        return "<tr><td><code>" + esc(e.id) + "</code></td><td><b>" + esc(m.artifact) + '</b><div class="muted" style="font-size:.8rem">' + esc(m.authority) + " · loads " + esc(m.load) + ' · <a href="' + safeUrl(m.source && m.source.url) + '" target="_blank" rel="noopener noreferrer">' + esc((m.source && m.source.title) || "source") + "</a></div>" +
+          (where || moveTo ? '<div style="font-size:.84rem">' + where + moveTo + "</div>" : "") +
+          (e.evidence.length ? "<details><summary>Evidence</summary>" + list(e.evidence) + "</details>" : "") +
+          (e.findingIds.length ? '<div class="muted" style="font-size:.8rem">Findings: ' + e.findingIds.map(esc).join(", ") + "</div>" : "") +
+          '</td><td class="num">' + esc(m.tier) + "</td><td>" + pill(e.status) + "</td><td>" + (e.action ? pill(e.action) : '<span class="muted">not judged</span>') + "</td></tr>";
+      }).join("");
+      return "<h3>" + (sc === "repo" ? "Repository" : "<code>" + esc(sc) + "</code>") + '</h3><div class="table"><table><thead><tr><th>ID</th><th>Document</th><th>Tier</th><th>Status</th><th>Action</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    }).join("");
+    var loadLines = J && J.loading ? J.loading.alwaysLoadedLines : SC ? SC.alwaysLoadedLines : 0;
+    var ctx = [
+      "<dt>Always loaded</dt><dd>" + esc(loadLines) + " lines" + (SC && SC.alwaysLoaded.length ? ' <span class="muted">(' + SC.alwaysLoaded.map(function (a) { return esc(a.file) + " " + esc(a.lines); }).join(", ") + ")</span>" : "") + "</dd>",
+      J && J.loading && J.loading.issues.length ? "<dt>Loading issues</dt><dd>" + list(J.loading.issues) + "</dd>" : "",
+      SC ? "<dt>Docs</dt><dd>" + esc(SC.docFileCount) + " documentation files</dd>" : "",
+      SC && SC.brokenLinks.length ? "<dt>Broken links</dt><dd><details><summary>" + esc(SC.brokenLinks.length) + " relative links do not resolve</summary>" + list(SC.brokenLinks) + "</details></dd>" : "",
+      SC && SC.duplicates.length ? "<dt>Repeated</dt><dd><details><summary>" + esc(SC.duplicates.length) + " instruction lines appear in more than one guidance file</summary>" + list(SC.duplicates.map(function (d) { return d.files.join(" + ") + ": " + d.line; })) + "</details></dd>" : "",
+    ].join("");
+    var nav = J && J.navigation && J.navigation.length ? '<div class="table"><table><thead><tr><th>From CLAUDE.md to</th><th>Result</th><th>Route</th></tr></thead><tbody>' + J.navigation.map(function (n) {
+      return "<tr><td>" + esc(n.goal) + "</td><td>" + pill(n.reachable ? "reachable" : "unreachable") + "</td><td>" + n.route.map(function (r) { return "<code>" + esc(r) + "</code>"; }).join(" → ") + (n.note ? '<div class="muted" style="font-size:.8rem">' + esc(n.note) + "</div>" : "") + "</td></tr>";
+    }).join("") + "</tbody></table></div>" : "";
+    var inv = J && J.inventory.length ? '<details class="panel"><summary><b>Inventory</b> (' + J.inventory.length + ' documents)</summary><div class="table"><table><thead><tr><th>Location</th><th>Purpose</th><th>Authority</th><th>Owner</th><th>Disposition</th></tr></thead><tbody>' + J.inventory.map(function (i) {
+      return "<tr><td><code>" + esc(i.location) + "</code></td><td>" + esc(i.purpose) + (i.issue ? '<div class="muted" style="font-size:.8rem">' + esc(i.issue) + "</div>" : "") + "</td><td>" + esc(i.authority || "") + "</td><td>" + esc(i.owner || "") + "</td><td>" + pill(i.disposition) + "</td></tr>";
+    }).join("") + "</tbody></table></div></details>" : "";
+    var gaps = R.findings.filter(function (f) { return !f.resolved && f.dimension === "CTX"; });
+    return legend + (J && J.summary ? '<div class="panel"><p>' + esc(J.summary) + "</p></div>" : "") +
+      '<div class="panel" style="display:grid;gap:10px"><h2>Target layout</h2>' + target + "</div>" +
+      '<div class="panel" style="display:grid;gap:10px"><h2>Agent context</h2><dl class="kv">' + ctx + "</dl>" + nav + "</div>" + inv +
+      (gaps.length ? '<div class="muted" style="font-size:.84rem">Open documentation findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
+  }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
@@ -403,7 +459,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
   }
 
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";

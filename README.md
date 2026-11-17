@@ -7,16 +7,18 @@ The Agentic Playbook gives a repository an **agentic readiness score** and a roa
 
 ## Install
 
-Inside Claude Code:
+The playbook isn't published yet. You install it from a local clone.
+
+Inside Claude Code, add the clone as a local marketplace and install the plugin from it:
 
 ```
-/plugin marketplace add <owner>/<repo>
+/plugin marketplace add /path/to/agentic-playbook
 /plugin install agentic@agentic-playbook
 ```
 
-On Claude Code 2.1.275 or later you can install in one step with `/plugin install agentic --marketplace <owner>/<repo>`.
+To try it for one session without installing, run `claude --plugin-dir /path/to/agentic-playbook`.
 
-To try it locally without installing, run `claude --plugin-dir /path/to/agentic-playbook`.
+The plugin runs the committed `cli/dist/agentic.mjs` bundle, so you need Node.js but no build step. If you change the CLI source, rebuild it with `npm run check` (see [Developing](#developing)), then run `/plugin marketplace update agentic-playbook` to pick up the change.
 
 ## The loop
 
@@ -27,6 +29,7 @@ To try it locally without installing, run `claude --plugin-dir /path/to/agentic-
 | `/agentic:assess` | Detects whether the repo is greenfield or existing, runs read-only probes, and starts four auditor subagents in parallel: context, verification/architecture/security, evals, and workflows. Then it scores the repo and publishes the tracker. | No |
 | `/agentic:conventions [app]` | Also runs at the end of assess. A `conventions-advisor` subagent compares each app (web, API, worker, and so on) with the sourced conventions baseline and marks each rule documented, followed, contradicted, absent or "promote to lint". It then asks which recommendations to adopt. | No |
 | `/agentic:testing [app]` | Also runs inside assess. A `test-strategy-auditor` subagent assesses each app's testing against the sourced testing profiles: its stated strategy, the test layers it has against those its kind needs, a map of critical paths and the tests that cover them, coverage on changed code, and a sample of test quality. Gaps become findings. | No |
+| `/agentic:docs [app]` | Also runs inside assess, as part of the `context-auditor`. Inventories the documentation and agent guidance, measures what loads into every session, follows links from CLAUDE.md, and proposes a target layout against the sourced documentation library: which documents should exist, where, and with what authority. Gaps become findings. | No |
 | `/agentic:plan` | Turns findings into dependency-ordered milestones and tasks with acceptance criteria someone else can verify. Stops for your approval. | No |
 | `/agentic:adopt` | Moves the approved record into `.agentic/record.json`. | Yes, after you confirm |
 | `/agentic:next [task]` | Implements the next dependency-ready task. Self-repair is capped at 3 attempts, then the task hands off to verification. | Yes |
@@ -147,6 +150,34 @@ The judged result is stored per app in the record's `testing` snapshot and shown
 - "Cover <path> with a <layer> test". The verifier proves it fails when that behaviour breaks.
 - "Add the <layer> layer for <app>"
 
+## Documentation architecture
+
+The `context-auditor` already judges the CTX criteria. It also proposes a **target layout**: which documents the repository and each app should have, where each lives, how agents load it, and what authority it carries. It compares the repository with [reference/docs/](reference/docs/README.md), a sourced library in six areas:
+
+- the agent entry point
+- product requirements
+- architecture and decisions
+- interfaces
+- operations
+- per-app docs
+
+The library uses the same three tiers as strictness and testing:
+
+- **Tier 1, always:** a concise root CLAUDE.md and a README with setup. In a multi-app repository, also scoped conventions and a README for each app.
+- **Tier 2, when the repository needs it:** for example ADRs and an architecture overview once there are several apps, an API contract once there are outside consumers, or runbooks once there are alerts.
+- **Tier 3, only after a recurring problem:** for example diagrams as code, generated API reference, or a documentation-gardening job.
+
+Sources include the Claude Code docs, Google's documentation guide and *Software Engineering at Google*, Nygard's ADRs, the C4 model, the Google SRE books, OpenAPI, AsyncAPI and Write the Docs. Each file lists practices that are **not recommended**, such as a monolithic CLAUDE.md, lint rules restated in docs, or an unrequested AGENTS.md mirror.
+
+| | Deterministic (`agentic docs`) | Judged (`context-auditor`) |
+| --- | --- | --- |
+| **Inventory** | Documentation files | Purpose, audience, authority, owner and a disposition for each |
+| **Loading** | Lines loaded into every session, and instruction lines repeated across guidance files | Whether everything loaded globally applies everywhere |
+| **Navigation** | Broken relative links | Routes from CLAUDE.md to requirements, decisions, boundaries and commands |
+| **Target layout** | Library items present or absent, per repository and per app | Status (present, absent, misplaced) and action (create, relocate, consolidate, archive) for each item |
+
+The result is stored in the record's `docs` snapshot and shown in the tracker's **Docs** tab. It adds no rubric criteria; CTX-01 to CTX-12 score it. `/agentic:plan` starts with "Adopt documentation layout" (requires approval), then groups the moves and creations into tasks whose acceptance criteria check links, presence, navigation and the always-loaded line count.
+
 ## Guarantees the CLI enforces
 
 - **Assessment is read-only.** The record is staged in `~/.agentic-playbook/<repo>-<hash>/` until `/agentic:adopt`.
@@ -167,6 +198,7 @@ agentic score | status [--brief] | render | published --url | validate | adopt |
 agentic conventions [--app <root>] [--json]
 agentic strictness [--app <root>] [--json]
 agentic tests [--app <root>] [--json]
+agentic docs [--app <root>] [--json]
 agentic lint-playbook
 ```
 
@@ -181,7 +213,7 @@ The patch format is documented in [reference/patch-format.md](reference/patch-fo
 | `skills/` | The `/agentic:*` commands. |
 | `agents/` | The auditor and verifier subagents. |
 | `hooks/` | The SessionStart staleness check. |
-| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), and the testing profiles (`reference/testing/`). |
+| `reference/` | Operating rules, the patch format, and the conventions baseline library (`reference/conventions/`), the strictness profiles (`reference/strictness/`), the testing profiles (`reference/testing/`), and the documentation library (`reference/docs/`). |
 | `cli/` | The TypeScript source, tests, and the committed `dist/agentic.mjs` bundle. |
 | `archive/` | The original prompts. The [migration map](archive/migration.md) records where each one went. |
 
@@ -203,6 +235,7 @@ npm run check
 - a conventions library rule has no https source, has no `enforceable` field, or uses an unknown stack signal
 - a strictness check has no https source, an invalid tier, a Tier 2 or 3 check without a `when`, or a detect pattern that is not a valid regex
 - a testing layer has the same problems, or refers to a TST rule that is not in the conventions library
+- a documentation item has the same problems, an invalid `scope`, `load` or `authority`, or refers to a criterion that is not in the rubric
 
 CI also fails if `cli/dist` is out of date with the source. Rebuild and commit it after changing anything in `cli/src`.
 

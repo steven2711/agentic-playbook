@@ -5,6 +5,7 @@ import { playbookRoot } from "./paths.js";
 import { loadLibrary } from "./conventions.js";
 import { loadRubric } from "./rubric.js";
 import { loadTesting } from "./testing.js";
+import { loadDocs } from "./docs.js";
 import type { AssessmentRecord } from "./types.js";
 
 export interface ValidationResult {
@@ -149,6 +150,29 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
     }
     if (t.criticalPaths.covered > t.criticalPaths.total) errors.push(`testing ${t.scope} has more covered critical paths than it has critical paths`);
     if (t.strategy.documented && !t.strategy.path) warnings.push(`testing ${t.scope} strategy is documented but no path is given`);
+  }
+
+  if (record.docs) {
+    const docsLib = loadDocs();
+    const findingIds = new Set(record.findings.map((f) => f.id));
+    const keys = new Set<string>();
+    for (const t of record.docs.target) {
+      const at = `docs target ${t.id} (${t.scope})`;
+      const item = docsLib.items.get(t.id);
+      if (!item) errors.push(`${at} is not in the documentation library`);
+      const key = `${t.scope}::${t.id}`;
+      if (keys.has(key)) errors.push(`${at} appears more than once`);
+      keys.add(key);
+      if (t.status === "present" && t.evidence.length === 0) errors.push(`${at} is present without evidence (cite a path)`);
+      if (t.status === "n_a" && !t.reason) errors.push(`${at} is n_a without a reason`);
+      if ((t.status === "absent" || t.status === "misplaced") && (t.action === "retain" || t.action === "none") && !t.reason)
+        errors.push(`${at} is ${t.status} but has no action; give one, or a reason for leaving it`);
+      if ((t.action === "relocate" || t.action === "consolidate") && (!t.currentPaths?.length || !t.home)) errors.push(`${at} ${t.action} needs currentPaths and a home`);
+      if (t.action === "create" && !t.home) errors.push(`${at} create needs a home`);
+      for (const f of t.findingIds ?? []) if (!findingIds.has(f)) errors.push(`${at} links unknown finding ${f}`);
+      if (item && item.tier > 1 && (t.action === "create" || t.action === "generate") && !t.reason)
+        warnings.push(`${at} recommends a Tier ${item.tier} item without a reason; cite its condition${item.tier === 3 ? " and the recurring problem" : ""}`);
+    }
   }
 
   const taskCycle = findCycle(record.tasks);

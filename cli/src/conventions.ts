@@ -225,7 +225,7 @@ function globPrefix(glob: string): string {
   return p.includes("/") ? p.slice(0, p.lastIndexOf("/") + 1) : i < 0 ? `${p}/` : "";
 }
 
-function frontmatterPaths(text: string): string[] | null {
+export function frontmatterPaths(text: string): string[] | null {
   const m = text.match(/^---\n([\s\S]*?)\n---/);
   if (!m) return null;
   try {

@@ -7194,7 +7194,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse5(src, reviver, options) {
+    function parse6(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -7235,7 +7235,7 @@ var require_public_api = __commonJS({
         return value.toString(options);
       return new Document.Document(value, _replacer, options).toString(options);
     }
-    exports.parse = parse5;
+    exports.parse = parse6;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument;
     exports.stringify = stringify;
@@ -11132,7 +11132,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse5(serialize(uri, options), options);
+        parse6(serialize(uri, options), options);
       }
       return uri;
     }
@@ -11175,8 +11175,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative3, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse5(serialize(base, options), options);
-        relative3 = parse5(serialize(relative3, options), options);
+        base = parse6(serialize(base, options), options);
+        relative3 = parse6(serialize(relative3, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative3.scheme) {
@@ -11494,7 +11494,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse5(uri, opts) {
+    function parse6(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -11531,7 +11531,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse5
+      parse: parse6
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -14191,9 +14191,9 @@ var require_ajv = __commonJS({
 });
 
 // src/cli.ts
-import { cpSync, existsSync as existsSync8, mkdirSync as mkdirSync2, readFileSync as readFileSync9, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { cpSync, existsSync as existsSync9, mkdirSync as mkdirSync2, readFileSync as readFileSync10, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname8, join as join9, resolve as resolve4 } from "node:path";
+import { dirname as dirname9, join as join10, resolve as resolve4 } from "node:path";
 
 // src/conventions.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -14521,8 +14521,8 @@ function detectApps(files, read2) {
 }
 
 // src/lint.ts
-import { existsSync as existsSync6, readdirSync as readdirSync5, readFileSync as readFileSync6 } from "node:fs";
-import { dirname as dirname6, join as join7, relative as relative2, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync7, readdirSync as readdirSync6, readFileSync as readFileSync7 } from "node:fs";
+import { dirname as dirname7, join as join8, relative as relative2, resolve as resolve3 } from "node:path";
 
 // src/rubric.ts
 var import_yaml2 = __toESM(require_dist(), 1);
@@ -14963,10 +14963,256 @@ function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// src/docs.ts
+var import_yaml5 = __toESM(require_dist(), 1);
+import { existsSync as existsSync5, readdirSync as readdirSync4, readFileSync as readFileSync5 } from "node:fs";
+import { basename as basename5, dirname as dirname5, join as join6, posix } from "node:path";
+var DOC_CONDITIONS = [...SIGNALS, "multi-app", "deployable"];
+var DOC_LOADS = ["always", "path-scoped", "on-demand", "linked", "none"];
+var DOC_AUTHORITIES = ["contract", "fact", "history", "plan", "operation", "generated", "enforcement"];
+var cache4 = /* @__PURE__ */ new Map();
+function loadDocs(root = playbookRoot()) {
+  const hit = cache4.get(root);
+  if (hit) return hit;
+  const dir = join6(root, "reference", "docs");
+  const areas = [];
+  const items = /* @__PURE__ */ new Map();
+  if (existsSync5(dir)) {
+    for (const f of readdirSync4(dir).filter((x) => x.endsWith(".yaml")).sort()) {
+      let raw = {};
+      let parseError;
+      try {
+        raw = (0, import_yaml5.parse)(readFileSync5(join6(dir, f), "utf8")) ?? {};
+      } catch (e) {
+        parseError = e.message.split("\n")[0];
+      }
+      const a = {
+        area: String(raw.area ?? ""),
+        title: String(raw.title ?? ""),
+        reviewed: String(raw.reviewed ?? ""),
+        items: [],
+        not_recommended: raw.not_recommended ?? [],
+        file: `reference/docs/${f}`,
+        ...parseError ? { parseError } : {}
+      };
+      for (const i of raw.items ?? []) {
+        const item = { ...i, detect: i.detect ?? [], area: a.area };
+        a.items.push(item);
+        if (!items.has(item.id)) items.set(item.id, item);
+      }
+      areas.push(a);
+    }
+  }
+  const lib = { areas, items };
+  cache4.set(root, lib);
+  return lib;
+}
+var isHttps3 = (s) => !!s && !!s.title && typeof s.url === "string" && /^https:\/\//.test(s.url);
+function regexProblem2(value) {
+  try {
+    new RegExp(String(value), "i");
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+function lintDocs(root, today = /* @__PURE__ */ new Date()) {
+  const problems = [];
+  const warnings = [];
+  cache4.delete(root);
+  const lib = loadDocs(root);
+  if (!lib.areas.length) return { problems: ["docs: reference/docs has no library files"], warnings };
+  const known = new Set(DOC_CONDITIONS);
+  const criteria = new Set(loadRubric(root).criteria.map((c) => c.id));
+  const seen = /* @__PURE__ */ new Set();
+  for (const a of lib.areas) {
+    const where = a.file;
+    if (a.parseError) {
+      problems.push(`docs: ${where} is not valid YAML: ${a.parseError}`);
+      continue;
+    }
+    if (a.area !== basename5(a.file, ".yaml")) problems.push(`docs: ${where} area "${a.area}" does not match its file name`);
+    if (!a.title) problems.push(`docs: ${where} has no title`);
+    const months = monthsSince(a.reviewed, today);
+    if (months === null) problems.push(`docs: ${where} reviewed must be YYYY-MM (got "${a.reviewed}")`);
+    else if (months > 12) warnings.push(`docs: ${where} was last reviewed ${a.reviewed} (${months} months ago); re-check its items and sources`);
+    if (!a.items.length) problems.push(`docs: ${where} has no items`);
+    for (const i of a.items) {
+      const at = `${where} ${i.id ?? "(item without id)"}`;
+      if (!/^DOC-[A-Z]{3}-\d{2}$/.test(String(i.id ?? ""))) problems.push(`docs: ${at} id must look like DOC-AAA-NN`);
+      if (seen.has(i.id)) problems.push(`docs: duplicate item id ${i.id}`);
+      seen.add(i.id);
+      for (const k of ["artifact", "title", "purpose", "home", "belongs_here"])
+        if (!i[k] || typeof i[k] !== "string") problems.push(`docs: ${at} is missing "${k}"`);
+      if (![1, 2, 3].includes(i.tier)) problems.push(`docs: ${at} tier must be 1, 2 or 3`);
+      if (i.tier > 1 && !i.when) problems.push(`docs: ${at} is Tier ${i.tier} and must say when it is worth it ("when")`);
+      if (i.scope !== "repo" && i.scope !== "app") problems.push(`docs: ${at} scope must be repo or app`);
+      if (!DOC_LOADS.includes(i.load)) problems.push(`docs: ${at} load must be one of ${DOC_LOADS.join(", ")}`);
+      if (!DOC_AUTHORITIES.includes(i.authority)) problems.push(`docs: ${at} authority must be one of ${DOC_AUTHORITIES.join(", ")}`);
+      if (!isHttps3(i.source)) problems.push(`docs: ${at} needs a source with a title and an https url`);
+      for (const s of i.applies_when ?? []) if (!known.has(s)) problems.push(`docs: ${at} uses unknown condition "${s}"`);
+      for (const c of i.see ?? []) if (!criteria.has(c)) problems.push(`docs: ${at} refers to ${c}, which is not a rubric criterion`);
+      if (!i.detect.length) problems.push(`docs: ${at} has no detect patterns`);
+      for (const d of i.detect) {
+        if (d.conventions) {
+          if (i.scope !== "app") problems.push(`docs: ${at} detect "conventions" is only valid for scope app`);
+          continue;
+        }
+        if (!d.files) problems.push(`docs: ${at} detect entry is missing "files"`);
+        for (const k of ["files", "pattern", "exclude"]) {
+          if (d[k] === void 0) continue;
+          const err = regexProblem2(d[k]);
+          if (err) problems.push(`docs: ${at} detect ${k} is not a valid JavaScript regex: ${err}`);
+        }
+      }
+    }
+    for (const n of a.not_recommended) {
+      if (!n.practice || !n.reason) problems.push(`docs: ${where} not_recommended entries need "practice" and "reason"`);
+      if (n.source && !isHttps3(n.source)) problems.push(`docs: ${where} not_recommended source needs a title and an https url`);
+    }
+  }
+  return { problems, warnings };
+}
+var applies = (item, conds) => !item.applies_when?.length || item.applies_when.some((s) => s === "any" || conds.has(s));
+var DEPLOY = /(^|\/)(Dockerfile[^/]*|docker-compose[^/]*\.ya?ml|compose\.ya?ml|Chart\.yaml|[^/]+\.tf|vercel\.json|fly\.toml|netlify\.toml|Procfile|serverless\.ya?ml|app\.yaml|render\.yaml|railway\.json|cdk\.json|Pulumi\.yaml|skaffold\.yaml)$|(^|\/)(k8s|kubernetes|helm|deploy|infra|terraform)\//;
+var DOC_FILE = /\.(md|mdx|rst|adoc)$|(^|\/)(openapi|swagger|asyncapi)[^/]*\.(ya?ml|json)$/i;
+var NOT_DOC = /(^|\/)(node_modules|vendor|third_party|fixtures?|__snapshots__|\.changeset)\/|(^|\/)(CHANGELOG|LICENSE|LICENCE|CODE_OF_CONDUCT)(\.md)?$/i;
+function assessDocs(lib, apps, files, read2, exists = (rel) => files.includes(rel) || files.some((f) => f.startsWith(`${rel.replace(/\/$/, "")}/`))) {
+  const text = /* @__PURE__ */ new Map();
+  const get = (f) => {
+    if (!text.has(f)) text.set(f, read2(f));
+    return text.get(f);
+  };
+  const multi = apps.length > 1;
+  const roots = apps.map((a) => a.root).sort((a, b) => b.length - a.length);
+  const ownerOf = (f) => roots.find((r) => r !== "." && f.startsWith(`${r}/`)) ?? (roots.includes(".") ? "." : null);
+  const ownFiles = (root) => files.filter((f) => ownerOf(f) === root);
+  const appConds = /* @__PURE__ */ new Map();
+  for (const a of apps) {
+    const c = new Set(a.signals);
+    if (multi) c.add("multi-app");
+    const deployFiles = multi ? ownFiles(a.root) : files;
+    if (deployFiles.some((f) => DEPLOY.test(f))) c.add("deployable");
+    appConds.set(a.root, c);
+  }
+  const repoConds = /* @__PURE__ */ new Set(["any"]);
+  for (const c of appConds.values()) for (const s of c) repoConds.add(s);
+  if (files.some((f) => DEPLOY.test(f))) repoConds.add("deployable");
+  if (multi) repoConds.add("multi-app");
+  const match = (item, candidates2, prefix, app) => {
+    const hits = /* @__PURE__ */ new Set();
+    for (const d of item.detect) {
+      if (d.conventions) {
+        for (const f of app?.conventions ?? []) if (!/^(\.claude\/)?CLAUDE\.md$/.test(f)) hits.add(f);
+        continue;
+      }
+      const fileRe = new RegExp(d.files ?? "$^", "i");
+      const ex = d.exclude ? new RegExp(d.exclude, "i") : null;
+      const re = d.pattern ? new RegExp(d.pattern, "im") : null;
+      for (const f of candidates2) {
+        const rel = f.slice(prefix.length);
+        if (hits.has(f) || !fileRe.test(rel) || ex && ex.test(rel)) continue;
+        if (re && !re.test(get(f))) continue;
+        hits.add(f);
+      }
+    }
+    return [...hits].sort();
+  };
+  const status = (item, scope, found) => ({
+    id: item.id,
+    area: item.area,
+    artifact: item.artifact,
+    tier: item.tier,
+    scope,
+    status: found.length ? "present" : "absent",
+    count: found.length,
+    paths: found.slice(0, 3)
+  });
+  const items = [];
+  for (const area of lib.areas) {
+    for (const item of area.items) {
+      if (item.scope === "repo") {
+        if (applies(item, repoConds)) items.push(status(item, "repo", match(item, files, "")));
+        continue;
+      }
+      for (const app of apps) {
+        if (!applies(item, appConds.get(app.root))) continue;
+        const prefix = app.root === "." ? "" : `${app.root}/`;
+        items.push(status(item, app.root, match(item, ownFiles(app.root), prefix, app)));
+      }
+    }
+  }
+  const rootClaude = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"].filter((f) => files.includes(f));
+  const always = new Set(rootClaude);
+  for (const f of rootClaude) {
+    for (const m of get(f).matchAll(/(?:^|\s)@([\w./-]+\.\w+)/gm)) {
+      const target = posix.normalize(posix.join(dirname5(f), m[1]));
+      if (files.includes(target)) always.add(target);
+    }
+  }
+  for (const f of files.filter((x) => /^\.claude\/rules\/.+\.md$/.test(x))) if (!frontmatterPaths(get(f))) always.add(f);
+  const alwaysLoaded = [...always].map((file) => ({ file, lines: get(file).split("\n").length }));
+  const docFiles = files.filter((f) => DOC_FILE.test(f) && !NOT_DOC.test(f));
+  const brokenLinks = [];
+  for (const md of docFiles.filter((f) => /\.mdx?$/i.test(f)).slice(0, 400)) {
+    for (const m of get(md).matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
+      const target = m[1];
+      if (/^([a-z][a-z0-9+.-]*:|\/\/|<)/i.test(target)) continue;
+      let decoded = target;
+      try {
+        decoded = decodeURI(target);
+      } catch {
+      }
+      const rel = decoded.startsWith("/") ? decoded.slice(1) : posix.normalize(posix.join(dirname5(md), decoded));
+      if (!rel.startsWith("..") && !exists(rel)) brokenLinks.push(`${md} -> ${target}`);
+    }
+  }
+  const guidance = files.filter((f) => /(^|\/)(CLAUDE|AGENTS)(\.local)?\.md$/.test(f) || /^\.claude\/rules\/.+\.md$/.test(f) || /(^|\/)\.claude\/rules\/.+\.md$/.test(f));
+  const lineFiles = /* @__PURE__ */ new Map();
+  for (const f of guidance) {
+    for (const raw of get(f).split("\n")) {
+      const line = raw.trim().replace(/^([-*+]|\d+\.)\s+/, "").replace(/\s+/g, " ");
+      if (line.length < 40 || /^(#|```|\||<!--|---)/.test(line)) continue;
+      const set = lineFiles.get(line) ?? /* @__PURE__ */ new Set();
+      set.add(f);
+      lineFiles.set(line, set);
+    }
+  }
+  const duplicates = [...lineFiles.entries()].filter(([, s]) => s.size > 1).map(([line, s]) => ({ line: line.length > 120 ? `${line.slice(0, 117)}...` : line, files: [...s].sort() })).slice(0, 20);
+  return {
+    repoConditions: [...repoConds].sort(),
+    apps: apps.map((a) => ({ root: a.root, conditions: [...appConds.get(a.root)].sort() })),
+    items,
+    docFiles: docFiles.slice(0, 300),
+    docFileCount: docFiles.length,
+    alwaysLoaded,
+    alwaysLoadedLines: alwaysLoaded.reduce((n, a) => n + a.lines, 0),
+    brokenLinks: brokenLinks.slice(0, 50),
+    duplicates
+  };
+}
+function docsProbe(d) {
+  const t1 = d.items.filter((i) => i.tier === 1);
+  const missing = t1.filter((i) => i.status === "absent");
+  const present2 = d.items.filter((i) => i.tier > 1 && i.status === "present");
+  const absent2 = d.items.filter((i) => i.tier === 2 && i.status === "absent");
+  const label = (i) => i.scope === "repo" ? i.artifact : `${i.artifact} (${i.scope})`;
+  return {
+    status: missing.length ? "failed" : "partial",
+    evidence: [
+      `Tier 1 documents present ${t1.length - missing.length}/${t1.length}${missing.length ? ` (missing: ${missing.map(label).join(", ")})` : ""}`,
+      `Tier 2 and 3 present: ${present2.map(label).join(", ") || "none"}; Tier 2 absent, if its condition holds: ${absent2.map(label).join(", ") || "none"}`,
+      `always loaded: ${d.alwaysLoadedLines} lines across ${d.alwaysLoaded.map((a) => `${a.file} (${a.lines})`).join(", ") || "nothing"}`,
+      `${d.docFileCount} documentation files; ${d.brokenLinks.length} broken relative links; ${d.duplicates.length} instruction lines repeated across guidance files`
+    ],
+    note: "Presence is detected by path and content. The context-auditor confirms it, judges each Tier 2 condition and proposes the target layout. Run `agentic docs` for the full list."
+  };
+}
+
 // src/scan.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync5, readdirSync as readdirSync4, readFileSync as readFileSync5 } from "node:fs";
-import { dirname as dirname5, extname as extname3, join as join6, relative, resolve as resolve2 } from "node:path";
+import { existsSync as existsSync6, readdirSync as readdirSync5, readFileSync as readFileSync6 } from "node:fs";
+import { dirname as dirname6, extname as extname3, join as join7, relative } from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   ".git",
   "node_modules",
@@ -15044,7 +15290,8 @@ var PROBES = [
   "conventions",
   "strictness",
   "suppressions",
-  "tests"
+  "tests",
+  "docs"
 ];
 function walk(root) {
   const files = [];
@@ -15053,15 +15300,15 @@ function walk(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = readdirSync4(dir, { withFileTypes: true });
+      entries = readdirSync5(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const e of entries) {
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) stack.push(join6(dir, e.name));
+        if (!SKIP_DIRS.has(e.name)) stack.push(join7(dir, e.name));
       } else if (e.isFile()) {
-        files.push(relative(root, join6(dir, e.name)));
+        files.push(relative(root, join7(dir, e.name)));
         if (files.length >= MAX_FILES) return { files, truncated: true };
       }
     }
@@ -15070,7 +15317,7 @@ function walk(root) {
 }
 var read = (root, rel) => {
   try {
-    return readFileSync5(join6(root, rel), "utf8");
+    return readFileSync6(join7(root, rel), "utf8");
   } catch {
     return "";
   }
@@ -15198,7 +15445,7 @@ function scan(root, opts = {}) {
   for (const p of pkgFiles) {
     try {
       const pkg = JSON.parse(read(root, p));
-      for (const [k, v] of Object.entries(pkg.scripts ?? {})) (p === "package.json" ? scripts : workspaceScripts)[p === "package.json" ? k : `${dirname5(p)}#${k}`] = String(v);
+      for (const [k, v] of Object.entries(pkg.scripts ?? {})) (p === "package.json" ? scripts : workspaceScripts)[p === "package.json" ? k : `${dirname6(p)}#${k}`] = String(v);
       if (p === "package.json") facts.packageManagerField = pkg.packageManager ?? null;
     } catch {
     }
@@ -15300,22 +15547,14 @@ function scan(root, opts = {}) {
   };
   const adrs = matching(/(^|\/)(adr|adrs|decisions)\/.+\.md$/i);
   const archDocs = matching(/(^|\/)(ARCHITECTURE\.md|docs\/architecture[^/]*\/?.*\.md)$/i);
-  facts.docs = { adrs, archDocs, markdownFiles: matching(/\.md$/).length };
+  const docs = assessDocs(loadDocs(), apps, files, (rel) => read(root, rel), (rel) => existsSync6(join7(root, rel)));
+  facts.docs = { adrs, archDocs, markdownFiles: matching(/\.md$/).length, ...docs };
   probes.architecture_docs = {
     status: archDocs.length && adrs.length ? "partial" : archDocs.length || adrs.length ? "partial" : "failed",
     evidence: [`architecture docs: ${archDocs.slice(0, 5).join(", ") || "none"}`, `ADRs: ${adrs.length}`]
   };
-  const broken = [];
-  for (const md of matching(/\.md$/).slice(0, 400)) {
-    const text = read(root, md);
-    for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
-      const target = m[1];
-      if (/^(https?:|mailto:|tel:|\/\/)/.test(target) || target.startsWith("<")) continue;
-      const abs = resolve2(root, dirname5(md), decodeURI(target));
-      if (!existsSync5(abs)) broken.push(`${md} -> ${target}`);
-    }
-  }
-  facts.brokenLinks = broken;
+  probes.docs = docsProbe(docs);
+  facts.brokenLinks = docs.brokenLinks;
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has2);
   const secretInCi = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i.test(ciText);
   const envCommitted = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f));
@@ -15401,7 +15640,7 @@ function lintPlaybook(root) {
   const sections = /* @__PURE__ */ new Map();
   const sectionsOf = (file) => {
     if (!sections.has(file)) {
-      const text = readFileSync6(join7(root, file), "utf8");
+      const text = readFileSync7(join8(root, file), "utf8");
       const parts = [];
       let cur = { heading: "(preamble)", text: "" };
       for (const line of text.split("\n")) {
@@ -15424,7 +15663,7 @@ function lintPlaybook(root) {
     if (!rubric.priorities[c.priority]) problems.push(`rubric: ${c.id} has unknown priority ${c.priority}`);
     if (c.gate && !rubric.levels.some((l) => l.id === c.gate)) problems.push(`rubric: ${c.id} has unknown gate ${c.gate}`);
     if (c.probe && !PROBES.includes(c.probe)) problems.push(`rubric: ${c.id} references unknown probe ${c.probe}`);
-    if (!existsSync6(join7(root, c.source))) {
+    if (!existsSync7(join8(root, c.source))) {
       problems.push(`rubric: ${c.id} cites missing source ${c.source}`);
       continue;
     }
@@ -15432,7 +15671,7 @@ function lintPlaybook(root) {
     if (!hit) problems.push(`rubric: ${c.id} quote not found in ${c.source}: "${c.quote}" (standard changed? update the rubric)`);
     else covered.add(`${c.source}#${hit.heading}`);
   }
-  const standards = readdirSync5(join7(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
+  const standards = readdirSync6(join8(root, "standards")).filter((f) => f.endsWith(".md")).map((f) => `standards/${f}`);
   for (const s of standards) {
     for (const sec of sectionsOf(s)) {
       if (sec.heading === "(preamble)" && sectionsOf(s).length > 1 && sec.text.trim().length < 400) continue;
@@ -15441,33 +15680,33 @@ function lintPlaybook(root) {
   }
   const mdFiles = [];
   const walk2 = (dir) => {
-    for (const e of readdirSync5(dir, { withFileTypes: true })) {
+    for (const e of readdirSync6(dir, { withFileTypes: true })) {
       if (["node_modules", ".git", "dist"].includes(e.name)) continue;
-      const p = join7(dir, e.name);
+      const p = join8(dir, e.name);
       if (e.isDirectory()) walk2(p);
       else if (e.name.endsWith(".md")) mdFiles.push(p);
     }
   };
   walk2(root);
   for (const file of mdFiles) {
-    const text = readFileSync6(file, "utf8");
+    const text = readFileSync7(file, "utf8");
     for (const m of text.matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)) {
       const target = m[1];
       if (/^(https?:|mailto:)/.test(target)) continue;
-      if (!existsSync6(resolve3(dirname6(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
+      if (!existsSync7(resolve3(dirname7(file), target))) problems.push(`link: ${relative2(root, file)} -> ${target} does not exist`);
     }
     for (const m of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g)) {
       const target = m[1].replace(/[.,;:)]+$/, "");
-      if (!existsSync6(join7(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
+      if (!existsSync7(join8(root, target))) problems.push(`ref: ${relative2(root, file)} references missing \${CLAUDE_PLUGIN_ROOT}/${target}`);
     }
   }
-  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems);
+  problems.push(...lintLibrary(root).problems, ...lintStrictness(root).problems, ...lintTesting(root).problems, ...lintDocs(root).problems);
   return problems;
 }
 
 // src/record.ts
-import { existsSync as existsSync7, mkdirSync, readFileSync as readFileSync8, renameSync, writeFileSync } from "node:fs";
-import { basename as basename5, dirname as dirname7 } from "node:path";
+import { existsSync as existsSync8, mkdirSync, readFileSync as readFileSync9, renameSync, writeFileSync } from "node:fs";
+import { basename as basename6, dirname as dirname8 } from "node:path";
 
 // src/types.ts
 var UsageError = class extends Error {
@@ -15475,12 +15714,12 @@ var UsageError = class extends Error {
 
 // src/validate.ts
 var import_ajv = __toESM(require_ajv(), 1);
-import { readFileSync as readFileSync7 } from "node:fs";
-import { join as join8 } from "node:path";
+import { readFileSync as readFileSync8 } from "node:fs";
+import { join as join9 } from "node:path";
 var validator = null;
 function schemaValidator() {
   if (!validator) {
-    const schema = JSON.parse(readFileSync7(join8(playbookRoot(), "schema", "record.schema.json"), "utf8"));
+    const schema = JSON.parse(readFileSync8(join9(playbookRoot(), "schema", "record.schema.json"), "utf8"));
     const ajv = new import_ajv.Ajv({ allErrors: true, strict: false });
     validator = ajv.compile(schema);
   }
@@ -15602,6 +15841,28 @@ function validateRecord(record) {
     if (t.criticalPaths.covered > t.criticalPaths.total) errors.push(`testing ${t.scope} has more covered critical paths than it has critical paths`);
     if (t.strategy.documented && !t.strategy.path) warnings.push(`testing ${t.scope} strategy is documented but no path is given`);
   }
+  if (record.docs) {
+    const docsLib = loadDocs();
+    const findingIds2 = new Set(record.findings.map((f) => f.id));
+    const keys = /* @__PURE__ */ new Set();
+    for (const t of record.docs.target) {
+      const at = `docs target ${t.id} (${t.scope})`;
+      const item = docsLib.items.get(t.id);
+      if (!item) errors.push(`${at} is not in the documentation library`);
+      const key = `${t.scope}::${t.id}`;
+      if (keys.has(key)) errors.push(`${at} appears more than once`);
+      keys.add(key);
+      if (t.status === "present" && t.evidence.length === 0) errors.push(`${at} is present without evidence (cite a path)`);
+      if (t.status === "n_a" && !t.reason) errors.push(`${at} is n_a without a reason`);
+      if ((t.status === "absent" || t.status === "misplaced") && (t.action === "retain" || t.action === "none") && !t.reason)
+        errors.push(`${at} is ${t.status} but has no action; give one, or a reason for leaving it`);
+      if ((t.action === "relocate" || t.action === "consolidate") && (!t.currentPaths?.length || !t.home)) errors.push(`${at} ${t.action} needs currentPaths and a home`);
+      if (t.action === "create" && !t.home) errors.push(`${at} create needs a home`);
+      for (const f of t.findingIds ?? []) if (!findingIds2.has(f)) errors.push(`${at} links unknown finding ${f}`);
+      if (item && item.tier > 1 && (t.action === "create" || t.action === "generate") && !t.reason)
+        warnings.push(`${at} recommends a Tier ${item.tier} item without a reason; cite its condition${item.tier === 3 ? " and the recurring problem" : ""}`);
+    }
+  }
   const taskCycle = findCycle(record.tasks);
   if (taskCycle) errors.push(`task dependency cycle: ${taskCycle.join(" -> ")}`);
   const msCycle = findCycle(record.milestones);
@@ -15616,10 +15877,10 @@ function createRecord(store, mode) {
   const at = now();
   return {
     schemaVersion: 1,
-    assessmentId: `agentic-${basename5(store.repoRoot)}-${at.slice(0, 10)}`,
+    assessmentId: `agentic-${basename6(store.repoRoot)}-${at.slice(0, 10)}`,
     mode,
     rubricVersion: rubric.version,
-    repo: { name: basename5(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
+    repo: { name: basename6(store.repoRoot), remote: remoteUrl(store.repoRoot), defaultBranch: defaultBranch(store.repoRoot) },
     assessedRevision: headRevision(store.repoRoot),
     recordRevision: 1,
     createdAt: at,
@@ -15636,10 +15897,10 @@ function createRecord(store, mode) {
   };
 }
 function loadRecord(store) {
-  if (!existsSync7(store.recordPath)) {
+  if (!existsSync8(store.recordPath)) {
     throw new UsageError(`No assessment record for this repository (looked in ${store.recordPath}). Run \`agentic init\` first.`);
   }
-  const record = JSON.parse(readFileSync8(store.recordPath, "utf8"));
+  const record = JSON.parse(readFileSync9(store.recordPath, "utf8"));
   record.conventions ??= [];
   const rubric = loadRubric();
   for (const c of rubric.criteria) {
@@ -15676,7 +15937,7 @@ function saveRecord(store, record, opts = {}) {
   const { errors } = validateRecord(record);
   if (errors.length) throw new UsageError(`Refusing to write an invalid record:
   - ${errors.join("\n  - ")}`);
-  mkdirSync(dirname7(store.recordPath), { recursive: true });
+  mkdirSync(dirname8(store.recordPath), { recursive: true });
   const tmp = `${store.recordPath}.tmp`;
   writeFileSync(tmp, JSON.stringify(record, null, 2) + "\n");
   renameSync(tmp, store.recordPath);
@@ -15764,10 +16025,14 @@ function renderHtml(record, opts) {
         return r ? [[id, { title: r.title, rule: r.rule, why: r.why, do: r.do, dont: r.dont, domain: r.domain, enforceable: r.enforceable, source: r.source }]] : [];
       })
     ),
-    strictness: opts.strictness ? { ...opts.strictness, testing: void 0 } : null,
+    strictness: opts.strictness ? { ...opts.strictness, testing: void 0, docs: void 0 } : null,
     testingScan: opts.strictness?.testing ?? [],
     testingLayers: Object.fromEntries(
       [...loadTesting().layers.values()].map((l) => [l.id, { layer: l.layer, title: l.title, tier: l.tier, kind: l.kind, source: l.source }])
+    ),
+    docsScan: opts.strictness?.docs ?? null,
+    docItems: Object.fromEntries(
+      [...loadDocs().items.values()].map((i) => [i.id, { artifact: i.artifact, title: i.title, tier: i.tier, area: i.area, home: i.home, load: i.load, authority: i.authority, source: i.source }])
     ),
     renderedAt: (/* @__PURE__ */ new Date()).toISOString(),
     headRevision: opts.headRevision,
@@ -15850,6 +16115,10 @@ header.top { display: flex; flex-wrap: wrap; justify-content: space-between; ali
 .s-absent, .s-wrong-layer { background: var(--warn-soft); color: var(--warn); }
 .s-present, .s-covered { background: var(--ok-soft); color: var(--ok); }
 .s-uncovered { background: var(--bad-soft); color: var(--bad); }
+.s-misplaced, .s-relocate, .s-consolidate, .s-investigate { background: var(--warn-soft); color: var(--warn); }
+.s-create, .s-generate { background: var(--accent-soft); color: var(--accent); }
+.s-retain, .s-reachable { background: var(--ok-soft); color: var(--ok); }
+.s-unreachable { background: var(--bad-soft); color: var(--bad); }
 .promote { font-family: var(--mono); font-size: 0.74rem; color: var(--accent); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); }
 nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -16096,6 +16365,52 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     }).join("");
   }
 
+  function docsView() {
+    var J = R.docs || null, SC = D.docsScan || null, DI = D.docItems || {};
+    if (!J && !SC) return '<div class="empty">No documentation assessment yet. Run /agentic:docs (it also runs inside /agentic:assess).</div>';
+    var safeUrl = function (u) { return /^https:\/\//.test(String(u)) ? esc(u) : "#"; };
+    var list = function (xs) { return '<ul class="ev">' + xs.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>"; };
+    var legend = '<div class="legend">Items come from the sourced documentation library. Tier 1 is always expected; Tier 2 only when its condition holds; Tier 3 only after a recurring problem. ' + (J ? "Statuses and actions are the auditor's target layout." : "Statuses are scan hints; the context-auditor has not judged them yet.") + "</div>";
+    var entries = J ? J.target.map(function (t) { return { id: t.id, scope: t.scope, status: t.status, action: t.action, home: t.home, paths: t.currentPaths || [], evidence: t.evidence.concat(t.reason ? [t.reason] : []), findingIds: t.findingIds || [] }; })
+      : SC.items.filter(function (i) { return i.tier === 1 || i.status === "present"; }).map(function (i) { return { id: i.id, scope: i.scope, status: i.status, action: "", home: "", paths: i.paths, evidence: [], findingIds: [] }; });
+    var scopes = [];
+    entries.forEach(function (e) { if (scopes.indexOf(e.scope) < 0) scopes.push(e.scope); });
+    scopes.sort(function (a, b) { return a === "repo" ? -1 : b === "repo" ? 1 : a < b ? -1 : 1; });
+    var target = scopes.map(function (sc) {
+      var rows = entries.filter(function (e) { return e.scope === sc; }).map(function (e) {
+        var m = DI[e.id] || { artifact: e.id, title: "", tier: "", home: "", load: "", authority: "", source: {} };
+        var where = e.paths.length ? e.paths.map(function (p) { return "<code>" + esc(p) + "</code>"; }).join(", ") : "";
+        var home = e.home || m.home;
+        var moveTo = e.action && e.action !== "retain" && e.action !== "none" && home ? ' → <code>' + esc(home) + "</code>" : "";
+        return "<tr><td><code>" + esc(e.id) + "</code></td><td><b>" + esc(m.artifact) + '</b><div class="muted" style="font-size:.8rem">' + esc(m.authority) + " · loads " + esc(m.load) + ' · <a href="' + safeUrl(m.source && m.source.url) + '" target="_blank" rel="noopener noreferrer">' + esc((m.source && m.source.title) || "source") + "</a></div>" +
+          (where || moveTo ? '<div style="font-size:.84rem">' + where + moveTo + "</div>" : "") +
+          (e.evidence.length ? "<details><summary>Evidence</summary>" + list(e.evidence) + "</details>" : "") +
+          (e.findingIds.length ? '<div class="muted" style="font-size:.8rem">Findings: ' + e.findingIds.map(esc).join(", ") + "</div>" : "") +
+          '</td><td class="num">' + esc(m.tier) + "</td><td>" + pill(e.status) + "</td><td>" + (e.action ? pill(e.action) : '<span class="muted">not judged</span>') + "</td></tr>";
+      }).join("");
+      return "<h3>" + (sc === "repo" ? "Repository" : "<code>" + esc(sc) + "</code>") + '</h3><div class="table"><table><thead><tr><th>ID</th><th>Document</th><th>Tier</th><th>Status</th><th>Action</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    }).join("");
+    var loadLines = J && J.loading ? J.loading.alwaysLoadedLines : SC ? SC.alwaysLoadedLines : 0;
+    var ctx = [
+      "<dt>Always loaded</dt><dd>" + esc(loadLines) + " lines" + (SC && SC.alwaysLoaded.length ? ' <span class="muted">(' + SC.alwaysLoaded.map(function (a) { return esc(a.file) + " " + esc(a.lines); }).join(", ") + ")</span>" : "") + "</dd>",
+      J && J.loading && J.loading.issues.length ? "<dt>Loading issues</dt><dd>" + list(J.loading.issues) + "</dd>" : "",
+      SC ? "<dt>Docs</dt><dd>" + esc(SC.docFileCount) + " documentation files</dd>" : "",
+      SC && SC.brokenLinks.length ? "<dt>Broken links</dt><dd><details><summary>" + esc(SC.brokenLinks.length) + " relative links do not resolve</summary>" + list(SC.brokenLinks) + "</details></dd>" : "",
+      SC && SC.duplicates.length ? "<dt>Repeated</dt><dd><details><summary>" + esc(SC.duplicates.length) + " instruction lines appear in more than one guidance file</summary>" + list(SC.duplicates.map(function (d) { return d.files.join(" + ") + ": " + d.line; })) + "</details></dd>" : "",
+    ].join("");
+    var nav = J && J.navigation && J.navigation.length ? '<div class="table"><table><thead><tr><th>From CLAUDE.md to</th><th>Result</th><th>Route</th></tr></thead><tbody>' + J.navigation.map(function (n) {
+      return "<tr><td>" + esc(n.goal) + "</td><td>" + pill(n.reachable ? "reachable" : "unreachable") + "</td><td>" + n.route.map(function (r) { return "<code>" + esc(r) + "</code>"; }).join(" → ") + (n.note ? '<div class="muted" style="font-size:.8rem">' + esc(n.note) + "</div>" : "") + "</td></tr>";
+    }).join("") + "</tbody></table></div>" : "";
+    var inv = J && J.inventory.length ? '<details class="panel"><summary><b>Inventory</b> (' + J.inventory.length + ' documents)</summary><div class="table"><table><thead><tr><th>Location</th><th>Purpose</th><th>Authority</th><th>Owner</th><th>Disposition</th></tr></thead><tbody>' + J.inventory.map(function (i) {
+      return "<tr><td><code>" + esc(i.location) + "</code></td><td>" + esc(i.purpose) + (i.issue ? '<div class="muted" style="font-size:.8rem">' + esc(i.issue) + "</div>" : "") + "</td><td>" + esc(i.authority || "") + "</td><td>" + esc(i.owner || "") + "</td><td>" + pill(i.disposition) + "</td></tr>";
+    }).join("") + "</tbody></table></div></details>" : "";
+    var gaps = R.findings.filter(function (f) { return !f.resolved && f.dimension === "CTX"; });
+    return legend + (J && J.summary ? '<div class="panel"><p>' + esc(J.summary) + "</p></div>" : "") +
+      '<div class="panel" style="display:grid;gap:10px"><h2>Target layout</h2>' + target + "</div>" +
+      '<div class="panel" style="display:grid;gap:10px"><h2>Agent context</h2><dl class="kv">' + ctx + "</dl>" + nav + "</div>" + inv +
+      (gaps.length ? '<div class="muted" style="font-size:.84rem">Open documentation findings: ' + gaps.map(function (f) { return "<code>" + esc(f.id) + "</code> " + esc(f.title); }).join(" · ") + "</div>" : "");
+  }
+
   function roadmapView() {
     if (!R.milestones.length) return '<div class="empty">No roadmap yet. Run /agentic:plan after the assessment.</div>';
     var ts = R.tasks.filter(function (t) { return filters.milestone === "all" || t.milestoneId === filters.milestone; });
@@ -16136,7 +16451,7 @@ svg text { fill: var(--muted); font: 11px var(--mono); }
     return '<div class="panel"><div class="table"><table><thead><tr><th>ID</th><th>For</th><th>Result</th><th>Verifier</th><th>Action</th><th>Rev</th><th>Date</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
   }
 
-  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
+  var views = { overview: ["Overview", overview], criteria: ["Criteria", criteriaView], findings: ["Findings", findingsView], conventions: ["Conventions", conventionsView], testing: ["Testing", testingView], docs: ["Docs", docsView], roadmap: ["Roadmap", roadmapView], evidence: ["Evidence", evidenceView] };
   function render() {
     var key = (location.hash || "#overview").slice(1);
     if (!views[key]) key = "overview";
@@ -16251,7 +16566,7 @@ function applyPatch(record, patch, opts) {
   const log = [];
   for (const key of Object.keys(patch)) {
     if (FORBIDDEN.includes(key)) throw new UsageError(`"${key}" cannot be written with apply. ${key === "evidence" ? "Use `agentic evidence`." : "It is computed by the CLI."}`);
-    if (![...PATCHABLE, "testing", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
+    if (![...PATCHABLE, "testing", "docs", "assessedRevision", "mode", "remove"].includes(key)) throw new UsageError(`Unknown patch key "${key}"`);
   }
   if (patch.assessedRevision !== void 0) {
     record.assessedRevision = patch.assessedRevision === "HEAD" ? headRevision(opts.repoRoot) : patch.assessedRevision;
@@ -16325,6 +16640,13 @@ function applyPatch(record, patch, opts) {
     else record.testing.push(entry);
     log.push(`${idx >= 0 ? "replaced" : "added"} testing ${scope}`);
   }
+  if (patch.docs) {
+    const d = patch.docs;
+    if (!Array.isArray(d.inventory) || !Array.isArray(d.target)) throw new UsageError("docs needs inventory and target arrays");
+    const replaced = !!record.docs;
+    record.docs = { ...d, assessedBy: d.assessedBy ?? opts.by, assessedAt: d.assessedAt ?? now() };
+    log.push(`${replaced ? "replaced" : "added"} docs (${d.target.length} target entries, ${d.inventory.length} inventory entries)`);
+  }
   for (const t of record.tasks) {
     for (const fid of t.findingIds) {
       const f = record.findings.find((x) => x.id === fid);
@@ -16332,6 +16654,14 @@ function applyPatch(record, patch, opts) {
     }
   }
   for (const [coll, ids] of Object.entries(patch.remove ?? {})) {
+    if (coll === "docs") {
+      if (!ids) continue;
+      if (!record.docs) throw new UsageError("Cannot remove docs: there is no documentation assessment");
+      delete record.docs;
+      log.push("removed docs");
+      continue;
+    }
+    if (typeof ids === "boolean") throw new UsageError(`remove.${coll} must be a list of ids`);
     if (coll === "testing") {
       for (const scope of ids) {
         const idx = (record.testing ?? []).findIndex((t) => t.scope === scope);
@@ -16397,6 +16727,9 @@ Strictness
 Testing
   tests [--app <root>] [--json]                Per app: kind, test layers present, critical-path candidates, coverage tooling
 
+Documentation
+  docs [--app <root>] [--json]                 Documents present per repo and app, always-loaded context, broken links, repeated lines
+
 Reporting
   score [--json]                                Compute score, confidence, level; append to history
   status [--brief] [--json]                     Summary plus staleness of the assessment and Artifact
@@ -16406,7 +16739,7 @@ Reporting
   rubric [--json]                               Print the rubric
 
 Playbook maintenance
-  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness and testing libraries
+  lint-playbook [--root <dir>]                  Rubric quotes, standard coverage, links, conventions, strictness, testing and docs libraries
 `;
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -16428,7 +16761,7 @@ var need = (a, k) => {
   return v;
 };
 function readJsonInput(src) {
-  const text = src === "-" ? readFileSync9(0, "utf8") : readFileSync9(resolve4(src), "utf8");
+  const text = src === "-" ? readFileSync10(0, "utf8") : readFileSync10(resolve4(src), "utf8");
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -16444,13 +16777,14 @@ function withHints(result) {
   return { ...result, criteriaHints };
 }
 function strictnessSnapshot(store) {
-  if (!existsSync8(store.scanPath)) return null;
+  if (!existsSync9(store.scanPath)) return null;
   try {
-    const s = JSON.parse(readFileSync9(store.scanPath, "utf8"));
+    const s = JSON.parse(readFileSync10(store.scanPath, "utf8"));
     const apps = s.facts.strictness;
     const suppressions = s.facts.suppressions;
     const testing = s.facts.testing ?? [];
-    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing } : null;
+    const docs = s.facts.docs ?? null;
+    return apps && suppressions ? { scannedAt: s.scannedAt, revision: s.revision, apps, suppressions, testing, docs } : null;
   } catch {
     return null;
   }
@@ -16494,14 +16828,14 @@ function main(argv) {
     case "lint-playbook": {
       const root = resolve4(str(args, "root") ?? playbookRoot());
       const problems = lintPlaybook(root);
-      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings]) console.log(`! ${w}`);
+      for (const w of [...lintLibrary(root).warnings, ...lintStrictness(root).warnings, ...lintTesting(root).warnings, ...lintDocs(root).warnings]) console.log(`! ${w}`);
       if (problems.length) {
         console.error(problems.map((p) => `\u2717 ${p}`).join("\n"));
         console.error(`
 ${problems.length} problem(s).`);
         return 1;
       }
-      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers).`);
+      console.log(`\u2713 playbook is consistent (${loadRubric(root).criteria.length} criteria, ${loadLibrary(root).rules.size} convention rules, ${loadStrictness(root).checks.size} strictness checks, ${loadTesting(root).layers.size} testing layers, ${loadDocs(root).items.size} documentation items).`);
       return 0;
     }
     case "rubric": {
@@ -16512,12 +16846,12 @@ ${problems.length} problem(s).`);
     }
     case "where": {
       const s = locateStore(cwd);
-      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync8(s.recordPath) }, null, 2));
+      console.log(JSON.stringify({ repoRoot: s.repoRoot, record: s.recordPath, scan: s.scanPath, adopted: s.adopted, exists: existsSync9(s.recordPath) }, null, 2));
       return 0;
     }
     case "init": {
       const store2 = locateStore(cwd);
-      if (existsSync8(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
+      if (existsSync9(store2.recordPath) && !args.flags.force) throw new UsageError(`A record already exists at ${store2.recordPath}. Use /agentic:reassess, or --force to start over.`);
       const scanResult = withHints(scan(store2.repoRoot));
       const modeFlag = str(args, "mode");
       if (modeFlag && modeFlag !== "greenfield" && modeFlag !== "existing") throw new UsageError("--mode must be greenfield or existing");
@@ -16549,7 +16883,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync9(join9(store2.repoRoot, rel), "utf8");
+          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -16558,7 +16892,7 @@ ${problems.length} problem(s).`);
       const only = str(args, "app");
       const apps = detectApps(files, read2).filter((a) => !only || a.root === only);
       if (only && !apps.length) throw new UsageError(`No app root "${only}". Run \`agentic conventions\` to list them.`);
-      const assessed = existsSync8(store2.recordPath) ? loadRecord(store2).conventions : [];
+      const assessed = existsSync9(store2.recordPath) ? loadRecord(store2).conventions : [];
       const out = apps.map((a) => {
         const rules = applicableRules(lib, new Set(a.signals));
         return {
@@ -16586,7 +16920,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync9(join9(store2.repoRoot, rel), "utf8");
+          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -16633,7 +16967,7 @@ ${problems.length} problem(s).`);
       const { files } = walk(store2.repoRoot);
       const read2 = (rel) => {
         try {
-          return readFileSync9(join9(store2.repoRoot, rel), "utf8");
+          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
         } catch {
           return "";
         }
@@ -16676,23 +17010,69 @@ ${problems.length} problem(s).`);
       }
       return 0;
     }
+    case "docs": {
+      const store2 = locateStore(cwd);
+      const { files } = walk(store2.repoRoot);
+      const read2 = (rel) => {
+        try {
+          return readFileSync10(join10(store2.repoRoot, rel), "utf8");
+        } catch {
+          return "";
+        }
+      };
+      const lib = loadDocs();
+      const only = str(args, "app");
+      const apps = detectApps(files, read2);
+      if (only && !apps.some((a) => a.root === only)) throw new UsageError(`No app root "${only}". Run \`agentic docs\` to list them.`);
+      const d = assessDocs(lib, apps, files, read2, (rel) => existsSync9(join10(store2.repoRoot, rel)));
+      const items = d.items.filter((i) => !only || i.scope === only).map((i) => {
+        const full = lib.items.get(i.id);
+        return { ...i, title: full.title, when: full.when, purpose: full.purpose, home: full.home, load: full.load, authority: full.authority, belongs_here: full.belongs_here, not_here: full.not_here, see: full.see ?? [], source: full.source };
+      });
+      const notRecommended = lib.areas.flatMap((a) => a.not_recommended.map((n) => ({ area: a.area, ...n })));
+      if (args.flags.json) {
+        console.log(JSON.stringify({ ...d, items, notRecommended }, null, 2));
+        return 0;
+      }
+      console.log(`conditions: ${d.repoConditions.filter((c) => c !== "any").join(", ") || "none"}`);
+      console.log(`always loaded: ${d.alwaysLoadedLines} lines (${d.alwaysLoaded.map((a) => `${a.file} ${a.lines}`).join(", ") || "nothing"})`);
+      const scopes = [...new Set(items.map((i) => i.scope))];
+      for (const sc of scopes) {
+        console.log(sc === "repo" ? "repository" : sc);
+        for (const i of items.filter((x) => x.scope === sc && (x.tier < 3 || x.status === "present")).sort((x, y) => x.tier - y.tier || x.id.localeCompare(y.id))) {
+          const mark = i.status === "present" ? "\u2713" : i.tier === 1 ? "\u2717" : "\xB7";
+          const detail = i.status === "present" ? i.paths.join(", ") : i.tier === 1 ? `expected at ${i.home}` : `when: ${i.when}`;
+          console.log(`  ${mark} T${i.tier} ${i.id} ${i.artifact}: ${detail}`);
+        }
+      }
+      console.log(`${d.docFileCount} documentation files`);
+      if (d.brokenLinks.length) {
+        console.log(`broken relative links (${d.brokenLinks.length}):`);
+        for (const b of d.brokenLinks.slice(0, 15)) console.log(`  \u2717 ${b}`);
+      }
+      if (d.duplicates.length) {
+        console.log(`lines repeated across agent guidance files (${d.duplicates.length}):`);
+        for (const x of d.duplicates.slice(0, 10)) console.log(`  ${x.files.join(" + ")}: ${x.line}`);
+      }
+      return 0;
+    }
     case "adopt": {
       const store2 = locateStore(cwd);
       if (store2.adopted) {
         console.log(`Already adopted at ${store2.recordPath}`);
         return 0;
       }
-      if (!existsSync8(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
-      const dest = join9(store2.repoRoot, ".agentic");
+      if (!existsSync9(store2.recordPath)) throw new UsageError("Nothing to adopt. Run `agentic init` first.");
+      const dest = join10(store2.repoRoot, ".agentic");
       mkdirSync2(dest, { recursive: true });
-      cpSync(store2.recordPath, join9(dest, "record.json"));
-      writeFileSync2(join9(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
+      cpSync(store2.recordPath, join10(dest, "record.json"));
+      writeFileSync2(join10(dest, ".gitignore"), "scan.json\n*.html\n*.tmp\n");
       writeFileSync2(
-        join9(dest, "README.md"),
+        join10(dest, "README.md"),
         "# Agentic readiness record\n\n`record.json` is the authoritative assessment, roadmap and execution state produced by the Agentic Playbook plugin.\nEdit it only through the `agentic` CLI or `/agentic:*` commands; they validate every change.\n"
       );
       rmSync(store2.dir, { recursive: true, force: true });
-      console.log(`Adopted record into ${join9(dest, "record.json")}. Commit .agentic/ to make it durable.`);
+      console.log(`Adopted record into ${join10(dest, "record.json")}. Commit .agentic/ to make it durable.`);
       return 0;
     }
   }
@@ -16819,8 +17199,8 @@ ${problems.length} problem(s).`);
     case "render": {
       recordScore(store, record);
       const st = staleness(store, record);
-      const out = resolve4(str(args, "out") ?? join9(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
-      mkdirSync2(dirname8(out), { recursive: true });
+      const out = resolve4(str(args, "out") ?? join10(tmpdir(), "agentic-playbook", `${record.repo.name}-readiness.html`));
+      mkdirSync2(dirname9(out), { recursive: true });
       writeFileSync2(out, renderHtml(record, { headRevision: st.head, commitsBehind: st.commitsBehind, strictness: strictnessSnapshot(store) }));
       console.log(out);
       return 0;

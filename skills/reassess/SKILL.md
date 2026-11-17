@@ -30,11 +30,17 @@ Refresh the assessment against the current code. The assessment is read-only for
 
 7. If the changes touched an app's code or tests, run the `test-strategy-auditor` for those app roots, following steps 3 to 4 of `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md`. Compare its snapshot with the record's previous `testing` entry for the app: report fewer covered critical paths, or a Tier 1 layer that went missing, as a regression.
 
-8. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+8. If the changes touched CLAUDE.md, `.claude/`, docs or README files, make sure the `context-auditor` ran and returned a new `docs` snapshot. Compare it with the record's previous `docs` snapshot, and report these as regressions:
+   - a target item that was `present` and is now `absent` or `misplaced`
+   - more always-loaded lines without a stated reason
+   - new broken links (`agentic docs`)
+   - a navigation goal that was reachable and no longer is
 
-9. Compare with the previous score history entry. List:
+9. Apply one merged patch with `"assessedRevision": "HEAD"`, then run `agentic score`.
+
+10. Compare with the previous score history entry. List:
    - criteria that regressed (for example passed to failed), with evidence
    - resolved findings
    - new findings that need tasks. Offer `/agentic:plan` to schedule them.
 
-10. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.
+11. Follow **Publish the tracker**. Confirm `git status --porcelain` is unchanged by the assessment.

@@ -170,6 +170,75 @@
         "assessedAt": { "type": "string" }
       }
     },
+    "docsAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inventory", "target"],
+      "properties": {
+        "inventory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["location", "purpose", "disposition"],
+            "properties": {
+              "location": { "$ref": "#/definitions/text" },
+              "purpose": { "$ref": "#/definitions/text" },
+              "audience": { "type": "string" },
+              "scope": { "type": "string" },
+              "authority": { "enum": ["contract", "fact", "history", "plan", "operation", "generated", "enforcement", "unclear"] },
+              "owner": { "type": "string" },
+              "dependencies": { "type": "string" },
+              "issue": { "type": "string" },
+              "disposition": { "enum": ["retain", "relocate", "consolidate", "generate", "archive", "investigate"] }
+            }
+          }
+        },
+        "target": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "scope", "status", "action", "evidence"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^DOC-[A-Z]{3}-[0-9]{2}$" },
+              "scope": { "$ref": "#/definitions/text" },
+              "status": { "enum": ["present", "absent", "misplaced", "n_a"] },
+              "action": { "enum": ["retain", "create", "relocate", "consolidate", "generate", "archive", "none"] },
+              "currentPaths": { "type": "array", "items": { "type": "string" } },
+              "home": { "type": "string" },
+              "reason": { "type": "string" },
+              "evidence": { "$ref": "#/definitions/texts" },
+              "findingIds": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "loading": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["alwaysLoadedLines", "issues"],
+          "properties": { "alwaysLoadedLines": { "type": "integer", "minimum": 0 }, "issues": { "type": "array", "items": { "type": "string" } } }
+        },
+        "navigation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["goal", "reachable", "route"],
+            "properties": {
+              "goal": { "enum": ["requirements", "decisions", "boundaries", "commands"] },
+              "reachable": { "type": "boolean" },
+              "route": { "type": "array", "items": { "type": "string" } },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "summary": { "type": "string" },
+        "assessedRevision": { "type": ["string", "null"] },
+        "assessedBy": { "type": "string" },
+        "assessedAt": { "type": "string" }
+      }
+    },
     "testingAssessment": {
       "type": "object",
       "additionalProperties": false,
@@ -256,6 +325,7 @@
     "approvals": { "type": "array", "items": { "$ref": "#/definitions/approval" } },
     "conventions": { "type": "array", "items": { "$ref": "#/definitions/convention" } },
     "testing": { "type": "array", "items": { "$ref": "#/definitions/testingAssessment" } },
+    "docs": { "$ref": "#/definitions/docsAssessment" },
     "scoreHistory": { "type": "array", "items": { "$ref": "#/definitions/scoreEntry" } },
     "artifact": {
       "type": ["object", "null"],
