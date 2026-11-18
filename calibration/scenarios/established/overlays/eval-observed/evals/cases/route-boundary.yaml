@@ -1,0 +1,9 @@
+name: route-boundary
+category: architecture-constraint
+task: "Add GET /orders/:id/total returning the order total in cents."
+acceptance:
+  - the route validates :id with zod
+  - src/routes/ does not import src/lib/db.ts (checked by grep in the evaluator)
+  - existing tests still pass
+permitted_tools: [Read, Edit, Bash(npm test*)]
+evaluator: "bash evals/checks/route-boundary.sh"

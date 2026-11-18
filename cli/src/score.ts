@@ -24,6 +24,21 @@ export interface LevelGap {
   blocking: { id: string; title: string; status: CriterionStatus }[];
 }
 
+/**
+ * The planning horizon: what a roadmap from this state should plan now. It reaches two levels
+ * above the current one, plus every P0 criterion whatever its gate. Gaps beyond it stay findings
+ * with their level as the trigger, so a roadmap does not plan L4 automation for an L0 repository.
+ */
+export interface Horizon {
+  through: string;
+  /** Applicable criteria not yet passed that the roadmap should address now. */
+  criteria: string[];
+  /** Applicable criteria not yet passed that wait until the repository reaches the horizon. */
+  later: string[];
+}
+
+export const HORIZON_LEVELS = 2;
+
 export interface ScoreResult {
   score: number;
   confidence: number;
@@ -31,6 +46,7 @@ export interface ScoreResult {
   levelName: string;
   dimensions: DimensionScore[];
   nextLevel: LevelGap | null;
+  horizon: Horizon;
   counts: Record<CriterionStatus, number>;
 }
 
@@ -84,6 +100,13 @@ export function computeScore(record: AssessmentRecord): ScoreResult {
   }
 
   const lvl = rubric.levels[achieved]!;
+  const top = Math.min(achieved + HORIZON_LEVELS, rubric.levels.length - 1);
+  const open = rubric.criteria.filter((c) => {
+    const status = (state.get(c.id)?.status ?? "unverified") as CriterionStatus;
+    return CREDIT[status] !== null && status !== "passed";
+  });
+  const within = (c: (typeof open)[number]) => c.priority === "P0" || levelIndex(c.gate) <= top;
+  const horizon: Horizon = { through: rubric.levels[top]!.id, criteria: open.filter(within).map((c) => c.id), later: open.filter((c) => !within(c)).map((c) => c.id) };
   return {
     score: possible ? round((earned / possible) * 100) : 0,
     confidence: possible ? round((verifiedWeight / possible) * 100) : 0,
@@ -94,6 +117,7 @@ export function computeScore(record: AssessmentRecord): ScoreResult {
       return { id: d.id, name: d.name, score: s.possible ? round((s.earned / s.possible) * 100) : null, applicable: s.applicable, passed: s.passed };
     }),
     nextLevel,
+    horizon,
     counts,
   };
 }

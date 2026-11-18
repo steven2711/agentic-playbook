@@ -55,10 +55,11 @@ checks:
     title: Unused variables and imports fail lint
     tier: 1
     slop_prevented: Leftover variables, imports and parameters from abandoned approaches, which agents leave behind after rewrites.
-    enable: "@typescript-eslint/no-unused-vars (in recommended) or noUnusedLocals and noUnusedParameters"
+    enable: "@typescript-eslint/no-unused-vars (in recommended), noUnusedLocals and noUnusedParameters, or Biome noUnusedVariables and noUnusedImports"
     detect:
       - { files: '(^|/)tsconfig[^/]*\.json$', pattern: '"noUnusedLocals"\s*:\s*true' }
       - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-unused-vars|tseslint\.configs\.|plugin:@typescript-eslint/|js\.configs\.recommended|eslint:recommended' }
+      - { files: '(^|/)biome\.jsonc?$', pattern: 'noUnusedVariables|noUnusedImports' }
     ratchet: Zero. Unused code is auto-fixable or trivially deleted.
     cost: Low.
     source: { title: "typescript-eslint: no-unused-vars", url: "https://typescript-eslint.io/rules/no-unused-vars/" }
@@ -67,9 +68,9 @@ checks:
     title: Lint warnings fail the build
     tier: 1
     slop_prevented: Warnings accumulating unseen, including stale eslint-disable directives, because nothing fails on them.
-    enable: eslint --max-warnings 0 in the lint script (ESLint 9 reports unused disable directives as warnings by default)
+    enable: eslint --max-warnings 0 in the lint script (ESLint 9 reports unused disable directives as warnings by default), or biome ci --error-on-warnings
     detect:
-      - { files: '(^|/)package\.json$', pattern: 'max-warnings[ =]+0' }
+      - { files: '(^|/)package\.json$', pattern: 'max-warnings[ =]+0|biome (ci|check|lint)[^"]*--error-on-warnings' }
       - { files: '(^|/)(\.github/workflows/[^/]+|\.gitlab-ci\.yml)$', pattern: 'max-warnings[ =]+0' }
     ratchet: Zero. Promote each warning rule to error or turn it off; a warning nobody acts on is noise.
     cost: Low.

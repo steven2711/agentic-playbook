@@ -156,6 +156,7 @@ function printScore(s: ReturnType<typeof computeScore>) {
     console.log(`To reach ${s.nextLevel.level} ${s.nextLevel.name}:`);
     for (const b of s.nextLevel.blocking) console.log(`  - ${b.id} [${b.status}] ${b.title}`);
   }
+  if (s.horizon.later.length) console.log(`Planning horizon: through ${s.horizon.through} plus every P0. Later (not planned yet): ${s.horizon.later.join(", ")}`);
 }
 
 const REMOVED: Record<string, string> = {

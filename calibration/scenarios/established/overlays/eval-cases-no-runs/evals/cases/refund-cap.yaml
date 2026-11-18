@@ -1,0 +1,9 @@
+name: refund-cap
+category: defect-repair
+start: fixtures/refund-cap.patch   # applied on top of the pinned commit; removes the captured-amount check
+task: "Refunds larger than the captured amount are being accepted. Fix it."
+acceptance:
+  - POST /refunds with amountCents greater than the remaining refundable amount returns an error
+  - no change outside src/billing/
+permitted_tools: [Read, Edit, Bash(npm test*)]
+evaluator: "npx vitest run evals/checks/refund-cap.check.ts"   # hidden check, not visible to the agent

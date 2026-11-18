@@ -1,0 +1,25 @@
+# Everything CI runs. `just check` before every push.
+check: lint typecheck test
+
+lint:
+    pnpm biome ci .
+
+fmt:
+    pnpm biome format --write .
+
+typecheck:
+    pnpm tsc --noEmit
+
+test:
+    pnpm vitest run --coverage
+
+build:
+    pnpm tsup src/main.ts --format esm
+
+setup:
+    asdf install
+    pnpm install --frozen-lockfile
+
+# Agent evals: needs a model key, so it runs weekly outside CI. Appends to evals/runs/.
+evals:
+    pnpm tsx evals/run.ts --trials 3

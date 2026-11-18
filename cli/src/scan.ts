@@ -225,14 +225,17 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
     }
   }
   const makeTargets = has("Makefile") ? [...read(root, "Makefile").matchAll(/^([A-Za-z][\w-]*):/gm)].map((m) => m[1]!) : [];
-  const justTargets = has("justfile") ? [...read(root, "justfile").matchAll(/^([A-Za-z][\w-]*)\s*(?:[^:=\n]*)?:/gm)].map((m) => m[1]!) : [];
+  const justfile = ["justfile", "Justfile", ".justfile"].find(has);
+  const justText = justfile ? read(root, justfile) : "";
+  const justTargets = [...justText.matchAll(/^([A-Za-z][\w-]*)\s*(?:[^:=\n]*)?:/gm)].map((m) => m[1]!);
+  const makeText = has("Makefile") ? read(root, "Makefile") : "";
   const pyproject = read(root, "pyproject.toml");
   const canonical: Record<string, string | null> = {};
   for (const [cat, re] of Object.entries(CANONICAL)) {
     const s = Object.keys(scripts).find((k) => re.test(k));
     const mk = makeTargets.find((t) => MAKE_CANONICAL[cat]!.test(t));
     const jt = justTargets.find((t) => MAKE_CANONICAL[cat]!.test(t));
-    canonical[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `justfile ${jt}` : null;
+    canonical[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `${justfile} ${jt}` : null;
   }
   if (!canonical.lint && /\[tool\.ruff\]/.test(pyproject)) canonical.lint = "pyproject.toml [tool.ruff] (no wrapper command)";
   if (!canonical.typecheck && /\[tool\.mypy\]/.test(pyproject)) canonical.typecheck = "pyproject.toml [tool.mypy] (no wrapper command)";
@@ -252,15 +255,22 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
 
   // CLAUDE.md command references resolve?
   if (claudeMd) {
-    const refs = [...claudeText.matchAll(/`((?:npm|pnpm|yarn|bun) (?:run )?([\w:-]+))[^`]*`/g)].map((m) => ({ cmd: m[1]!, script: m[2]! }));
+    // CLAUDE.md can import other files (`@AGENTS.md`); their commands are documented just the same.
+    const imported = [...claudeText.matchAll(/(?:^|\s)@([\w./-]+\.md)\b/g)].map((m) => m[1]!).filter(has);
+    const docText = [claudeText, ...imported.map((f) => read(root, f))].join("\n");
+    const refs = [
+      ...[...docText.matchAll(/`((?:npm|pnpm|yarn|bun) (?:run )?([\w:-]+))[^`]*`/g)].map((m) => ({ cmd: m[1]!, script: m[2]!, in: scripts as Record<string, unknown> })),
+      ...[...docText.matchAll(/`(just ([\w-]+))[^`]*`/g)].map((m) => ({ cmd: m[1]!, script: m[2]!, in: Object.fromEntries(justTargets.map((t) => [t, 1])) })),
+      ...[...docText.matchAll(/`(make ([\w-]+))[^`]*`/g)].map((m) => ({ cmd: m[1]!, script: m[2]!, in: Object.fromEntries(makeTargets.map((t) => [t, 1])) })),
+    ];
     const builtin = new Set(["install", "i", "ci", "test", "start", "exec", "dlx", "x", "add"]);
-    const unresolved = refs.filter((r) => !builtin.has(r.script) && !(r.script in scripts));
+    const unresolved = refs.filter((r) => !(r.in === scripts && builtin.has(r.script)) && !(r.script in r.in));
     const testOk = refs.some((r) => r.script === "test") ? "test" in scripts : true;
     probes.claude_md_commands = {
       status: refs.length === 0 ? "failed" : unresolved.length === 0 && testOk ? "passed" : "partial",
       evidence: refs.length
-        ? [`${refs.length} command references in ${claudeMd}`, ...unresolved.map((u) => `unresolved: \`${u.cmd}\``)]
-        : [`No package-manager command references found in ${claudeMd}; Makefile/other commands need manual review.`],
+        ? [`${refs.length} command references in ${[claudeMd, ...imported].join(" + ")}`, ...unresolved.map((u) => `unresolved: \`${u.cmd}\``)]
+        : [`No npm/pnpm/yarn/bun, just or make command references found in ${[claudeMd, ...imported].join(" + ")}; other commands need manual review.`],
     };
   } else probes.claude_md_commands = { status: "failed", evidence: ["No CLAUDE.md to document commands."] };
 
@@ -276,20 +286,39 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
 
   // ---------- CI
   const ghWorkflows = matching(/^\.github\/workflows\/[^/]+\.ya?ml$/);
-  const otherCi = [".gitlab-ci.yml", ".circleci/config.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml", "Jenkinsfile", ".buildkite/pipeline.yml"].filter(has);
+  const otherCi = [".gitlab-ci.yml", ".circleci/config.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml", "Jenkinsfile", ...matching(/^\.buildkite\/[^/]+\.ya?ml$/)].filter(has);
   const ciFiles = [...ghWorkflows, ...otherCi];
-  const ciText = ciFiles.map((f) => read(root, f)).join("\n");
+  const ciRaw = ciFiles.map((f) => read(root, f)).join("\n");
+  // CI often delegates (`npm run lint`, `just check`, `make ci`): include what those commands run.
+  const delegated: string[] = [];
+  for (const [k, v] of Object.entries(scripts)) if (new RegExp(`(npm|pnpm|yarn|bun)( run)? ${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$|&|;)`, "m").test(ciRaw)) delegated.push(v);
+  const recipe = (text: string, t: string, seen = new Set<string>()): string => {
+    if (seen.has(t)) return "";
+    seen.add(t);
+    const m = new RegExp(`^${t}\\s*(?:[^:=\\n]*)?:([^\\n]*)\\n((?:[ \\t]+.*\\n?)*)`, "m").exec(text);
+    if (!m) return "";
+    const deps = m[1]!.trim().split(/\s+/).filter((d) => /^[A-Za-z][\w-]*$/.test(d));
+    return [m[2]!, ...deps.map((d) => recipe(text, d, seen))].join("\n");
+  };
+  for (const t of justTargets) if (new RegExp(`\\bjust ${t}\\b`).test(ciRaw)) delegated.push(recipe(justText, t));
+  for (const t of makeTargets) if (new RegExp(`\\bmake ${t}\\b`).test(ciRaw)) delegated.push(recipe(makeText, t));
+  const ciText = [ciRaw, ...delegated].join("\n");
   const ciCovers: Record<string, boolean> = {};
   for (const cat of Object.keys(CANONICAL)) {
-    const re = cat === "typecheck" ? /(typecheck|type-check|tsc|mypy|pyright)/ : cat === "format" ? /(format|prettier|fmt|black|ruff format)/ : new RegExp(`\\b${cat}\\b`);
+    const re = cat === "typecheck" ? /(typecheck|type-check|\btsc\b|mypy|pyright)/ : cat === "format" ? /(format|prettier|fmt|black|ruff format)/ : cat === "lint" ? /\blint\b|eslint|biome (ci|check|lint)|ruff check|golangci-lint|clippy|rubocop/ : cat === "test" ? /\btest\b|vitest|jest|pytest/ : new RegExp(`\\b${cat}\\b`);
     ciCovers[cat] = re.test(ciText);
   }
   const prTriggered = /pull_request|merge_request|on:\s*\[?\s*push/.test(ciText) || otherCi.length > 0;
   facts.ci = { files: ciFiles, covers: ciCovers, prTriggered };
   const covered = Object.entries(ciCovers).filter(([, v]) => v).map(([k]) => k);
+  // A gate must run lint and tests, and the type check wherever the repository has one.
+  const required = ["lint", "test", ...(canonical.typecheck ? ["typecheck"] : [])];
+  const notRun = required.filter((c) => !ciCovers[c]);
   probes.ci_runs_checks = {
-    status: ciFiles.length === 0 ? "failed" : covered.length >= 3 && prTriggered ? "passed" : "partial",
-    evidence: ciFiles.length ? [`CI files: ${ciFiles.join(", ")}`, `checks referenced: ${covered.join(", ") || "none"}`, `change-triggered: ${prTriggered}`] : ["No CI configuration found."],
+    status: ciFiles.length === 0 ? "failed" : notRun.length === 0 && prTriggered ? "passed" : "partial",
+    evidence: ciFiles.length
+      ? [`CI files: ${ciFiles.join(", ")}`, `checks referenced: ${covered.join(", ") || "none"}`, ...(notRun.length ? [`not run in CI: ${notRun.join(", ")}`] : []), `change-triggered: ${prTriggered}`]
+      : ["No CI configuration found."],
   };
   const docCheck = /(markdown-link-check|lychee|linkinator|remark-validate-links|markdownlint|mdlint|docs?:check|check-links)/i.test(ciText + JSON.stringify(scripts));
   probes.doc_checks = { status: docCheck ? "partial" : "failed", evidence: [docCheck ? "Documentation/link checking tool referenced in CI or scripts." : "No documentation or link check found in CI or scripts."] };
@@ -312,6 +341,7 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
     ...matching(/(^|\/)\.dependency-cruiser\.(c?js|json|mjs)$/),
     ...matching(/(^|\/)(\.importlinter|importlinter\.ini)$/),
     ...matching(/(^|\/)\.?eslintrc.*|eslint\.config\.[cm]?[jt]s$/).filter((f) => /boundaries|no-restricted-imports|import\/no-restricted-paths/.test(read(root, f))),
+    ...matching(/(^|\/)biome\.jsonc?$/).filter((f) => /noRestrictedImports/.test(read(root, f))),
     ...files.filter((f) => /ArchTest|ArchUnit/.test(f)),
     ...matching(/(^|\/)(nx\.json|\.sheriff\.json|sheriff\.config\.ts|tach\.toml|deptry\.toml)$/),
   ];
@@ -327,7 +357,8 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
   probes.baselines = { status: baselines.length ? "partial" : "failed", evidence: [baselines.length ? `Baseline files: ${baselines.join(", ")}` : "No versioned violation baselines detected."] };
   const codeowners = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS", ".gitlab/CODEOWNERS"].find(has);
   const coText = codeowners ? read(root, codeowners) : "";
-  const policyCovered = /\.github|workflows|\.claude|CLAUDE\.md|baseline|eslint|dependency-cruiser/.test(coText);
+  // A catch-all owner (`* @team`) covers policy files too.
+  const policyCovered = /^\s*\*\s+\S/m.test(coText) || /\.github|workflows|\.claude|CLAUDE\.md|baseline|eslint|dependency-cruiser/.test(coText);
   probes.codeowners = {
     status: !codeowners ? "failed" : policyCovered ? "partial" : "failed",
     evidence: [codeowners ? `${codeowners} ${policyCovered ? "covers some policy/CI paths" : "does not cover policy/CI/baseline paths"}` : "No CODEOWNERS file."],
@@ -353,18 +384,22 @@ export function scan(root: string, opts: { github?: boolean } = {}): ScanResult 
 
   // ---------- security
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has);
-  const secretInCi = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i.test(ciText);
+  const hookConfigs = [".pre-commit-config.yaml", ".pre-commit-config.yml", "lefthook.yml", ".lefthook.yml", ...matching(/^\.husky\/[^/]+$/)].filter(has);
+  const SECRET_TOOLS = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i;
+  const secretInCi = SECRET_TOOLS.test(ciText);
+  const secretHooks = hookConfigs.filter((f) => SECRET_TOOLS.test(read(root, f)));
   const envCommitted = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f));
   const gitignore = read(root, ".gitignore");
-  facts.security = { secretTools, secretInCi, envCommitted, envIgnored: /^\.env/m.test(gitignore) };
+  facts.security = { secretTools, secretInCi, secretHooks, envCommitted, envIgnored: /^\.env/m.test(gitignore) };
   probes.secret_scanning = {
-    status: envCommitted.length ? "failed" : secretTools.length || secretInCi ? "partial" : "failed",
+    status: envCommitted.length ? "failed" : secretTools.length || secretInCi || secretHooks.length ? "partial" : "failed",
     evidence: [
-      secretTools.length || secretInCi ? `Secret scanning: ${[...secretTools, secretInCi ? "CI step" : ""].filter(Boolean).join(", ")}` : "No secret scanning configured in repo or CI (GitHub-native scanning needs the API to verify).",
+      secretTools.length || secretInCi || secretHooks.length ? `Secret scanning: ${[...secretTools, ...secretHooks.map((f) => `${f} hook`), secretInCi ? "CI step" : ""].filter(Boolean).join(", ")}` : "No secret scanning configured in repo or CI (GitHub-native scanning needs the API to verify).",
       ...(envCommitted.length ? [`Possible committed env files: ${envCommitted.join(", ")}`] : []),
     ],
   };
-  const depScan = [".github/dependabot.yml", ".github/dependabot.yaml", "renovate.json", ".renovaterc", ".renovaterc.json", ".snyk"].filter(has);
+  const depScan = [".github/dependabot.yml", ".github/dependabot.yaml", "renovate.json", "renovate.json5", ".github/renovate.json", ".github/renovate.json5", ".gitlab/renovate.json", ".renovaterc", ".renovaterc.json", ".renovaterc.json5", ".snyk"].filter(has);
+  if (/"renovate"\s*:/.test(read(root, "package.json"))) depScan.push("package.json renovate");
   const depInCi = /(npm audit|pnpm audit|yarn audit|pip-audit|safety check|osv-scanner|trivy|grype|snyk|codeql|semgrep|cargo audit|govulncheck)/i.test(ciText);
   probes.dependency_scanning = {
     status: depScan.length && depInCi ? "partial" : depScan.length || depInCi ? "partial" : "failed",

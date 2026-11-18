@@ -187,7 +187,8 @@ export function beginWindow(repoRoot: string, opts: { restart?: boolean } = {}):
   const p = lockPath(repoRoot);
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(lock, null, 2) + "\n");
-  return { lock, dirty: Object.keys(lock.fingerprint.paths).length, replaced };
+  // .git/info/exclude is fingerprinted to catch changed ignore rules; it is not an uncommitted path.
+  return { lock, dirty: Object.keys(lock.fingerprint.paths).filter((p) => p !== ".git/info/exclude").length, replaced };
 }
 
 export function endWindow(repoRoot: string): { lock: Lock | null; changes: string[] } {

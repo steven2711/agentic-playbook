@@ -170,7 +170,12 @@ function signalsFor(dir: string, manifests: string[], files: string[], read: (re
       const deps = new Set(Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }));
       if (has(deps, "typescript") || files.some((f) => f === (dir === "." ? "tsconfig.json" : `${dir}/tsconfig.json`))) s.add("typescript");
       if (has(deps, "react", "react-dom") && !has(deps, "react-native")) s.add("react").add("web");
-      if (has(deps, "next")) s.add("next").add("react").add("web").add("server").add("http-api");
+      if (has(deps, "next")) {
+        s.add("next").add("react").add("web").add("server");
+        // A Next.js app is an HTTP API only when it defines route handlers or API routes.
+        const own = dir === "." ? "" : `${dir}/`;
+        if (files.some((f) => f.startsWith(own) && /^(src\/)?(app\/(.+\/)?route\.[cm]?[jt]sx?|pages\/api\/.+)$/.test(f.slice(own.length)))) s.add("http-api");
+      }
       if (has(deps, "vue", "nuxt")) s.add("vue").add("web");
       if (has(deps, "nuxt", "@sveltejs/kit", "@remix-run/node", "@remix-run/react", "astro")) s.add("server").add("http-api").add("web");
       if (has(deps, "svelte", "@sveltejs/kit")) s.add("svelte").add("web");
@@ -268,6 +273,9 @@ export function detectApps(files: string[], read: (rel: string) => string): AppI
   const nestedGuides = files.filter((f) => /(^|\/)(CLAUDE|AGENTS)\.md$/.test(f) && f.includes("/") && !f.startsWith(".claude/"));
   const convFiles = files.filter((f) => /(^|\/)CONVENTIONS\.md$/i.test(f));
   const convDocs = files.filter((f) => /(^|\/)docs\/conventions\/.+\.md$/i.test(f));
+  // In a single-app repository the root guide loads exactly where an unscoped rules file would,
+  // so it can be the conventions home. Whether it holds judgment rules is the auditor's call (CTX-12).
+  const rootGuides = appRoots.length === 1 ? files.filter((f) => /^(CLAUDE|AGENTS)\.md$|^\.claude\/CLAUDE\.md$/.test(f)) : [];
 
   return appRoots.map((root) => {
     const own = root === "." ? (byDir.get(".") ?? []) : (byDir.get(root) ?? []);
@@ -296,6 +304,7 @@ export function detectApps(files: string[], read: (rel: string) => string): AppI
       const d = dirname(f).replace(/\/\.claude$/, "");
       if (d === root) covered.add(f);
     }
+    if (root === ".") for (const f of rootGuides) covered.add(f);
     for (const f of convFiles) {
       const d = dirname(f);
       if (d === root || (d === "." && (root === "." || appRoots.length === 1))) covered.add(f);

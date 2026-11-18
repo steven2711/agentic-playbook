@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "deny": ["Edit(.buildkite/**)", "Edit(biome.json)", "Edit(CODEOWNERS)", "Bash(git push --force*)"]
+  }
+}

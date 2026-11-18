@@ -1,0 +1,13 @@
+# Runs on every pull request and on main.
+steps:
+  - label: ":biome: lint, :typescript: types, :vitest: tests"
+    command: just check
+    plugins:
+      - docker#v5.11.0:
+          image: "node:22.12.0"
+  - label: ":lock: secrets"
+    command: gitleaks detect --redact --no-banner
+  - wait
+  - label: ":package: build"
+    command: just build
+    branches: main

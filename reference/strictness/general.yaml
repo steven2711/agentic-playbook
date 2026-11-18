@@ -26,6 +26,7 @@ checks:
       - { files: '(^|/)package\.json$', pattern: '"vitest"' }
       - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-focused-tests' }
       - { files: '(^|/)playwright\.config\.[cm]?[jt]s$', pattern: 'forbidOnly' }
+      - { files: '(^|/)biome\.jsonc?$', pattern: 'noFocusedTests' }
     ratchet: Zero.
     cost: None.
     source: { title: "eslint-plugin-jest: no-focused-tests", url: "https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/no-focused-tests.md" }
@@ -38,6 +39,7 @@ checks:
     enable: eslint-plugin-jest or @vitest/eslint-plugin no-disabled-tests as an error, with skips allowed only through a described eslint-disable
     detect:
       - { files: '(^|/)(\.eslintrc[^/]*|eslint\.config\.[cm]?[jt]s)$', pattern: 'no-disabled-tests' }
+      - { files: '(^|/)biome\.jsonc?$', pattern: 'noSkippedTests' }
     ratchet: Skips are counted by the suppressions probe and ratcheted with them (ARC-08).
     cost: Low.
     source: { title: "eslint-plugin-jest: no-disabled-tests", url: "https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/no-disabled-tests.md" }
@@ -119,8 +121,8 @@ checks:
     source: { title: "ESLint: complexity", url: "https://eslint.org/docs/latest/rules/complexity" }
 
 not_recommended:
-  - practice: A mandated coverage percentage for the whole repository, especially 100%.
-    reason: A global number invites assertion-free tests written to hit it. Google's published guidance avoids top-down coverage mandates; measure coverage of changed lines instead (STR-GEN-05).
+  - practice: Mandating a coverage percentage for the whole repository as a target to raise, especially 100%.
+    reason: A global target invites assertion-free tests written to hit it. Google's published guidance avoids top-down coverage mandates; measure coverage of changed lines instead (STR-GEN-05). A modest floor the team chose and already passes is not this practice. Keep it, and add changed-line coverage alongside it when STR-GEN-05's condition holds.
     source: { title: "Google Testing Blog: Code Coverage Best Practices", url: "https://testing.googleblog.com/2020/08/code-coverage-best-practices.html" }
   - practice: Custom scripts that track individual violation identities when the tool has a native baseline.
     reason: ESLint bulk suppressions, basedpyright baselines, golangci-lint new-from-merge-base and Betterer already fail new violations per file and rule. Custom tooling is code to maintain for little extra protection.

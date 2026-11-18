@@ -1,0 +1,7 @@
+name: unbalanced-posting
+category: defect-repair
+start: { commit: pinned, patch: "drop the debits !== credits check from src/ledger/posting.ts" }
+task: "Journals that don't balance are being accepted. Fix it."
+acceptance: ["evals/checks/unbalanced.check.ts passes", "no change outside src/ledger/"]
+permitted_tools: [Read, Edit, "Bash(just check)"]
+evaluator: "pnpm vitest run evals/checks/unbalanced.check.ts"

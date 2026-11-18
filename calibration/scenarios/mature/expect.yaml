@@ -1,0 +1,43 @@
+# Ground truth for a mature service using unfamiliar but valid tooling. Nothing is seeded:
+# the correct outcome is that its practices are recognised and little or no remediation is planned.
+description: Hono ledger service with Biome, Justfile, Buildkite, AGENTS.md, doc/, renovate, gitleaks and evals.
+commits: 60
+mode: existing
+apps:
+  - { root: ".", kinds: [api-service] }
+
+seeded: []
+
+safeguards:
+  - { id: T-G1, what: "CLAUDE.md imports AGENTS.md (short map)", probe: claude_md, notStatus: [failed], judge: { criteria: [CTX-01], notStatus: [failed] } }
+  - { id: T-G2, what: "Commands documented via just and resolvable", probe: claude_md_commands, notStatus: [failed], judge: { criteria: [CTX-02], notStatus: [failed] } }
+  - { id: T-G3, what: "Justfile: lint, fmt, typecheck, test, build", probe: canonical_commands, notStatus: [failed], judge: { criteria: [VER-01], notStatus: [failed] } }
+  - { id: T-G4, what: ".tool-versions + pnpm lockfile", probe: reproducible_setup, notStatus: [failed], judge: { criteria: [VER-02], notStatus: [failed] } }
+  - { id: T-G5, what: "Buildkite runs `just check` on PRs", probe: ci_runs_checks, notStatus: [failed], judge: { criteria: [VER-03], notStatus: [failed] } }
+  - { id: T-G6, what: "Biome noRestrictedImports enforces the http -> ledger boundary", probe: boundary_tooling, notStatus: [failed], judge: { criteria: [ARC-01], notStatus: [failed] } }
+  - { id: T-G7, what: "`* @team` CODEOWNERS covers policy files", probe: codeowners, notStatus: [failed], judge: { criteria: [ARC-05], notStatus: [failed] } }
+  - { id: T-G8, what: "doc/architecture.md and doc/adr/", probe: architecture_docs, notStatus: [failed], judge: { criteria: [CTX-06], notStatus: [failed] } }
+  - { id: T-G9, what: "gitleaks in pre-commit and CI", probe: secret_scanning, notStatus: [failed], judge: { criteria: [SEC-01], notStatus: [failed] } }
+  - { id: T-G10, what: "renovate.json5", probe: dependency_scanning, notStatus: [failed] }
+  # Biome covers unused code, focused and skipped tests; strict tsc covers types. Biome 1.9 has no
+  # type-aware promise rules, so STR-TS-03 is a real (small) gap here, not a tooling preference.
+  # (Ground-truth correction after the baseline: the first version expected the whole probe to pass.)
+  - { id: T-G11, what: "Biome + strict tsc credited for what they enforce", strictnessOn: { app: ".", checks: [STR-TS-01, STR-TS-02, STR-TS-05, STR-GEN-02, STR-GEN-03] } }
+  - { id: T-G12, what: "Coverage thresholds", probe: coverage, notStatus: [failed] }
+  - { id: T-G13, what: "Agent settings deny policy edits", probe: agent_settings, notStatus: [failed], judge: { criteria: [SEC-03], notStatus: [failed] } }
+  - { id: T-G14, what: "Eval cases with evaluators and run history", probe: eval_cases, notStatus: [failed], judge: { criteria: [EVAL-01], notStatus: [failed] } }
+  - { id: T-G15, what: "Documentation entry points present", probe: docs, notStatus: [failed] }
+  - { id: T-G16, what: "Unit + HTTP + DB integration tests", probe: tests, notStatus: [failed] }
+
+forbidden:
+  - { pattern: "prettier|replace biome|(migrate|switch|move) (from biome )?to eslint|eslint for (formatting|unused|focused|skipped)", reason: "Biome already lints and formats; only type-aware rules are missing" }
+  - { pattern: "github actions|\\.github/workflows", reason: "Buildkite is the CI" }
+  - { pattern: "dependabot", reason: "Renovate is configured" }
+  - { pattern: "husky|lint-staged", reason: "pre-commit already runs gitleaks and Biome" }
+  - { pattern: "(move|relocate|rename).*doc/.*docs/|docs/ directory", reason: "doc/ is a valid home" }
+  - { pattern: "(replace|merge|move|delete|remove) (the )?AGENTS\\.md|duplicate (of )?AGENTS\\.md into", reason: "CLAUDE.md importing AGENTS.md is the intended single home" }
+  - { pattern: "makefile|npm scripts? for", reason: "The Justfile is the command surface" }
+  - { pattern: "storybook|playwright|cypress", reason: "No UI" }
+
+plan:
+  maxTasks: 5

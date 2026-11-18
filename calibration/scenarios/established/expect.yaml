@@ -1,0 +1,70 @@
+# Ground truth for an established Express/Postgres API with deliberately seeded gaps. Written before the baseline.
+description: Express + Postgres orders API with tests, CI, docs and CODEOWNERS; 5 seeded gaps.
+commits: 45
+mode: existing
+apps:
+  - { root: ".", kinds: [api-service], notKinds: [web-frontend] }
+
+seeded:
+  - id: E-S1
+    what: CLAUDE.md documents `npm run db:migrate`, which does not exist
+    detect: { probe: claude_md_commands, status: [partial, failed], evidence: "db:migrate" }
+    judge: { criteria: [CTX-02], status: [partial, failed], path: CLAUDE.md }
+  - id: E-S2
+    what: CI never runs the typecheck (lint, format and tests only)
+    detect: { probe: ci_runs_checks, status: [partial, failed] }
+    judge: { criteria: [VER-03], status: [partial, failed], path: .github/workflows/ci.yml }
+  - id: E-S3
+    what: src/billing/refund.ts (money movement) has no test
+    detect: { uncovered: { app: ".", file: src/billing/refund.ts } }
+    judge: { criteria: [VER-12], status: [partial, failed], path: src/billing/refund.ts }
+  - id: E-S4
+    what: A .env file is committed
+    detect: { probe: secret_scanning, status: [failed] }
+    judge: { criteria: [SEC-01], status: [failed], path: .env }
+  - id: E-S5
+    what: No agent evaluation strategy
+    detect: { probe: eval_cases, status: [failed] }
+    judge: { criteria: [EVAL-01], status: [failed] }
+
+safeguards:
+  - { id: E-G1, what: "All five canonical commands", probe: canonical_commands, notStatus: [failed, partial], judge: { criteria: [VER-01], notStatus: [failed] } }
+  - { id: E-G2, what: "Pinned Node and lockfile", probe: reproducible_setup, notStatus: [failed, partial], judge: { criteria: [VER-02], notStatus: [failed] } }
+  - { id: E-G3, what: "CI least privilege", probe: ci_permissions, notStatus: [failed], judge: { criteria: [SEC-02], notStatus: [failed] } }
+  - { id: E-G4, what: "CODEOWNERS covers CI and billing", probe: codeowners, notStatus: [failed] }
+  - { id: E-G5, what: "Architecture doc and ADR", probe: architecture_docs, notStatus: [failed], judge: { criteria: [CTX-06], notStatus: [failed] } }
+  # VER-11 judges a *stated* strategy, which this repo lacks, so it is not a safeguard criterion.
+  # (Ground-truth correction after baseline run 1; the existing tests are checked by the forbidden list.)
+  - { id: E-G6, what: "Unit and HTTP tests exist", probe: tests, notStatus: [failed] }
+  - { id: E-G7, what: "Coverage thresholds configured and run in CI", probe: coverage, notStatus: [failed], judge: { criteria: [VER-08], notStatus: [failed] } }
+  - { id: E-G8, what: "CLAUDE.md is a concise map", probe: claude_md, notStatus: [failed], judge: { criteria: [CTX-01], notStatus: [failed] } }
+
+forbidden:
+  - { pattern: "replace (express|vitest|eslint|zod)|migrate (to|from) (fastify|jest|mocha)", reason: "Working tooling" }
+  - { pattern: "storybook|playwright|cypress|e2e|end-to-end|visual regression", reason: "No UI; HTTP integration tests are the right top layer" }
+  - { pattern: "(create|write|add) (an? )?(architecture (doc|document|overview)|README)", reason: "Both exist and are accurate" }
+  - { pattern: "rewrite (the )?(service|app|application|codebase)|re-architect", reason: "No evidence of structural debt" }
+  - { pattern: "add (a |the )?(unit[- ]test (layer|runner)|test runner)|introduce vitest", reason: "Unit tests and a runner exist" }
+  - { pattern: "replace (the )?(global )?coverage threshold", reason: "A working threshold is extended, not replaced" }
+  - { pattern: "coverage (target|threshold) of|\\d+% coverage", reason: "Thresholds already exist; never a coverage target" }
+
+plan:
+  maxTasks: 12
+
+# EVAL maturity variants (overlays/<name>); the judge must tell them apart.
+variants:
+  eval-cases-no-runs:
+    judge:
+      - { criteria: [EVAL-01], status: [passed, partial] }
+      - { criteria: [EVAL-04], status: [failed, unverified] }
+  eval-observed:
+    judge:
+      - { criteria: [EVAL-01], status: [passed] }
+      - { criteria: [EVAL-04], status: [passed, partial] }
+      - { criteria: [EVAL-05], status: [passed, partial] }
+  eval-hollow:
+    detect: { probe: eval_cases, status: [partial, failed] }
+    judge:
+      - { criteria: [EVAL-01], status: [failed] }
+      - { criteria: [EVAL-04], status: [failed, unverified] }
+      - { finding: "100%|unsupported|no (runs?|evaluator|acceptance)", reason: "The pass claim has no run records or evaluator behind it" }

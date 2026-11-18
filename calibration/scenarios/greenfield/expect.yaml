@@ -1,0 +1,45 @@
+# Ground truth for a create-next-app scaffold with no product code yet. Written before the baseline.
+description: Next.js scaffold, 3 commits, no CLAUDE.md, no CI, no tests.
+commits: 3
+mode: greenfield
+apps:
+  - { root: ".", kinds: [web-frontend], notKinds: [api-service] }
+
+# Real gaps a principal engineer would flag on day one.
+seeded:
+  - id: G-S1
+    what: No CLAUDE.md entry point
+    detect: { probe: claude_md, status: [failed] }
+    judge: { criteria: [CTX-01], status: [failed] }
+  - id: G-S2
+    what: No CI runs any check
+    detect: { probe: ci_runs_checks, status: [failed] }
+    judge: { criteria: [VER-03], status: [failed] }
+  - id: G-S3
+    what: No test, typecheck or format command
+    detect: { probe: canonical_commands, status: [partial, failed] }
+    judge: { criteria: [VER-01], status: [partial, failed] }
+
+# Practices already in place that must not be reported missing.
+safeguards:
+  - id: G-G1
+    what: Lockfile committed
+    judge: { criteria: [VER-02], notStatus: [] }   # Node version is not pinned, so partial is right; recorded for visibility
+
+# Stage: these must not be demanded of a scaffold.
+stage:
+  deferred: [CTX-10, VER-07, VER-08, VER-09, VER-12, EVAL-04, EVAL-05, WF-07, WF-08, WF-10]
+  notApplicable: [ARC-03]
+  # No product exists yet: missing requirements or ADRs are not P0 debt (context-auditor.md, docs library Tier 2).
+  notFailedJudge: [CTX-05, CTX-06]
+
+forbidden:
+  - { pattern: "storybook", reason: "No components to document yet" }
+  - { pattern: "kubernetes|helm|terraform|service mesh|microservice", reason: "Enterprise infrastructure for a scaffold" }
+  - { pattern: "load test|chaos|performance budget|SLO", reason: "Needs real functionality" }
+  - { pattern: "requirements? (doc|document|spec)|product spec|PRD", reason: "Must not invent product requirements" }
+  - { pattern: "mutation test|contract test|visual regression", reason: "Tier 2/3 layers with no activation condition" }
+
+plan:
+  maxTasks: 10
+  noJanitorTasks: true   # janitors guard contracts that do not exist yet; they belong in the summary as triggers

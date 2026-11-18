@@ -14389,7 +14389,11 @@ function signalsFor(dir, manifests, files, read2) {
       const deps = new Set(Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }));
       if (has(deps, "typescript") || files.some((f) => f === (dir === "." ? "tsconfig.json" : `${dir}/tsconfig.json`))) s.add("typescript");
       if (has(deps, "react", "react-dom") && !has(deps, "react-native")) s.add("react").add("web");
-      if (has(deps, "next")) s.add("next").add("react").add("web").add("server").add("http-api");
+      if (has(deps, "next")) {
+        s.add("next").add("react").add("web").add("server");
+        const own = dir === "." ? "" : `${dir}/`;
+        if (files.some((f) => f.startsWith(own) && /^(src\/)?(app\/(.+\/)?route\.[cm]?[jt]sx?|pages\/api\/.+)$/.test(f.slice(own.length)))) s.add("http-api");
+      }
       if (has(deps, "vue", "nuxt")) s.add("vue").add("web");
       if (has(deps, "nuxt", "@sveltejs/kit", "@remix-run/node", "@remix-run/react", "astro")) s.add("server").add("http-api").add("web");
       if (has(deps, "svelte", "@sveltejs/kit")) s.add("svelte").add("web");
@@ -14475,6 +14479,7 @@ function detectApps(files, read2) {
   const nestedGuides = files.filter((f) => /(^|\/)(CLAUDE|AGENTS)\.md$/.test(f) && f.includes("/") && !f.startsWith(".claude/"));
   const convFiles = files.filter((f) => /(^|\/)CONVENTIONS\.md$/i.test(f));
   const convDocs = files.filter((f) => /(^|\/)docs\/conventions\/.+\.md$/i.test(f));
+  const rootGuides = appRoots.length === 1 ? files.filter((f) => /^(CLAUDE|AGENTS)\.md$|^\.claude\/CLAUDE\.md$/.test(f)) : [];
   return appRoots.map((root) => {
     const own = root === "." ? byDir.get(".") ?? [] : byDir.get(root) ?? [];
     const covered = /* @__PURE__ */ new Set();
@@ -14502,6 +14507,7 @@ function detectApps(files, read2) {
       const d = dirname2(f).replace(/\/\.claude$/, "");
       if (d === root) covered.add(f);
     }
+    if (root === ".") for (const f of rootGuides) covered.add(f);
     for (const f of convFiles) {
       const d = dirname2(f);
       if (d === root || d === "." && (root === "." || appRoots.length === 1)) covered.add(f);
@@ -15625,14 +15631,17 @@ function scan(root, opts = {}) {
     }
   }
   const makeTargets = has2("Makefile") ? [...read(root, "Makefile").matchAll(/^([A-Za-z][\w-]*):/gm)].map((m) => m[1]) : [];
-  const justTargets = has2("justfile") ? [...read(root, "justfile").matchAll(/^([A-Za-z][\w-]*)\s*(?:[^:=\n]*)?:/gm)].map((m) => m[1]) : [];
+  const justfile = ["justfile", "Justfile", ".justfile"].find(has2);
+  const justText = justfile ? read(root, justfile) : "";
+  const justTargets = [...justText.matchAll(/^([A-Za-z][\w-]*)\s*(?:[^:=\n]*)?:/gm)].map((m) => m[1]);
+  const makeText = has2("Makefile") ? read(root, "Makefile") : "";
   const pyproject = read(root, "pyproject.toml");
   const canonical2 = {};
   for (const [cat, re] of Object.entries(CANONICAL)) {
     const s = Object.keys(scripts).find((k) => re.test(k));
     const mk = makeTargets.find((t) => MAKE_CANONICAL[cat].test(t));
     const jt = justTargets.find((t) => MAKE_CANONICAL[cat].test(t));
-    canonical2[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `justfile ${jt}` : null;
+    canonical2[cat] = s ? `package.json scripts.${s}` : mk ? `Makefile ${mk}` : jt ? `${justfile} ${jt}` : null;
   }
   if (!canonical2.lint && /\[tool\.ruff\]/.test(pyproject)) canonical2.lint = "pyproject.toml [tool.ruff] (no wrapper command)";
   if (!canonical2.typecheck && /\[tool\.mypy\]/.test(pyproject)) canonical2.typecheck = "pyproject.toml [tool.mypy] (no wrapper command)";
@@ -15650,13 +15659,19 @@ function scan(root, opts = {}) {
     evidence: [...found.map(([k, v]) => `${k}: ${v}`), ...missing.length ? [`missing: ${missing.join(", ")}`] : []]
   };
   if (claudeMd) {
-    const refs = [...claudeText.matchAll(/`((?:npm|pnpm|yarn|bun) (?:run )?([\w:-]+))[^`]*`/g)].map((m) => ({ cmd: m[1], script: m[2] }));
+    const imported = [...claudeText.matchAll(/(?:^|\s)@([\w./-]+\.md)\b/g)].map((m) => m[1]).filter(has2);
+    const docText = [claudeText, ...imported.map((f) => read(root, f))].join("\n");
+    const refs = [
+      ...[...docText.matchAll(/`((?:npm|pnpm|yarn|bun) (?:run )?([\w:-]+))[^`]*`/g)].map((m) => ({ cmd: m[1], script: m[2], in: scripts })),
+      ...[...docText.matchAll(/`(just ([\w-]+))[^`]*`/g)].map((m) => ({ cmd: m[1], script: m[2], in: Object.fromEntries(justTargets.map((t) => [t, 1])) })),
+      ...[...docText.matchAll(/`(make ([\w-]+))[^`]*`/g)].map((m) => ({ cmd: m[1], script: m[2], in: Object.fromEntries(makeTargets.map((t) => [t, 1])) }))
+    ];
     const builtin = /* @__PURE__ */ new Set(["install", "i", "ci", "test", "start", "exec", "dlx", "x", "add"]);
-    const unresolved = refs.filter((r) => !builtin.has(r.script) && !(r.script in scripts));
+    const unresolved = refs.filter((r) => !(r.in === scripts && builtin.has(r.script)) && !(r.script in r.in));
     const testOk = refs.some((r) => r.script === "test") ? "test" in scripts : true;
     probes.claude_md_commands = {
       status: refs.length === 0 ? "failed" : unresolved.length === 0 && testOk ? "passed" : "partial",
-      evidence: refs.length ? [`${refs.length} command references in ${claudeMd}`, ...unresolved.map((u) => `unresolved: \`${u.cmd}\``)] : [`No package-manager command references found in ${claudeMd}; Makefile/other commands need manual review.`]
+      evidence: refs.length ? [`${refs.length} command references in ${[claudeMd, ...imported].join(" + ")}`, ...unresolved.map((u) => `unresolved: \`${u.cmd}\``)] : [`No npm/pnpm/yarn/bun, just or make command references found in ${[claudeMd, ...imported].join(" + ")}; other commands need manual review.`]
     };
   } else probes.claude_md_commands = { status: "failed", evidence: ["No CLAUDE.md to document commands."] };
   const lockfiles = ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb", "bun.lock", "poetry.lock", "uv.lock", "Pipfile.lock", "Cargo.lock", "go.sum", "Gemfile.lock", "composer.lock"].filter(has2);
@@ -15668,20 +15683,35 @@ function scan(root, opts = {}) {
     evidence: [`lockfiles: ${lockfiles.join(", ") || "none"}`, `toolchain pins: ${pins.join(", ") || "none"}`]
   };
   const ghWorkflows = matching(/^\.github\/workflows\/[^/]+\.ya?ml$/);
-  const otherCi = [".gitlab-ci.yml", ".circleci/config.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml", "Jenkinsfile", ".buildkite/pipeline.yml"].filter(has2);
+  const otherCi = [".gitlab-ci.yml", ".circleci/config.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml", "Jenkinsfile", ...matching(/^\.buildkite\/[^/]+\.ya?ml$/)].filter(has2);
   const ciFiles = [...ghWorkflows, ...otherCi];
-  const ciText = ciFiles.map((f) => read(root, f)).join("\n");
+  const ciRaw = ciFiles.map((f) => read(root, f)).join("\n");
+  const delegated = [];
+  for (const [k, v] of Object.entries(scripts)) if (new RegExp(`(npm|pnpm|yarn|bun)( run)? ${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$|&|;)`, "m").test(ciRaw)) delegated.push(v);
+  const recipe = (text, t, seen = /* @__PURE__ */ new Set()) => {
+    if (seen.has(t)) return "";
+    seen.add(t);
+    const m = new RegExp(`^${t}\\s*(?:[^:=\\n]*)?:([^\\n]*)\\n((?:[ \\t]+.*\\n?)*)`, "m").exec(text);
+    if (!m) return "";
+    const deps = m[1].trim().split(/\s+/).filter((d) => /^[A-Za-z][\w-]*$/.test(d));
+    return [m[2], ...deps.map((d) => recipe(text, d, seen))].join("\n");
+  };
+  for (const t of justTargets) if (new RegExp(`\\bjust ${t}\\b`).test(ciRaw)) delegated.push(recipe(justText, t));
+  for (const t of makeTargets) if (new RegExp(`\\bmake ${t}\\b`).test(ciRaw)) delegated.push(recipe(makeText, t));
+  const ciText = [ciRaw, ...delegated].join("\n");
   const ciCovers = {};
   for (const cat of Object.keys(CANONICAL)) {
-    const re = cat === "typecheck" ? /(typecheck|type-check|tsc|mypy|pyright)/ : cat === "format" ? /(format|prettier|fmt|black|ruff format)/ : new RegExp(`\\b${cat}\\b`);
+    const re = cat === "typecheck" ? /(typecheck|type-check|\btsc\b|mypy|pyright)/ : cat === "format" ? /(format|prettier|fmt|black|ruff format)/ : cat === "lint" ? /\blint\b|eslint|biome (ci|check|lint)|ruff check|golangci-lint|clippy|rubocop/ : cat === "test" ? /\btest\b|vitest|jest|pytest/ : new RegExp(`\\b${cat}\\b`);
     ciCovers[cat] = re.test(ciText);
   }
   const prTriggered = /pull_request|merge_request|on:\s*\[?\s*push/.test(ciText) || otherCi.length > 0;
   facts.ci = { files: ciFiles, covers: ciCovers, prTriggered };
   const covered = Object.entries(ciCovers).filter(([, v]) => v).map(([k]) => k);
+  const required = ["lint", "test", ...canonical2.typecheck ? ["typecheck"] : []];
+  const notRun = required.filter((c) => !ciCovers[c]);
   probes.ci_runs_checks = {
-    status: ciFiles.length === 0 ? "failed" : covered.length >= 3 && prTriggered ? "passed" : "partial",
-    evidence: ciFiles.length ? [`CI files: ${ciFiles.join(", ")}`, `checks referenced: ${covered.join(", ") || "none"}`, `change-triggered: ${prTriggered}`] : ["No CI configuration found."]
+    status: ciFiles.length === 0 ? "failed" : notRun.length === 0 && prTriggered ? "passed" : "partial",
+    evidence: ciFiles.length ? [`CI files: ${ciFiles.join(", ")}`, `checks referenced: ${covered.join(", ") || "none"}`, ...notRun.length ? [`not run in CI: ${notRun.join(", ")}`] : [], `change-triggered: ${prTriggered}`] : ["No CI configuration found."]
   };
   const docCheck = /(markdown-link-check|lychee|linkinator|remark-validate-links|markdownlint|mdlint|docs?:check|check-links)/i.test(ciText + JSON.stringify(scripts));
   probes.doc_checks = { status: docCheck ? "partial" : "failed", evidence: [docCheck ? "Documentation/link checking tool referenced in CI or scripts." : "No documentation or link check found in CI or scripts."] };
@@ -15698,6 +15728,7 @@ function scan(root, opts = {}) {
     ...matching(/(^|\/)\.dependency-cruiser\.(c?js|json|mjs)$/),
     ...matching(/(^|\/)(\.importlinter|importlinter\.ini)$/),
     ...matching(/(^|\/)\.?eslintrc.*|eslint\.config\.[cm]?[jt]s$/).filter((f) => /boundaries|no-restricted-imports|import\/no-restricted-paths/.test(read(root, f))),
+    ...matching(/(^|\/)biome\.jsonc?$/).filter((f) => /noRestrictedImports/.test(read(root, f))),
     ...files.filter((f) => /ArchTest|ArchUnit/.test(f)),
     ...matching(/(^|\/)(nx\.json|\.sheriff\.json|sheriff\.config\.ts|tach\.toml|deptry\.toml)$/)
   ];
@@ -15713,7 +15744,7 @@ function scan(root, opts = {}) {
   probes.baselines = { status: baselines.length ? "partial" : "failed", evidence: [baselines.length ? `Baseline files: ${baselines.join(", ")}` : "No versioned violation baselines detected."] };
   const codeowners = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS", ".gitlab/CODEOWNERS"].find(has2);
   const coText = codeowners ? read(root, codeowners) : "";
-  const policyCovered = /\.github|workflows|\.claude|CLAUDE\.md|baseline|eslint|dependency-cruiser/.test(coText);
+  const policyCovered = /^\s*\*\s+\S/m.test(coText) || /\.github|workflows|\.claude|CLAUDE\.md|baseline|eslint|dependency-cruiser/.test(coText);
   probes.codeowners = {
     status: !codeowners ? "failed" : policyCovered ? "partial" : "failed",
     evidence: [codeowners ? `${codeowners} ${policyCovered ? "covers some policy/CI paths" : "does not cover policy/CI/baseline paths"}` : "No CODEOWNERS file."],
@@ -15733,18 +15764,22 @@ function scan(root, opts = {}) {
   facts.maintenance = maintenance;
   probes.maintenance = maintenanceProbe(maintenance);
   const secretTools = [".gitleaks.toml", ".secrets.baseline", ".trufflehog.yml", ".github/secret_scanning.yml"].filter(has2);
-  const secretInCi = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i.test(ciText);
+  const hookConfigs = [".pre-commit-config.yaml", ".pre-commit-config.yml", "lefthook.yml", ".lefthook.yml", ...matching(/^\.husky\/[^/]+$/)].filter(has2);
+  const SECRET_TOOLS = /(gitleaks|trufflehog|detect-secrets|secretlint|ggshield)/i;
+  const secretInCi = SECRET_TOOLS.test(ciText);
+  const secretHooks = hookConfigs.filter((f) => SECRET_TOOLS.test(read(root, f)));
   const envCommitted = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f));
   const gitignore = read(root, ".gitignore");
-  facts.security = { secretTools, secretInCi, envCommitted, envIgnored: /^\.env/m.test(gitignore) };
+  facts.security = { secretTools, secretInCi, secretHooks, envCommitted, envIgnored: /^\.env/m.test(gitignore) };
   probes.secret_scanning = {
-    status: envCommitted.length ? "failed" : secretTools.length || secretInCi ? "partial" : "failed",
+    status: envCommitted.length ? "failed" : secretTools.length || secretInCi || secretHooks.length ? "partial" : "failed",
     evidence: [
-      secretTools.length || secretInCi ? `Secret scanning: ${[...secretTools, secretInCi ? "CI step" : ""].filter(Boolean).join(", ")}` : "No secret scanning configured in repo or CI (GitHub-native scanning needs the API to verify).",
+      secretTools.length || secretInCi || secretHooks.length ? `Secret scanning: ${[...secretTools, ...secretHooks.map((f) => `${f} hook`), secretInCi ? "CI step" : ""].filter(Boolean).join(", ")}` : "No secret scanning configured in repo or CI (GitHub-native scanning needs the API to verify).",
       ...envCommitted.length ? [`Possible committed env files: ${envCommitted.join(", ")}`] : []
     ]
   };
-  const depScan = [".github/dependabot.yml", ".github/dependabot.yaml", "renovate.json", ".renovaterc", ".renovaterc.json", ".snyk"].filter(has2);
+  const depScan = [".github/dependabot.yml", ".github/dependabot.yaml", "renovate.json", "renovate.json5", ".github/renovate.json", ".github/renovate.json5", ".gitlab/renovate.json", ".renovaterc", ".renovaterc.json", ".renovaterc.json5", ".snyk"].filter(has2);
+  if (/"renovate"\s*:/.test(read(root, "package.json"))) depScan.push("package.json renovate");
   const depInCi = /(npm audit|pnpm audit|yarn audit|pip-audit|safety check|osv-scanner|trivy|grype|snyk|codeql|semgrep|cargo audit|govulncheck)/i.test(ciText);
   probes.dependency_scanning = {
     status: depScan.length && depInCi ? "partial" : depScan.length || depInCi ? "partial" : "failed",
@@ -15786,12 +15821,12 @@ function scan(root, opts = {}) {
     facts.branchProtection = { slug, branch, protection: typeof prot === "string" ? JSON.parse(prot) : prot, rules: typeof rules2 === "string" ? JSON.parse(rules2) : rules2 };
     const protOk = typeof prot === "string";
     const ruleList = typeof rules2 === "string" ? JSON.parse(rules2) : [];
-    const required = protOk ? JSON.parse(prot).required_status_checks?.contexts ?? [] : [];
+    const required2 = protOk ? JSON.parse(prot).required_status_checks?.contexts ?? [] : [];
     const rulesRequire = ruleList.some((r) => r.type === "required_status_checks");
     probes.branch_protection = {
-      status: protOk && required.length || rulesRequire ? "passed" : protOk || ruleList.length ? "partial" : typeof prot === "object" && /404|Not Found|not protected/i.test(String(prot.error)) ? "failed" : "unverified",
+      status: protOk && required2.length || rulesRequire ? "passed" : protOk || ruleList.length ? "partial" : typeof prot === "object" && /404|Not Found|not protected/i.test(String(prot.error)) ? "failed" : "unverified",
       evidence: [
-        protOk ? `Branch protection on ${branch}: required checks ${required.join(", ") || "none"}` : `Branch protection API: ${prot.error}`,
+        protOk ? `Branch protection on ${branch}: required checks ${required2.join(", ") || "none"}` : `Branch protection API: ${prot.error}`,
         `Rulesets on ${branch}: ${ruleList.map((r) => r.type).join(", ") || "none"}`
       ]
     };
@@ -16026,7 +16061,7 @@ function beginWindow(repoRoot2, opts = {}) {
   const p = lockPath(repoRoot2);
   mkdirSync(dirname8(p), { recursive: true });
   writeFileSync(p, JSON.stringify(lock, null, 2) + "\n");
-  return { lock, dirty: Object.keys(lock.fingerprint.paths).length, replaced };
+  return { lock, dirty: Object.keys(lock.fingerprint.paths).filter((p2) => p2 !== ".git/info/exclude").length, replaced };
 }
 function endWindow(repoRoot2) {
   const lock = readLock(repoRoot2);
@@ -16183,6 +16218,7 @@ var CREDIT = {
   n_a: null,
   deferred: null
 };
+var HORIZON_LEVELS = 2;
 var round = (n) => Math.round(n * 10) / 10;
 function computeScore(record) {
   const rubric = loadRubric();
@@ -16220,6 +16256,13 @@ function computeScore(record) {
     break;
   }
   const lvl = rubric.levels[achieved];
+  const top = Math.min(achieved + HORIZON_LEVELS, rubric.levels.length - 1);
+  const open = rubric.criteria.filter((c) => {
+    const status = state.get(c.id)?.status ?? "unverified";
+    return CREDIT[status] !== null && status !== "passed";
+  });
+  const within = (c) => c.priority === "P0" || levelIndex(c.gate) <= top;
+  const horizon = { through: rubric.levels[top].id, criteria: open.filter(within).map((c) => c.id), later: open.filter((c) => !within(c)).map((c) => c.id) };
   return {
     score: possible ? round(earned / possible * 100) : 0,
     confidence: possible ? round(verifiedWeight / possible * 100) : 0,
@@ -16230,6 +16273,7 @@ function computeScore(record) {
       return { id: d.id, name: d.name, score: s.possible ? round(s.earned / s.possible * 100) : null, applicable: s.applicable, passed: s.passed };
     }),
     nextLevel,
+    horizon,
     counts
   };
 }
@@ -16307,6 +16351,7 @@ function validateRecord(record) {
     if (c.status === "deferred" && !c.trigger) errors.push(`criterion ${c.id} is deferred without an activation trigger`);
   }
   for (const id of rubricIds) if (!record.criteria.some((c) => c.id === id)) errors.push(`rubric criterion ${id} missing from record`);
+  const later = new Set(computeScore(record).horizon.later);
   for (const f of record.findings) {
     for (const t of f.taskIds) if (!taskIds.has(t)) errors.push(`finding ${f.id} links unknown task ${t}`);
     for (const c of f.criterionIds) if (!rubricIds.has(c)) errors.push(`finding ${f.id} links unknown criterion ${c}`);
@@ -16314,7 +16359,8 @@ function validateRecord(record) {
     if (f.evidence.length === 0 && f.kind === "verified") errors.push(`verified finding ${f.id} has no evidence`);
     if ((f.kind === "unknown" || f.kind === "deferred") && !f.reason) warnings.push(`${f.kind} finding ${f.id} has no reason`);
     const actionable = (f.kind === "verified" || f.kind === "recommendation" || f.kind === "inferred") && !f.resolved;
-    if (actionable && f.taskIds.length === 0 && record.milestones.length > 0) warnings.push(`actionable finding ${f.id} is not linked to any task`);
+    const inHorizon = !f.criterionIds.length || f.criterionIds.some((c) => !later.has(c));
+    if (actionable && inHorizon && f.taskIds.length === 0 && record.milestones.length > 0) warnings.push(`actionable finding ${f.id} is not linked to any task`);
   }
   for (const t of record.tasks) {
     if (!milestoneIds.has(t.milestoneId)) errors.push(`task ${t.id} belongs to unknown milestone ${t.milestoneId}`);
@@ -17604,6 +17650,7 @@ function printScore(s) {
     console.log(`To reach ${s.nextLevel.level} ${s.nextLevel.name}:`);
     for (const b of s.nextLevel.blocking) console.log(`  - ${b.id} [${b.status}] ${b.title}`);
   }
+  if (s.horizon.later.length) console.log(`Planning horizon: through ${s.horizon.through} plus every P0. Later (not planned yet): ${s.horizon.later.join(", ")}`);
 }
 var REMOVED = {
   task: "The playbook plans; it does not run or track implementation. Implement tasks in your own workflow, then run /agentic:reassess, which resolves findings and judges exit criteria from the repository.",

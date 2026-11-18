@@ -1,0 +1,37 @@
+# Ground truth for a pnpm/turbo monorepo with a Next.js UI, a FastAPI service and a shared TS library.
+description: Next.js web app, Python FastAPI service and a shared TS package in one workspace.
+commits: 45
+mode: existing
+apps:
+  - { root: apps/web, kinds: [web-frontend], notKinds: [api-service] }
+  - { root: apps/api, kinds: [api-service] }
+  - { root: packages/shared, kinds: [library], notKinds: [web-frontend, api-service] }
+
+seeded:
+  - id: M-S1
+    what: apps/api/app/auth/session.py (authentication) is never exercised by a test (only overridden)
+    # Deterministic limitation: the heuristic counts any reference from a test file as coverage, and the
+    # only test imports current_user to override it. Only the auditor can tell overriding from testing.
+    detect: { uncovered: { app: apps/api, file: apps/api/app/auth/session.py }, known: "a test that only overrides the dependency counts as a reference" }
+    judge: { criteria: [VER-12], status: [partial, failed], path: apps/api/app/auth/session.py }
+  - id: M-S2
+    what: apps/api (different stack) has no scoped conventions; apps/web does
+    detect: { probe: conventions, status: [partial, failed], evidence: "apps/api" }
+    judge: { criteria: [CTX-12], status: [partial, failed] }
+
+safeguards:
+  - { id: M-G1, what: "CI runs both stacks' checks on PRs", probe: ci_runs_checks, notStatus: [failed], judge: { criteria: [VER-03], notStatus: [failed] } }
+  - { id: M-G2, what: "Root canonical commands", probe: canonical_commands, notStatus: [failed], judge: { criteria: [VER-01], notStatus: [failed] } }
+  - { id: M-G3, what: "Web has scoped conventions", conventionsFor: apps/web }
+  - { id: M-G4, what: "Component tests for the UI", layer: { app: apps/web, present: true } }
+  - { id: M-G5, what: "Concise root CLAUDE.md", probe: claude_md, notStatus: [failed] }
+
+forbidden:
+  - { pattern: "storybook", reason: "Co-located RTL component tests already cover components" }
+  - { pattern: "conventions for (packages/)?shared|shared.*conventions file", reason: "A two-file utility package needs no conventions file of its own. Disputed: CTX-12's source names shared packages; see results/baseline-agent.md" }
+  - { pattern: "(api|integration) (layer|tests?) for (apps/)?web", reason: "The web app has no API of its own" }
+  - { pattern: "replace (turbo|uv|ruff|mypy|pnpm)|migrate to (nx|poetry|lerna)", reason: "Working tooling" }
+  - { pattern: "README for (packages/)?shared", reason: "Duplicates the root map" }
+
+plan:
+  maxTasks: 12

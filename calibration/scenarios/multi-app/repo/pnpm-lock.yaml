@@ -1,0 +1,65 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      'prettier':
+        specifier: 3.4.2
+        version: 3.4.2
+      'turbo':
+        specifier: 2.3.3
+        version: 2.3.3
+
+  apps/web:
+    dependencies:
+      '@atlas/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      'next':
+        specifier: 15.1.0
+        version: 15.1.0
+      'react':
+        specifier: 19.0.0
+        version: 19.0.0
+      'react-dom':
+        specifier: 19.0.0
+        version: 19.0.0
+    devDependencies:
+      '@testing-library/react':
+        specifier: 16.1.0
+        version: 16.1.0
+      'eslint':
+        specifier: 9.17.0
+        version: 9.17.0
+      'eslint-config-next':
+        specifier: 15.1.0
+        version: 15.1.0
+      'jsdom':
+        specifier: 25.0.1
+        version: 25.0.1
+      'tailwindcss':
+        specifier: 3.4.17
+        version: 3.4.17
+      'typescript':
+        specifier: 5.7.2
+        version: 5.7.2
+      'vitest':
+        specifier: 2.1.8
+        version: 2.1.8
+
+  packages/shared:
+    devDependencies:
+      'eslint':
+        specifier: 9.17.0
+        version: 9.17.0
+      'typescript':
+        specifier: 5.7.2
+        version: 5.7.2
+      'vitest':
+        specifier: 2.1.8
+        version: 2.1.8

@@ -13,7 +13,7 @@ Read and apply all of these files before discovery.
 - [Autonomous development and maintenance](../standards/autonomous-workflows.md)
 - [Assessment Artifact contract](../templates/assessment-artifact.md)
 
-Inspect the target read-only. Inspect existing evidence and run only checks known to leave the target unchanged. Record inaccessible or unverified conditions. Produce the reviewable assessment, Artifact and tracking export, and dependency-ordered roadmap for approval before changing the target. During later approved execution, verify each increment and update the same tracker.
+Inspect the target read-only. Inspect existing evidence and run only checks known to leave the target unchanged. Record inaccessible or unverified conditions. Produce the reviewable assessment, Artifact and tracking export, and dependency-ordered roadmap for approval before changing the target.
 
 
 ## Discovery and decisions

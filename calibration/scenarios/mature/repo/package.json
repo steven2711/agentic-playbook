@@ -1,0 +1,16 @@
+{
+  "name": "ledger-service",
+  "version": "5.2.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup src/main.ts --format esm",
+    "check": "biome ci .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": { "hono": "4.6.14", "@hono/node-server": "1.13.7", "postgres": "3.4.5", "valibot": "1.0.0" },
+  "devDependencies": { "@biomejs/biome": "1.9.4", "@vitest/coverage-v8": "2.1.8", "tsup": "8.3.5", "tsx": "4.19.2", "typescript": "5.7.2", "vitest": "2.1.8" }
+}

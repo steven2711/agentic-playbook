@@ -1,0 +1,13 @@
+{
+  "name": "atlas",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format": "prettier --check ."
+  },
+  "devDependencies": { "prettier": "3.4.2", "turbo": "2.3.3" }
+}

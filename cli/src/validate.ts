@@ -97,6 +97,7 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
   }
   for (const id of rubricIds) if (!record.criteria.some((c) => c.id === id)) errors.push(`rubric criterion ${id} missing from record`);
 
+  const later = new Set(computeScore(record).horizon.later);
   for (const f of record.findings) {
     for (const t of f.taskIds) if (!taskIds.has(t)) errors.push(`finding ${f.id} links unknown task ${t}`);
     for (const c of f.criterionIds) if (!rubricIds.has(c)) errors.push(`finding ${f.id} links unknown criterion ${c}`);
@@ -104,7 +105,9 @@ export function validateRecord(record: AssessmentRecord): ValidationResult {
     if (f.evidence.length === 0 && f.kind === "verified") errors.push(`verified finding ${f.id} has no evidence`);
     if ((f.kind === "unknown" || f.kind === "deferred") && !f.reason) warnings.push(`${f.kind} finding ${f.id} has no reason`);
     const actionable = (f.kind === "verified" || f.kind === "recommendation" || f.kind === "inferred") && !f.resolved;
-    if (actionable && f.taskIds.length === 0 && record.milestones.length > 0) warnings.push(`actionable finding ${f.id} is not linked to any task`);
+    // Beyond the planning horizon a finding waits for its level; it is not expected to have a task yet.
+    const inHorizon = !f.criterionIds.length || f.criterionIds.some((c) => !later.has(c));
+    if (actionable && inHorizon && f.taskIds.length === 0 && record.milestones.length > 0) warnings.push(`actionable finding ${f.id} is not linked to any task`);
   }
 
   for (const t of record.tasks) {

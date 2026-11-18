@@ -1,0 +1,11 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome
+        entry: pnpm biome check --staged --no-errors-on-unmatched
+        language: system

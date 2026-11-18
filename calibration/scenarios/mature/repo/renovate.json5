@@ -1,0 +1,6 @@
+{
+  // Weekly dependency updates; patch updates auto-merge only behind the required Buildkite check.
+  extends: ["config:recommended", ":semanticCommits"],
+  schedule: ["before 6am on monday"],
+  packageRules: [{ matchUpdateTypes: ["patch"], automerge: true }],
+}

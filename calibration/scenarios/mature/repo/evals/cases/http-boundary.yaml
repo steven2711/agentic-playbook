@@ -1,0 +1,6 @@
+name: http-boundary
+category: architecture-constraint
+task: "Add GET /journals/:id."
+acceptance: ["biome ci passes (no postgres import in src/http)", "existing tests pass"]
+permitted_tools: [Read, Edit, "Bash(just check)"]
+evaluator: "just check"

@@ -1,0 +1,4 @@
+--- a/src/billing/refund.ts
++++ b/src/billing/refund.ts
+@@ -8,1 +8,0 @@
+-  if (amountCents > remainingRefundable(invoice)) throw new Error("refund exceeds captured amount");

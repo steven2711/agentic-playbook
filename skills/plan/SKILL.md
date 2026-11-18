@@ -22,6 +22,7 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
 3. Design the milestones:
    - **Order:** dependencies first, deterministic enforcement and foundational context before elaborate autonomy, and P0 before P1 before P2.
    - **Gates:** the first milestone should close the gates for the next readiness level. Use the "To reach Ln" list from `agentic score`.
+   - **Horizon:** plan only the criteria in `agentic score --json` → `horizon.criteria`: everything gated up to two levels above the current one, plus every P0. Do not plan tasks for `horizon.later`. Those findings stay in the record, unlinked, and the roadmap summary lists them as "after <level>". A repository at L0 does not get L4 automation, eval harnesses or janitors in its roadmap, and reassessment moves the horizon as the level rises.
    - **Outcomes:** each milestone is a real engineering outcome, with measurable exit criteria (`M-NNN.Xn`) that can be proven by evidence.
    - **Greenfield:** include first-feature readiness criteria and the triggers for deferred work.
 
@@ -31,7 +32,9 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
    - A task may depend only on tasks in its own milestone or in milestones its milestone depends on. The CLI refuses anything else.
    - Set `requiresApproval: true` on any task that touches CI, enforcement policy, baselines, CODEOWNERS, branch protection, secrets or production. It tells the team that a human decision is needed before anyone implements it.
    - Defer a task by setting `deferredTrigger` to its activation trigger.
-   - Do not fragment work into administrative busywork.
+   - Do not fragment work into administrative busywork. The roadmap is the minimum work that raises readiness, not a catalogue of every possible improvement.
+   - **One task per artifact.** If two steps below would create tasks that edit the same file or configuration for the same app, write one task that covers both sets of findings. Split it only when one task would be too large for a session.
+   - **Extend what works.** Never plan to replace a working mechanism, such as a coverage threshold, a test layer, a documentation home or a tool, only to match the library's preferred form. Extend it, or note the difference in the summary.
 
 5. Plan the conventions work. Read `agentic conventions --json`.
    - **Apps without a scoped conventions file, or with `accepted` recommendations:** add one task per app titled "Draft conventions for <app>", with `requiresApproval: true`.
@@ -47,16 +50,16 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
      - Put it in the first milestone, because every later task is checked by it.
    - **Tier 2 checks:** add these only when their `when` condition holds now. Otherwise mention the trigger in the roadmap summary.
    - **Tier 3 and `not_recommended`:** never schedule Tier 3 without a cited recurring defect, and never schedule anything that is not recommended.
-   - **Suppressions (`ARC-08`):** if suppressions lack reasons or can grow freely, add a task "Require reasons for inline suppressions in <app>": enable the reason-requiring rule, convert existing blanket suppressions, and fail on new skipped tests.
+   - **Suppressions (`ARC-08`):** if suppressions lack reasons or can grow freely, enable the reason-requiring rule, convert existing blanket suppressions, and fail on new skipped tests. This is the same lint configuration, so put it in the Tier 1 strictness task when there is one. Make it a separate task, "Require reasons for inline suppressions in <app>", only when Tier 1 is already complete.
 
 7. Plan the testing work. Read `agentic tests --json` and the record's `testing` entries.
-   - **Apps without a stated strategy (`VER-11`):** add a task "Write test strategy for <app>", with `requiresApproval: true`. It adds a `## Testing` section to the app's scoped conventions file: the layers this app uses, what belongs in each (from the profile's `belongs_here`), and the critical paths. The human reviews the text.
+   - **Apps without a stated strategy (`VER-11`):** the strategy is a `## Testing` section of the app's scoped conventions file: the layers this app uses, what belongs in each (from the profile's `belongs_here`), and the critical paths. When the app also has a "Draft conventions" task, add this as acceptance criteria of that task. Otherwise add a task "Write test strategy for <app>", with `requiresApproval: true`. The human reviews the text.
    - **Uncovered or wrong-layer critical paths (`VER-12`):** add one task per high-consequence path, titled "Cover <path> with a <layer> test". Acceptance criteria: the test exercises the path's key behaviour through its public interface, and it fails when that behaviour is broken, proven by a captured temporary revert or mutation that a reviewer can rerun.
-   - **Missing Tier 1 layers:** add a task "Add the <layer> layer for <app>": the runner or harness, one real test, and the CI step. Put it before the tasks that need that layer.
+   - **Missing Tier 1 layers:** the runner or harness, its CI step and one real test. When a "Cover <path>" task needs the layer, set the layer up in the first such task instead of a separate one. Otherwise add a task "Add the <layer> layer for <app>", and put it before the tasks that need it.
    - **Tier 2 layers:** add only when their `when` condition holds now. Never schedule Tier 3 without a cited recurring defect, or anything in `not_recommended`.
 
 8. Plan the documentation work. Read `agentic docs --json` and the record's `docs` snapshot.
-   - **If any target entry has an action other than `retain` or `none`:** add a first task "Adopt documentation layout", with `requiresApproval: true`. It writes the target layout (each document's home, load mode and authority) into a short section of the root CLAUDE.md or `docs/README.md`, and the human reviews it. The other documentation tasks depend on it.
+   - **If any target entry is relocated, consolidated or archived:** add a first task "Adopt documentation layout", with `requiresApproval: true`. Creating documents alone does not need it: the creation tasks state each new document's home. It writes the target layout (each document's home, load mode and authority) into a short section of the root CLAUDE.md or `docs/README.md`, and the human reviews it. The other documentation tasks depend on it.
    - **Group the remaining actions** into tasks a single session can finish:
      - "Create <artifact> at <home>"
      - "Relocate <path> to <home>"
@@ -74,6 +77,7 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
    - **Tier 2 items:** add them only when the auditor cited their condition. Never schedule Tier 3 without a cited recurring problem, or anything in `not_recommended`.
 
 9. Plan the maintenance work. Read `agentic maintenance --json` and the record's `maintenance` roster.
+   - **Only within the horizon:** janitors are L4 work. Plan janitor tasks only when `horizon.through` is L4, which means the repository is at L2 or above. Otherwise, list the roster in the roadmap summary with what each janitor waits on, and create no tasks for them.
    - **Last milestone:** put janitor tasks in a final milestone, "Autonomous maintenance". It depends on the milestones that make the janitors' prerequisites pass. A janitor guards a contract that earlier work produces (the documentation layout, the conventions, the boundary rules), so it never comes first.
    - **One task per janitor** recommended `now` or `after-prerequisites`, titled "Set up <janitor>", with `requiresApproval: true`. It depends on the tasks that close the criteria in `blockedBy`. It produces:
      - a skill or subagent definition, seeded from `${CLAUDE_PLUGIN_ROOT}/templates/janitor-skill.md`
@@ -90,7 +94,7 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
    - **Order:** pull-request janitors before scheduled ones. Tier 1 first.
    - **Tier 2 janitors:** add only when the auditor cited their condition. Never schedule Tier 3 without a cited recurring problem, or anything in `not_recommended`. Roster entries marked `not-yet` go into the roadmap summary with their condition, not into tasks.
 
-10. Link every actionable finding to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason.
+10. Link every actionable finding within the horizon to at least one task. A finding you intentionally will not address becomes `deferred` with a trigger, or stays unlinked with a stated reason. Findings beyond the horizon stay unlinked: the CLI does not warn about them.
 
 11. If milestones already exist, keep the IDs of work that is unchanged. Never remove an addressed task (its findings are resolved): it is the record of that work, and the CLI refuses it.
 
@@ -98,7 +102,7 @@ The roadmap is a handoff. The team implements it in its own workflow, with its o
 
 13. Follow **Publish the tracker**.
 
-14. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the open tasks in order (`agentic roadmap`); and the decisions that need a human.
+14. Present the roadmap: milestones in order, with their objective, exit criteria and task count; the open tasks in order (`agentic roadmap`); what is beyond the horizon, in one line per level; and the decisions that need a human.
 
    **Stop and ask the user to approve the roadmap.** When they approve:
    - Record it with `agentic approve roadmap --by human:<name the user gives>`. The approval covers this exact plan. Changing a milestone or task later shows the roadmap as changed since approval, until the user approves it again.
